@@ -200,16 +200,39 @@ def sync_bybit_transactions():
         return False
 
 def sync_all_transactions():
-    """Sync transactions from all exchanges"""
+    """Sync transactions from all exchanges with better error handling"""
     print("Synchronizacja historii transakcji...")
     print("=" * 50)
     
-    binance_ok = sync_binance_transactions()
-    bybit_ok = sync_bybit_transactions()
+    binance_ok = False
+    bybit_ok = False
+    
+    # Try Binance with error handling
+    try:
+        binance_ok = sync_binance_transactions()
+    except Exception as e:
+        print(f"✗ Binance sync failed completely: {e}")
+        binance_ok = False
+    
+    # Try Bybit with error handling
+    try:
+        bybit_ok = sync_bybit_transactions()
+    except Exception as e:
+        print(f"✗ Bybit sync failed completely: {e}")
+        bybit_ok = False
     
     print("=" * 50)
     print(f"Binance: {'✓ OK' if binance_ok else '✗ Błąd'}")
     print(f"Bybit: {'✓ OK' if bybit_ok else '✗ Błąd'}")
+    
+    if not (binance_ok or bybit_ok):
+        print("\n⚠ Wszystkie synchronizacje zakończyły się niepowodzeniem.")
+        print("Możliwe przyczyny:")
+        print("- Problemy z połączeniem internetowym")
+        print("- Ograniczenia geograficzne API")
+        print("- Nieprawidłowe klucze API")
+        print("- Przekroczenie limitów API")
+        print("\n💡 Spróbuj ponownie później lub skontaktuj się z pomocą techniczną.")
     
     return binance_ok or bybit_ok
 

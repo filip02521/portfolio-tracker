@@ -20,31 +20,61 @@ class BinanceClient:
             api_secret=Config.BINANCE_SECRET_KEY
         )
     
-    def _make_request_with_retry(self, func, max_retries=3, base_delay=1):
-        """Make API request with exponential backoff retry logic"""
+    def _make_request_with_retry(self, func, max_retries=5, base_delay=2):
+        """Make API request with exponential backoff retry logic and better error handling"""
         for attempt in range(max_retries):
             try:
                 return func()
             except BinanceAPIException as e:
                 error_msg = str(e)
-                if "rate limit" in error_msg.lower() or "429" in error_msg:
+                error_code = getattr(e, 'code', 0)
+                
+                # Handle different types of errors
+                if "rate limit" in error_msg.lower() or "429" in error_msg or error_code == 429:
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        print(f"Rate limit hit, waiting {delay} seconds before retry {attempt + 1}/{max_retries}")
+                        delay = base_delay * (2 ** attempt) + (attempt * 0.5)  # Exponential backoff with jitter
+                        print(f"Rate limit hit, waiting {delay:.1f} seconds before retry {attempt + 1}/{max_retries}")
                         time.sleep(delay)
                         continue
                     else:
                         print(f"Max retries reached for rate limit. Error: {e}")
                         raise e
-                elif "restricted location" in error_msg.lower() or "403" in error_msg:
+                elif "restricted location" in error_msg.lower() or "403" in error_msg or error_code == 403:
                     print(f"Binance API restricted for this location: {e}")
+                    # For restricted location, we might want to try alternative approaches
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        print(f"Trying alternative approach in {delay:.1f} seconds...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print(f"Location restriction persists after {max_retries} attempts")
+                        raise e
+                elif "invalid api-key" in error_msg.lower() or error_code == 2014:
+                    print(f"Invalid API key: {e}")
+                    raise e
+                elif "api key does not exist" in error_msg.lower() or error_code == 2015:
+                    print(f"API key does not exist: {e}")
                     raise e
                 else:
-                    # Other API error, don't retry
-                    raise e
+                    # Other API error, retry with longer delay
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        print(f"API error, retrying in {delay:.1f} seconds: {e}")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print(f"Max retries reached for API error: {e}")
+                        raise e
             except Exception as e:
                 print(f"Unexpected error in API request: {e}")
-                raise e
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    print(f"Retrying in {delay:.1f} seconds...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise e
         
     def get_account_info(self):
         """Get account information"""

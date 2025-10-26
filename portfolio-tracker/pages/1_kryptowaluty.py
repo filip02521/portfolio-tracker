@@ -89,7 +89,14 @@ try:
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_portfolio_data():
         tracker = PortfolioTracker()
-        return tracker.get_all_portfolio_data()
+        data = tracker.get_all_portfolio_data()
+        
+        # Check if we're using mock data
+        if tracker.use_mock_data:
+            st.warning("⚠️ Używane są dane demonstracyjne - API nie są dostępne")
+            st.info("💡 Aplikacja używa przykładowych danych do pokazania funkcjonalności")
+        
+        return data
     
     @st.cache_data(ttl=3600)
     def get_exchange_rate():

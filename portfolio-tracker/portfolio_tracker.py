@@ -3,6 +3,7 @@ Unified portfolio tracker for multiple exchanges
 """
 try:
     from exchanges import BinanceClient, BybitClient
+    from exchanges.mock_data_provider import MockDataProvider
 except ImportError as e:
     print(f"Warning: Could not import exchange clients: {e}")
     # Create dummy classes for fallback
@@ -10,6 +11,11 @@ except ImportError as e:
         def __init__(self): raise ValueError("Binance not available")
     class BybitClient:
         def __init__(self): raise ValueError("Bybit not available")
+    class MockDataProvider:
+        @staticmethod
+        def get_mock_portfolio_data(): return []
+        @staticmethod
+        def is_api_available(): return False
 
 class PortfolioTracker:
     """Main portfolio tracker class"""
@@ -17,6 +23,7 @@ class PortfolioTracker:
     def __init__(self):
         """Initialize tracker with all exchange clients"""
         self.exchanges = {}
+        self.use_mock_data = False
         
         # Initialize Binance
         try:
@@ -39,16 +46,27 @@ class PortfolioTracker:
         print(f"Initialized {len(self.exchanges)} exchange(s)")
     
     def get_all_portfolio_data(self):
-        """Get portfolio data from all exchanges"""
+        """Get portfolio data from all exchanges with fallback to mock data"""
         all_data = []
+        api_errors = []
         
+        # Try to get data from real APIs
         for exchange_name, client in self.exchanges.items():
             try:
                 data = client.get_portfolio_value()
                 if data and data.get('balances'):
                     all_data.append(data)
             except Exception as e:
+                error_msg = str(e)
+                api_errors.append(f"{exchange_name}: {error_msg}")
                 print(f"Error getting {exchange_name} portfolio: {e}")
+        
+        # If no data from APIs, use mock data
+        if not all_data:
+            print("⚠ No data from APIs, using mock data for demonstration")
+            print("API Errors:", "; ".join(api_errors))
+            self.use_mock_data = True
+            all_data = MockDataProvider.get_mock_portfolio_data()
         
         return all_data
     

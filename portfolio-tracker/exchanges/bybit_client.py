@@ -21,28 +21,61 @@ class BybitClient:
             api_secret=Config.BYBIT_SECRET_KEY
         )
     
-    def _make_request_with_retry(self, func, max_retries=3, base_delay=1):
-        """Make API request with exponential backoff retry logic"""
+    def _make_request_with_retry(self, func, max_retries=5, base_delay=2):
+        """Make API request with exponential backoff retry logic and better error handling"""
         for attempt in range(max_retries):
             try:
                 return func()
             except FailedRequestError as e:
                 error_msg = str(e)
-                if "rate limit" in error_msg.lower() or "403" in error_msg:
+                error_code = getattr(e, 'ret_code', 0)
+                
+                # Handle different types of errors
+                if "rate limit" in error_msg.lower() or "403" in error_msg or error_code == 403:
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        print(f"Rate limit hit, waiting {delay} seconds before retry {attempt + 1}/{max_retries}")
+                        delay = base_delay * (2 ** attempt) + (attempt * 0.5)  # Exponential backoff with jitter
+                        print(f"Rate limit hit, waiting {delay:.1f} seconds before retry {attempt + 1}/{max_retries}")
                         time.sleep(delay)
                         continue
                     else:
                         print(f"Max retries reached for rate limit. Error: {e}")
                         raise e
-                else:
-                    # Non-rate-limit error, don't retry
+                elif "ip is from the usa" in error_msg.lower() or "restricted" in error_msg.lower():
+                    print(f"Bybit API restricted for this IP/location: {e}")
+                    # For IP restrictions, try with longer delays
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt) + 5  # Extra delay for IP restrictions
+                        print(f"IP restriction detected, waiting {delay:.1f} seconds before retry...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print(f"IP restriction persists after {max_retries} attempts")
+                        raise e
+                elif "invalid api key" in error_msg.lower() or error_code == 10003:
+                    print(f"Invalid API key: {e}")
                     raise e
+                elif "api key not found" in error_msg.lower() or error_code == 10004:
+                    print(f"API key not found: {e}")
+                    raise e
+                else:
+                    # Other API error, retry with longer delay
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        print(f"API error, retrying in {delay:.1f} seconds: {e}")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print(f"Max retries reached for API error: {e}")
+                        raise e
             except Exception as e:
                 print(f"Unexpected error in API request: {e}")
-                raise e
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    print(f"Retrying in {delay:.1f} seconds...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise e
         
     def get_wallet_balance(self):
         """Get wallet balance from Bybit"""
