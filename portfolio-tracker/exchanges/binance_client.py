@@ -9,6 +9,7 @@ class BinanceClient:
     
     def __init__(self):
         """Initialize Binance client with API credentials"""
+        Config.init()  # Initialize config to load credentials
         if not Config.BINANCE_API_KEY or not Config.BINANCE_SECRET_KEY:
             raise ValueError("Binance API credentials not configured")
         

@@ -9,6 +9,7 @@ class BybitClient:
     
     def __init__(self):
         """Initialize Bybit client with API credentials"""
+        Config.init()  # Initialize config to load credentials
         if not Config.BYBIT_API_KEY or not Config.BYBIT_SECRET_KEY:
             raise ValueError("Bybit API credentials not configured")
         

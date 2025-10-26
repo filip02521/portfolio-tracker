@@ -11,6 +11,7 @@ class XTBClient:
     
     def __init__(self):
         """Initialize XTB client with credentials"""
+        Config.init()  # Initialize config to load credentials
         if not Config.XTB_USER_ID or not Config.XTB_PASSWORD:
             raise ValueError("XTB credentials not configured")
         

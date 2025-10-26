@@ -12,6 +12,9 @@ from portfolio_history import PortfolioHistory
 from stock_prices import get_multiple_stock_prices
 import time
 
+# Initialize configuration
+Config.init()
+
 # Page configuration
 st.set_page_config(
     page_title="Portfolio Tracker Pro",
