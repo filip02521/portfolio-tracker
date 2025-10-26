@@ -145,8 +145,7 @@ def render_sidebar():
         
         exchange_status = {
             'Binance': 'Binance' not in missing,
-            'Bybit': 'Bybit' not in missing,
-            'XTB': 'XTB' not in missing
+            'Bybit': 'Bybit' not in missing
         }
         
         for exchange, configured in exchange_status.items():
@@ -313,7 +312,7 @@ def render_diversification_analysis(portfolios, crypto_holdings=None, stocks_hol
     # Crypto vs Stocks
     with col2:
         crypto_value = sum([p['total_value_usdt'] for p in portfolios if p['exchange'] in ['Binance', 'Bybit']])
-        stocks_value = sum([p['total_value_usdt'] for p in portfolios if p['exchange'] == 'XTB'])
+        stocks_value = sum([p['total_value_usdt'] for p in portfolios if p['exchange'] == 'Manual'])
         total_value = crypto_value + stocks_value
         
         if total_value > 0:
