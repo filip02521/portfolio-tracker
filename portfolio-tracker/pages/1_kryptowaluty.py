@@ -11,9 +11,6 @@ from purchase_prices import PurchasePriceTracker
 from transaction_history import TransactionHistory
 import time
 
-# Initialize configuration
-Config.init()
-
 # Setup
 st.set_page_config(
     page_title="Kryptowaluty - Portfolio Tracker",

@@ -11,9 +11,6 @@ from stock_prices import get_multiple_stock_prices
 from stock_validator import validate_stock_symbol, search_stocks, get_popular_stocks, search_by_isin, get_stock_info
 import time
 
-# Initialize configuration
-Config.init()
-
 # Setup
 st.set_page_config(
     page_title="Akcje - Portfolio Tracker",

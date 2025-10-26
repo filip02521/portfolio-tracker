@@ -4,15 +4,8 @@ Configuration module for API credentials management
 import os
 from dotenv import load_dotenv
 
-# Try to load from Streamlit Secrets first (for cloud deployment)
-try:
-    import streamlit as st
-    # Streamlit Cloud provides secrets through st.secrets
-    secrets_available = True
-except (ImportError, RuntimeError):
-    # Not running in Streamlit Cloud or Streamlit not available
-    secrets_available = False
-    load_dotenv()  # Load from .env file for local development
+# Load .env file for local development
+load_dotenv()
 
 class Config:
     """Configuration class for API credentials"""
@@ -20,14 +13,21 @@ class Config:
     @classmethod
     def _get_env(cls, key):
         """Get environment variable from Streamlit Secrets or .env file"""
-        if secrets_available:
-            try:
-                return st.secrets.get(key, '')
-            except (AttributeError, Exception):
-                # Fallback to os.getenv if secrets not configured
-                return os.getenv(key, '')
-        else:
-            return os.getenv(key, '')
+        # First try to get from Streamlit Secrets (for cloud deployment)
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets'):
+                try:
+                    value = st.secrets.get(key, '')
+                    if value:
+                        return value
+                except (AttributeError, Exception):
+                    pass
+        except (ImportError, RuntimeError):
+            pass
+        
+        # Fallback to environment variables
+        return os.getenv(key, '')
     
     # Binance
     BINANCE_API_KEY = ''
