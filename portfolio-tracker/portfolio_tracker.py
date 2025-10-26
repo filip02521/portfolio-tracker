@@ -3,7 +3,6 @@ Unified portfolio tracker for multiple exchanges
 """
 try:
     from exchanges import BinanceClient, BybitClient, XTBClient
-    from tabulate import tabulate
 except ImportError as e:
     print(f"Warning: Could not import exchange clients: {e}")
     # Create dummy classes for fallback
@@ -92,6 +91,13 @@ class PortfolioTracker:
     
     def print_portfolio_table(self):
         """Print portfolio in table format"""
+        try:
+            from tabulate import tabulate
+        except ImportError:
+            print("Warning: tabulate not available, using simple format")
+            self._print_portfolio_simple()
+            return
+        
         all_data = self.get_all_portfolio_data()
         
         if not all_data:
@@ -125,6 +131,32 @@ class PortfolioTracker:
             print(f"\nTotal Portfolio Value: ${total_value:,.2f}")
         else:
             print("No assets found in portfolio")
+    
+    def _print_portfolio_simple(self):
+        """Print portfolio in simple format without tabulate"""
+        all_data = self.get_all_portfolio_data()
+        
+        if not all_data:
+            print("No portfolio data available")
+            return
+        
+        total_value = 0
+        
+        for data in all_data:
+            exchange = data.get('exchange', 'Unknown')
+            balances = data.get('balances', [])
+            
+            print(f"\n{exchange}:")
+            for balance in balances:
+                asset = balance.get('asset', '')
+                amount = balance.get('total', 0)
+                value_usdt = balance.get('value_usdt', 0)
+                
+                if amount > 0:
+                    print(f"  {asset}: {amount:.6f} (${value_usdt:.2f})")
+                    total_value += value_usdt
+        
+        print(f"\nTotal Portfolio Value: ${total_value:,.2f}")
 
 if __name__ == "__main__":
     tracker = PortfolioTracker()

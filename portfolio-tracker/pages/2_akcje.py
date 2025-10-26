@@ -3,13 +3,21 @@ Podstrona dla akcji i tradycyjnych aktywów - XTB
 """
 import streamlit as st
 import pandas as pd
-from portfolio_tracker import PortfolioTracker
-from config import Config
-from utils import get_usd_to_pln_rate
-from transaction_history import TransactionHistory
-from stock_prices import get_multiple_stock_prices
-from stock_validator import validate_stock_symbol, search_stocks, get_popular_stocks, search_by_isin, get_stock_info
 import time
+
+# Try to import modules with error handling
+try:
+    from portfolio_tracker import PortfolioTracker
+    from config import Config
+    from utils import get_usd_to_pln_rate
+    from transaction_history import TransactionHistory
+    from stock_prices import get_multiple_stock_prices
+    from stock_validator import validate_stock_symbol, search_stocks, get_popular_stocks, search_by_isin, get_stock_info
+    IMPORTS_SUCCESSFUL = True
+except ImportError as e:
+    st.error(f"❌ Błąd importu modułów: {e}")
+    st.error("Sprawdź czy wszystkie zależności są zainstalowane i API keys są skonfigurowane.")
+    IMPORTS_SUCCESSFUL = False
 
 # Setup
 st.set_page_config(
@@ -34,6 +42,10 @@ st.markdown("""
 currency = render_sidebar()
 
 # Main content
+if not IMPORTS_SUCCESSFUL:
+    st.error("⚠️ Aplikacja nie może się uruchomić z powodu błędów importu.")
+    st.stop()
+
 try:
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_portfolio_data():
