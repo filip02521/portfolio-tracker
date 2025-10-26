@@ -255,7 +255,7 @@ try:
                 with col_set4:
                     st.write("")
                     st.write("")
-                    if st.button("Zapisz", type="primary", width='stretch'):
+                    if st.button("Zapisz", type="primary", use_container_width=True):
                         if price_set > 0:
                             price_tracker.set_purchase_price(exchange_set, asset_set, price_set)
                             st.success(f"${price_set} dla {asset_set}")
@@ -274,7 +274,7 @@ try:
                 st.markdown("### Dodaj transakcję")
                 
                 # Quick sync
-                if st.button("Pobierz z API", type="secondary", width='stretch'):
+                if st.button("Pobierz z API", type="secondary", use_container_width=True):
                     try:
                         from auto_sync_transactions import sync_all_transactions
                         with st.spinner("Synchronizowanie..."):
@@ -301,7 +301,7 @@ try:
                     with col_form2:
                         date_t = st.date_input("Data transakcji")
                     
-                    submitted = st.form_submit_button("Dodaj transakcję", type="primary", width='stretch')
+                    submitted = st.form_submit_button("Dodaj transakcję", type="primary", use_container_width=True)
                     
                     if submitted and asset_t and amount_t > 0 and price_t > 0:
                         tx_type = "buy" if transaction_type_t == "kupno" else "sell"

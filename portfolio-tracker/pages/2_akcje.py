@@ -281,7 +281,7 @@ try:
                         placeholder="np. US0378331005",
                         key="isin_input"
                     )
-                    search_btn = st.form_submit_button("Znajdź symbol", width='stretch')
+                    search_btn = st.form_submit_button("Znajdź symbol", use_container_width=True)
                     
                     if search_btn and identifier_t:
                         with st.spinner("Szukanie symbolu..."):
@@ -333,7 +333,7 @@ try:
                 # Additional notes
                 notes_t = st.text_area("Uwagi (opcjonalne)", placeholder="Dodatkowe informacje o transakcji...")
                 
-                submitted = st.form_submit_button("Dodaj transakcję", type="primary", width='stretch')
+                submitted = st.form_submit_button("Dodaj transakcję", type="primary", use_container_width=True)
                 
                 if submitted:
                     # Validate all inputs

@@ -133,7 +133,7 @@ def render_sidebar():
         if auto_refresh:
             refresh_interval = st.slider("Interwał (sek)", 10, 300, 60)
         
-        if st.button("Odśwież teraz", type="primary", width='stretch'):
+        if st.button("Odśwież teraz", type="primary", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
         
