@@ -465,6 +465,30 @@ try:
         with col_info3:
             st.markdown("### Bezpieczeństwo")
             st.markdown("Dane lokalne, żadne zewnętrzne serwery")
+    else:
+        st.info("📊 Brak danych portfolio. Sprawdź czy API keys są skonfigurowane i czy masz aktywa na giełdach.")
+        st.markdown("### Jak rozpocząć:")
+        st.markdown("1. **Dodaj API keys** w Settings → Secrets")
+        st.markdown("2. **Sprawdź status giełd** w panelu bocznym")
+        st.markdown("3. **Dodaj transakcje** w zakładkach Kryptowaluty/Akcje")
+        
+        st.markdown("---")
+        
+        # ==========================================
+        # SEKCJA 6: INFORMACJE
+        # ==========================================
+        st.markdown("## Informacje")
+        
+        col_info1, col_info2, col_info3 = st.columns(3)
+        with col_info1:
+            st.markdown("### Portfolio na żywo")
+            st.markdown("Dane aktualizowane automatycznie z giełd")
+        with col_info2:
+            st.markdown("### Kurs USD/PLN")
+            st.markdown(f"Aktualny: **{usd_to_pln:.2f} zł**")
+        with col_info3:
+            st.markdown("### Bezpieczeństwo")
+            st.markdown("Dane lokalne, żadne zewnętrzne serwery")
 
 except Exception as e:
     st.error(f"Błąd: {e}")
