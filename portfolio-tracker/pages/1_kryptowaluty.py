@@ -53,15 +53,37 @@ try:
         st.markdown("2. Wybierz 'Settings' → 'Secrets'")
         st.markdown("3. Kliknij 'Edit secrets'")
         st.markdown("4. Wklej swoje klucze API")
-        st.stop()
+        st.markdown("---")
+        st.markdown("### 🔧 Debug Info:")
+        st.markdown(f"**Missing keys:** {missing}")
+        st.markdown("**Możesz kontynuować i użyć przycisku 'Pobierz z API' poniżej**")
+        # Don't stop here - let user continue to see the API button
 except Exception as e:
     st.error(f"❌ Błąd konfiguracji: {e}")
-    st.stop()
+    st.markdown("---")
+    st.markdown("### 🔧 Debug Info:")
+    st.markdown(f"**Error:** {str(e)}")
+    st.markdown("**Możesz kontynuować i użyć przycisku 'Pobierz z API' poniżej**")
+    # Don't stop here - let user continue to see the API button
 
 # Main content
 if not IMPORTS_SUCCESSFUL:
     st.error("⚠️ Aplikacja nie może się uruchomić z powodu błędów importu.")
     st.stop()
+
+# Debug info
+st.markdown("### 🔧 Debug Info:")
+st.markdown(f"**Imports successful:** {IMPORTS_SUCCESSFUL}")
+try:
+    Config.init()
+    missing = Config.validate()
+    st.markdown(f"**Missing API keys:** {missing if missing else 'None'}")
+    st.markdown(f"**Binance configured:** {'Yes' if Config.BINANCE_API_KEY and Config.BINANCE_SECRET_KEY else 'No'}")
+    st.markdown(f"**Bybit configured:** {'Yes' if Config.BYBIT_API_KEY and Config.BYBIT_SECRET_KEY else 'No'}")
+except Exception as e:
+    st.markdown(f"**Config error:** {e}")
+
+st.markdown("---")
 
 try:
     @st.cache_data(ttl=300)  # Cache for 5 minutes
