@@ -41,15 +41,9 @@ class BinanceClient:
                         raise e
                 elif "restricted location" in error_msg.lower() or "403" in error_msg or error_code == 403:
                     print(f"Binance API restricted for this location: {e}")
-                    # For restricted location, we might want to try alternative approaches
-                    if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)
-                        print(f"Trying alternative approach in {delay:.1f} seconds...")
-                        time.sleep(delay)
-                        continue
-                    else:
-                        print(f"Location restriction persists after {max_retries} attempts")
-                        raise e
+                    # Don't retry for location restrictions - they won't change
+                    print("Location restriction detected - not retrying")
+                    raise e
                 elif "invalid api-key" in error_msg.lower() or error_code == 2014:
                     print(f"Invalid API key: {e}")
                     raise e

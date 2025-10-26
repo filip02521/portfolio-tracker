@@ -9,13 +9,19 @@ from datetime import datetime, timedelta
 def sync_binance_transactions():
     """Sync transactions from Binance API"""
     try:
-        print("Próba połączenia z Binance...")
+        print("🔄 Próba połączenia z Binance...")
         client = BinanceClient()
+        print("✅ Połączenie z Binance nawiązane")
+        
         history = TransactionHistory()
         
         # Get balances
         balances = client.get_balances()
-        print(f"Znaleziono {len(balances)} aktywów na Binance")
+        print(f"📊 Znaleziono {len(balances)} aktywów na Binance")
+        
+        if not balances:
+            print("⚠️ Brak aktywów na Binance")
+            return True
         
         added_count = 0
         
@@ -39,13 +45,13 @@ def sync_binance_transactions():
             for quote in quote_currencies:
                 symbol = asset + quote
                 try:
-                    print(f"Pobieranie historii dla {symbol}...")
+                    print(f"📈 Pobieranie historii dla {symbol}...")
                     trades = client.get_trade_history(symbol=symbol, limit=500)
                     
                     if not trades:
                         continue
                     
-                    print(f"  Znaleziono {len(trades)} części transakcji")
+                    print(f"  ✅ Znaleziono {len(trades)} części transakcji")
                     
                     # Group trades by orderId (same order can have multiple parts)
                     from collections import defaultdict
@@ -67,7 +73,7 @@ def sync_binance_transactions():
                     continue
             
             if all_grouped_trades:
-                print(f"  Pogrupowano w {len(all_grouped_trades)} transakcji")
+                print(f"  📋 Pogrupowano w {len(all_grouped_trades)} transakcji")
                 
                 for order_id, order_trades in all_grouped_trades.items():
                     try:
@@ -100,31 +106,35 @@ def sync_binance_transactions():
                                 date=trade_time
                             )
                             added_count += 1
-                            print(f"  ✓ Dodano transakcję: {asset} ({'buy' if is_buyer else 'sell'}) {total_qty:.5f} @ ${avg_price:.2f}")
+                            print(f"  ✅ Dodano transakcję: {asset} ({'buy' if is_buyer else 'sell'}) {total_qty:.5f} @ ${avg_price:.2f}")
                     except Exception as e:
-                        print(f"  ✗ Błąd przetwarzania transakcji Binance: {e}")
+                        print(f"  ❌ Błąd przetwarzania transakcji Binance: {e}")
             else:
-                print(f"  ⚠ Brak historii dla {asset}")
+                print(f"  ⚠️ Brak historii dla {asset}")
         
-        print(f"\nŁącznie dodano {added_count} nowych transakcji z Binance")
+        print(f"\n🎉 Łącznie dodano {added_count} nowych transakcji z Binance")
         return True
     except Exception as e:
-        print(f"Błąd synchronizacji Binance: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Błąd synchronizacji Binance: {e}")
         return False
 
 def sync_bybit_transactions():
     """Sync transactions from Bybit API"""
     try:
-        print("Próba połączenia z Bybit...")
+        print("🔄 Próba połączenia z Bybit...")
         client = BybitClient()
+        print("✅ Połączenie z Bybit nawiązane")
+        
         history = TransactionHistory()
         
         # Get recent execution list
-        print(f"Pobieranie historii transakcji z Bybit...")
+        print(f"📈 Pobieranie historii transakcji z Bybit...")
         executions = client.get_trade_history(limit=200)
-        print(f"Znaleziono {len(executions)} egzekucji z Bybit")
+        print(f"📊 Znaleziono {len(executions)} egzekucji z Bybit")
+        
+        if not executions:
+            print("⚠️ Brak transakcji na Bybit")
+            return True
         
         # Group executions by orderId (same order can have multiple executions)
         from collections import defaultdict
@@ -135,7 +145,7 @@ def sync_bybit_transactions():
             if order_id:
                 grouped_executions[order_id].append(execution)
         
-        print(f"Pogrupowano w {len(grouped_executions)} transakcji")
+        print(f"📋 Pogrupowano w {len(grouped_executions)} transakcji")
         
         added_count = 0
         
@@ -184,55 +194,56 @@ def sync_bybit_transactions():
                         date=trade_time
                     )
                     added_count += 1
-                    print(f"  ✓ Dodano transakcję: {asset} ({side}) {total_qty:.5f} @ ${avg_price:.2f}")
+                    print(f"  ✅ Dodano transakcję: {asset} ({side}) {total_qty:.5f} @ ${avg_price:.2f}")
                     
             except Exception as e:
-                print(f"  ✗ Błąd przetwarzania transakcji Bybit: {e}")
-                import traceback
-                traceback.print_exc()
+                print(f"  ❌ Błąd przetwarzania transakcji Bybit: {e}")
         
-        print(f"\nŁącznie dodano {added_count} nowych transakcji z Bybit")
+        print(f"\n🎉 Łącznie dodano {added_count} nowych transakcji z Bybit")
         return True
     except Exception as e:
-        print(f"Błąd synchronizacji Bybit: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Błąd synchronizacji Bybit: {e}")
         return False
 
 def sync_all_transactions():
     """Sync transactions from all exchanges with better error handling"""
-    print("Synchronizacja historii transakcji...")
-    print("=" * 50)
+    print("🚀 Rozpoczynam synchronizację historii transakcji...")
+    print("=" * 60)
     
     binance_ok = False
     bybit_ok = False
     
     # Try Binance with error handling
     try:
+        print("\n📊 === BINANCE ===")
         binance_ok = sync_binance_transactions()
     except Exception as e:
-        print(f"✗ Binance sync failed completely: {e}")
+        print(f"❌ Binance sync failed completely: {e}")
         binance_ok = False
     
     # Try Bybit with error handling
     try:
+        print("\n📊 === BYBIT ===")
         bybit_ok = sync_bybit_transactions()
     except Exception as e:
-        print(f"✗ Bybit sync failed completely: {e}")
+        print(f"❌ Bybit sync failed completely: {e}")
         bybit_ok = False
     
-    print("=" * 50)
-    print(f"Binance: {'✓ OK' if binance_ok else '✗ Błąd'}")
-    print(f"Bybit: {'✓ OK' if bybit_ok else '✗ Błąd'}")
+    print("\n" + "=" * 60)
+    print("📋 PODSUMOWANIE SYNCHRONIZACJI:")
+    print(f"Binance: {'✅ OK' if binance_ok else '❌ Błąd'}")
+    print(f"Bybit: {'✅ OK' if bybit_ok else '❌ Błąd'}")
     
     if not (binance_ok or bybit_ok):
-        print("\n⚠ Wszystkie synchronizacje zakończyły się niepowodzeniem.")
+        print("\n⚠️ Wszystkie synchronizacje zakończyły się niepowodzeniem.")
         print("Możliwe przyczyny:")
         print("- Problemy z połączeniem internetowym")
         print("- Ograniczenia geograficzne API")
         print("- Nieprawidłowe klucze API")
         print("- Przekroczenie limitów API")
         print("\n💡 Spróbuj ponownie później lub skontaktuj się z pomocą techniczną.")
+    else:
+        print(f"\n🎉 Synchronizacja zakończona! {'Binance' if binance_ok else ''} {'Bybit' if bybit_ok else ''}")
     
     return binance_ok or bybit_ok
 
