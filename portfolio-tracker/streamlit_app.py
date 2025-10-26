@@ -127,13 +127,26 @@ with st.sidebar:
             st.markdown("2. Wybierz 'Settings' → 'Secrets'")
             st.markdown("3. Kliknij 'Edit secrets'")
             st.markdown("4. Wklej swoje klucze API")
-            st.stop()
+            st.markdown("---")
+            st.markdown("### 🔧 Debug Info:")
+            st.markdown(f"**Missing keys:** {missing}")
+            st.markdown(f"**Config loaded:** {Config._secrets_loaded}")
+            st.markdown("**Aby kontynuować bez API:**")
+            st.markdown("- Przejdź do zakładki 'Kryptowaluty'")
+            st.markdown("- Użyj przycisku 'Pobierz z API'")
+            # Don't stop here - let user navigate to other pages
         else:
             st.success("✅ Konfiguracja API załadowana")
     except Exception as e:
         st.error(f"❌ Błąd konfiguracji: {e}")
         st.info("💡 Dodaj API keys w Settings → Secrets")
-        st.stop()
+        st.markdown("---")
+        st.markdown("### 🔧 Debug Info:")
+        st.markdown(f"**Error:** {str(e)}")
+        st.markdown("**Aby kontynuować bez API:**")
+        st.markdown("- Przejdź do zakładki 'Kryptowaluty'")
+        st.markdown("- Użyj przycisku 'Pobierz z API'")
+        # Don't stop here - let user navigate to other pages
     
     st.markdown("### Waluta")
     currency = st.selectbox("Wybierz walutę", ["USD", "PLN"], index=0, label_visibility="collapsed")
@@ -176,6 +189,10 @@ with st.sidebar:
 
 # Main content
 try:
+    st.markdown("### 🔧 Debug Info:")
+    st.markdown(f"**Imports successful:** {IMPORTS_SUCCESSFUL}")
+    st.markdown(f"**Config secrets loaded:** {Config._secrets_loaded}")
+    
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_portfolio_data():
         tracker = PortfolioTracker()
@@ -481,7 +498,15 @@ try:
         st.markdown("### Jak rozpocząć:")
         st.markdown("1. **Dodaj API keys** w Settings → Secrets")
         st.markdown("2. **Sprawdź status giełd** w panelu bocznym")
-        st.markdown("3. **Dodaj transakcje** w zakładkach Kryptowaluty/Akcje")
+        st.markdown("3. **Przejdź do zakładki 'Kryptowaluty'** - tam znajdziesz przycisk 'Pobierz z API'")
+        st.markdown("4. **Dodaj transakcje** w zakładkach Kryptowaluty/Akcje")
+        
+        st.markdown("---")
+        st.markdown("### 🔍 Gdzie znaleźć synchronizację z API:")
+        st.markdown("**Przycisk 'Pobierz z API' znajduje się w zakładce 'Kryptowaluty'**")
+        st.markdown("- Kliknij na 'Kryptowaluty' w menu bocznym")
+        st.markdown("- Znajdziesz tam sekcję 'Dodaj transakcję'")
+        st.markdown("- Przycisk 'Pobierz z API' synchronizuje dane z Binance i Bybit")
         
         st.markdown("---")
         
