@@ -106,6 +106,64 @@ try:
     
     if not portfolios:
         st.warning("Brak danych portfolio.")
+        
+        # Show API sync button even when no portfolio data
+        st.markdown("---")
+        st.markdown("### 🔄 Synchronizacja z API")
+        st.markdown("Pobierz dane z giełd:")
+        
+        col_sync1, col_sync2 = st.columns(2)
+        
+        with col_sync1:
+            if st.button("Pobierz z API", type="primary", use_container_width=True):
+                try:
+                    from auto_sync_transactions import sync_all_transactions
+                    with st.spinner("Synchronizowanie..."):
+                        sync_all_transactions()
+                    st.success("Zsynchronizowano!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Błąd: {e}")
+        
+        with col_sync2:
+            if st.button("Odśwież portfolio", type="secondary", use_container_width=True):
+                st.cache_data.clear()
+                if 'portfolios' in st.session_state:
+                    del st.session_state.portfolios
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Show transaction form even when no portfolio data
+        st.markdown("### Dodaj transakcję ręcznie")
+        with st.form("add_crypto_transaction_form"):
+            exchange_t = st.selectbox("Giełda", ["Binance", "Bybit"])
+            asset_t = st.text_input("Aktywo (kryptowaluta)", placeholder="np. BTC, ETH, USDT")
+            amount_t = st.number_input("Ilość", min_value=0.0, step=0.00000001, format="%.8f")
+            
+            col_form1, col_form2 = st.columns(2)
+            
+            with col_form1:
+                price_t = st.number_input("Cena ($)", min_value=0.0, step=0.01)
+                transaction_type_t = st.selectbox("Typ", ["kupno", "sprzedaż"])
+            
+            with col_form2:
+                date_t = st.date_input("Data transakcji")
+            
+            submitted = st.form_submit_button("Dodaj transakcję", type="primary", use_container_width=True)
+            
+            if submitted and asset_t and amount_t > 0 and price_t > 0:
+                tx_type = "buy" if transaction_type_t == "kupno" else "sell"
+                transaction_history.add_transaction(
+                    exchange=exchange_t,
+                    asset=asset_t.upper(),
+                    amount=amount_t,
+                    price_usd=price_t,
+                    transaction_type=tx_type,
+                    date=date_t
+                )
+                st.success(f"Dodano transakcję: {tx_type} {amount_t} {asset_t.upper()} po ${price_t}")
+                st.rerun()
     else:
         # Filter crypto portfolios only
         crypto_portfolios = [p for p in portfolios if p['exchange'] in ['Binance', 'Bybit']]
