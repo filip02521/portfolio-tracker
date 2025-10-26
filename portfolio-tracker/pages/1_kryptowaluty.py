@@ -30,18 +30,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Navigation
-col_nav1, col_nav2, col_nav3 = st.columns(3)
-with col_nav1:
-    if st.button("Strona główna", use_container_width=True):
-        st.switch_page("streamlit_app.py")
-with col_nav2:
-    if st.button("Kryptowaluty", use_container_width=True):
-        st.switch_page("pages/1_kryptowaluty.py")
-with col_nav3:
-    if st.button("Akcje", use_container_width=True):
-        st.switch_page("pages/2_akcje.py")
-
 # Sidebar
 currency = render_sidebar()
 
