@@ -326,7 +326,7 @@ try:
                     from ui_common import render_asset_cards
                     render_asset_cards(df_filtered, currency, usd_to_pln)
                 else:
-                    st.dataframe(df_filtered, hide_index=True, width='stretch')
+                    st.dataframe(df_filtered, hide_index=True, use_container_width=True)
                 
                 # Export
                 csv = df_filtered.to_csv(index=False)
@@ -335,7 +335,7 @@ try:
                     data=csv,
                     file_name=f"crypto_assets_{time.strftime('%Y%m%d')}.csv",
                     mime="text/csv",
-                    width='stretch'
+                    use_container_width=True
                 )
                 
                 # Performance section
@@ -443,7 +443,7 @@ try:
                         data=csv_tx,
                         file_name=f"crypto_transactions_{time.strftime('%Y%m%d')}.csv",
                         mime="text/csv",
-                        width='stretch'
+                        use_container_width=True
                     )
                 else:
                     st.info("Brak transakcji. Dodaj pierwszą powyżej.")
@@ -481,7 +481,7 @@ try:
                                 df_display.columns = ['Aktywo', 'Całkowita ilość', 'Dostępne', 'Zablokowane']
                                 df_display = df_display.sort_values('Całkowita ilość', ascending=False)
                                 
-                                st.dataframe(df_display, hide_index=True, width='stretch')
+                                st.dataframe(df_display, hide_index=True, use_container_width=True)
                     else:
                         st.info(f"{exchange}: Brak danych")
 

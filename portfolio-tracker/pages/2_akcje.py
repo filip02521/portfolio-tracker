@@ -200,7 +200,7 @@ try:
             elif sort_by == "Aktywo":
                 df_filtered = df_filtered.sort_values('Aktywo')
             
-            st.dataframe(df_filtered, hide_index=True, width='stretch')
+            st.dataframe(df_filtered, hide_index=True, use_container_width=True)
             
             # Export
             csv_xtb = df_filtered.to_csv(index=False)
@@ -209,7 +209,7 @@ try:
                 data=csv_xtb,
                 file_name=f"stocks_{time.strftime('%Y%m%d')}.csv",
                 mime="text/csv",
-                width='stretch'
+                use_container_width=True
             )
             
             # Performance section
@@ -409,7 +409,7 @@ try:
                     data=csv_tx,
                     file_name=f"stocks_transactions_{time.strftime('%Y%m%d')}.csv",
                     mime="text/csv",
-                    width='stretch'
+                    use_container_width=True
                 )
             else:
                 st.info("Brak transakcji. Dodaj pierwszą po lewej stronie.")
