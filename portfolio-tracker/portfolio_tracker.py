@@ -25,14 +25,8 @@ class PortfolioTracker:
         self.exchanges = {}
         self.use_mock_data = False
         
-        # Initialize Binance
-        try:
-            self.exchanges['Binance'] = BinanceClient()
-            print("✓ Binance initialized successfully")
-        except ValueError as e:
-            print(f"⚠ Binance: {e}")
-        except Exception as e:
-            print(f"✗ Binance initialization failed: {e}")
+        # Skip Binance for now - focus on Bybit only
+        print("⏸️ Binance tymczasowo wyłączone (problemy z ograniczeniami geograficznymi)")
         
         # Initialize Bybit
         try:
