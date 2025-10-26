@@ -41,6 +41,23 @@ st.markdown("""
 # Sidebar
 currency = render_sidebar()
 
+# Check if API keys are configured
+try:
+    Config.init()
+    missing = Config.validate()
+    if missing:
+        st.warning(f"⚠️ Brakuje kluczy API: {', '.join(missing)}")
+        st.info("💡 Dodaj API keys w Settings → Secrets")
+        st.markdown("### Jak dodać API keys:")
+        st.markdown("1. Kliknij ⚙️ w prawym górnym rogu")
+        st.markdown("2. Wybierz 'Settings' → 'Secrets'")
+        st.markdown("3. Kliknij 'Edit secrets'")
+        st.markdown("4. Wklej swoje klucze API")
+        st.stop()
+except Exception as e:
+    st.error(f"❌ Błąd konfiguracji: {e}")
+    st.stop()
+
 # Main content
 if not IMPORTS_SUCCESSFUL:
     st.error("⚠️ Aplikacja nie może się uruchomić z powodu błędów importu.")

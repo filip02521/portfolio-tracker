@@ -117,8 +117,19 @@ with st.sidebar:
     
     # Initialize configuration
     try:
-        Config.validate()
-        st.success("✅ Konfiguracja API załadowana")
+        Config.init()  # Make sure config is loaded
+        missing = Config.validate()
+        if missing:
+            st.warning(f"⚠️ Brakuje kluczy API: {', '.join(missing)}")
+            st.info("💡 Dodaj API keys w Settings → Secrets")
+            st.markdown("### Jak dodać API keys:")
+            st.markdown("1. Kliknij ⚙️ w prawym górnym rogu")
+            st.markdown("2. Wybierz 'Settings' → 'Secrets'")
+            st.markdown("3. Kliknij 'Edit secrets'")
+            st.markdown("4. Wklej swoje klucze API")
+            st.stop()
+        else:
+            st.success("✅ Konfiguracja API załadowana")
     except Exception as e:
         st.error(f"❌ Błąd konfiguracji: {e}")
         st.info("💡 Dodaj API keys w Settings → Secrets")
