@@ -1,7 +1,9 @@
 """
 Binance API client for portfolio tracking
 """
+import time
 from binance.client import Client
+from binance.exceptions import BinanceAPIException
 from config import Config
 
 class BinanceClient:
@@ -18,10 +20,39 @@ class BinanceClient:
             api_secret=Config.BINANCE_SECRET_KEY
         )
     
+    def _make_request_with_retry(self, func, max_retries=3, base_delay=1):
+        """Make API request with exponential backoff retry logic"""
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except BinanceAPIException as e:
+                error_msg = str(e)
+                if "rate limit" in error_msg.lower() or "429" in error_msg:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        print(f"Rate limit hit, waiting {delay} seconds before retry {attempt + 1}/{max_retries}")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print(f"Max retries reached for rate limit. Error: {e}")
+                        raise e
+                elif "restricted location" in error_msg.lower() or "403" in error_msg:
+                    print(f"Binance API restricted for this location: {e}")
+                    raise e
+                else:
+                    # Other API error, don't retry
+                    raise e
+            except Exception as e:
+                print(f"Unexpected error in API request: {e}")
+                raise e
+        
     def get_account_info(self):
         """Get account information"""
         try:
-            return self.client.get_account()
+            def _request():
+                return self.client.get_account()
+            
+            return self._make_request_with_retry(_request)
         except Exception as e:
             print(f"Error fetching Binance account info: {e}")
             return None

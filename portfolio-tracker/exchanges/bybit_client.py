@@ -1,7 +1,9 @@
 """
 Bybit API client for portfolio tracking
 """
+import time
 from pybit.unified_trading import HTTP
+from pybit.exceptions import FailedRequestError
 from config import Config
 
 class BybitClient:
@@ -19,14 +21,40 @@ class BybitClient:
             api_secret=Config.BYBIT_SECRET_KEY
         )
     
+    def _make_request_with_retry(self, func, max_retries=3, base_delay=1):
+        """Make API request with exponential backoff retry logic"""
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except FailedRequestError as e:
+                error_msg = str(e)
+                if "rate limit" in error_msg.lower() or "403" in error_msg:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        print(f"Rate limit hit, waiting {delay} seconds before retry {attempt + 1}/{max_retries}")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print(f"Max retries reached for rate limit. Error: {e}")
+                        raise e
+                else:
+                    # Non-rate-limit error, don't retry
+                    raise e
+            except Exception as e:
+                print(f"Unexpected error in API request: {e}")
+                raise e
+        
     def get_wallet_balance(self):
         """Get wallet balance from Bybit"""
         try:
-            response = self.session.get_wallet_balance(accountType="UNIFIED")
-            if response['retCode'] == 0:
+            def _request():
+                return self.session.get_wallet_balance(accountType="UNIFIED")
+            
+            response = self._make_request_with_retry(_request)
+            if response and response['retCode'] == 0:
                 return response['result']
             else:
-                print(f"Bybit API error: {response['retMsg']}")
+                print(f"Bybit API error: {response.get('retMsg', 'Unknown error') if response else 'No response'}")
                 return None
         except Exception as e:
             print(f"Error fetching Bybit wallet balance: {e}")
@@ -35,8 +63,11 @@ class BybitClient:
     def get_ticker_prices(self):
         """Get current ticker prices"""
         try:
-            response = self.session.get_tickers(category="spot")
-            if response['retCode'] == 0:
+            def _request():
+                return self.session.get_tickers(category="spot")
+            
+            response = self._make_request_with_retry(_request)
+            if response and response['retCode'] == 0:
                 tickers = response['result']['list']
                 return {ticker['symbol']: float(ticker['lastPrice']) for ticker in tickers}
             return {}
@@ -57,14 +88,17 @@ class BybitClient:
             if symbol:
                 params['symbol'] = symbol
             
-            response = self.session.get_executions(**params)
+            def _request():
+                return self.session.get_executions(**params)
             
-            if response['retCode'] == 0:
+            response = self._make_request_with_retry(_request)
+            
+            if response and response['retCode'] == 0:
                 executions = response['result'].get('list', [])
                 print(f"Pobrano {len(executions)} egzekucji z Bybit")
                 return executions
             else:
-                print(f"Bybit API error: {response.get('retMsg', 'Unknown error')}")
+                print(f"Bybit API error: {response.get('retMsg', 'Unknown error') if response else 'No response'}")
                 return []
         except Exception as e:
             print(f"Error fetching Bybit trade history: {e}")

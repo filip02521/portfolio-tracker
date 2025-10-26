@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 def sync_binance_transactions():
     """Sync transactions from Binance API"""
     try:
+        print("Próba połączenia z Binance...")
         client = BinanceClient()
         history = TransactionHistory()
         
@@ -116,6 +117,7 @@ def sync_binance_transactions():
 def sync_bybit_transactions():
     """Sync transactions from Bybit API"""
     try:
+        print("Próba połączenia z Bybit...")
         client = BybitClient()
         history = TransactionHistory()
         
