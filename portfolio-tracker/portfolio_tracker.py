@@ -1,8 +1,18 @@
 """
 Unified portfolio tracker for multiple exchanges
 """
-from exchanges import BinanceClient, BybitClient, XTBClient
-from tabulate import tabulate
+try:
+    from exchanges import BinanceClient, BybitClient, XTBClient
+    from tabulate import tabulate
+except ImportError as e:
+    print(f"Warning: Could not import exchange clients: {e}")
+    # Create dummy classes for fallback
+    class BinanceClient:
+        def __init__(self): raise ValueError("Binance not available")
+    class BybitClient:
+        def __init__(self): raise ValueError("Bybit not available")
+    class XTBClient:
+        def __init__(self): raise ValueError("XTB not available")
 
 class PortfolioTracker:
     """Main portfolio tracker class"""
@@ -18,7 +28,7 @@ class PortfolioTracker:
         except ValueError as e:
             print(f"⚠ Binance: {e}")
         except Exception as e:
-            print(f"❌ Failed to initialize Binance: {e}")
+            print(f"✗ Binance initialization failed: {e}")
         
         # Initialize Bybit
         try:
@@ -27,7 +37,7 @@ class PortfolioTracker:
         except ValueError as e:
             print(f"⚠ Bybit: {e}")
         except Exception as e:
-            print(f"❌ Failed to initialize Bybit: {e}")
+            print(f"✗ Bybit initialization failed: {e}")
         
         # Initialize XTB
         try:
@@ -36,102 +46,86 @@ class PortfolioTracker:
         except ValueError as e:
             print(f"⚠ XTB: {e}")
         except Exception as e:
-            print(f"❌ Failed to initialize XTB: {e}")
+            print(f"✗ XTB initialization failed: {e}")
+        
+        print(f"Initialized {len(self.exchanges)} exchange(s)")
     
-    def get_all_portfolios(self):
+    def get_all_portfolio_data(self):
         """Get portfolio data from all exchanges"""
-        portfolios = []
+        all_data = []
         
-        for name, client in self.exchanges.items():
+        for exchange_name, client in self.exchanges.items():
             try:
-                portfolio = client.get_portfolio_value()
-                if portfolio:
-                    portfolios.append(portfolio)
-                else:
-                    # Add empty portfolio if None returned
-                    portfolios.append({
-                        'balances': [],
-                        'total_value_usdt': 0,
-                        'exchange': name
-                    })
+                data = client.get_portfolio_value()
+                if data and data.get('balances'):
+                    all_data.append(data)
             except Exception as e:
-                print(f"Error fetching {name} portfolio: {e}")
-                # Add empty portfolio for this exchange
-                portfolios.append({
-                    'balances': [],
-                    'total_value_usdt': 0,
-                    'exchange': name
-                })
+                print(f"Error getting {exchange_name} portfolio: {e}")
         
-        return portfolios
+        return all_data
     
-    def display_portfolio(self):
-        """Display portfolio information in a formatted table"""
-        portfolios = self.get_all_portfolios()
+    def get_total_portfolio_value(self):
+        """Get total portfolio value across all exchanges"""
+        all_data = self.get_all_portfolio_data()
+        total_value = sum(data.get('total_value_usdt', 0) for data in all_data)
+        return total_value
+    
+    def get_portfolio_summary(self):
+        """Get formatted portfolio summary"""
+        all_data = self.get_all_portfolio_data()
         
-        if not portfolios:
-            print("\n⚠ No portfolio data available.")
+        if not all_data:
+            return "No portfolio data available"
+        
+        summary = []
+        total_value = 0
+        
+        for data in all_data:
+            exchange = data.get('exchange', 'Unknown')
+            value = data.get('total_value_usdt', 0)
+            total_value += value
+            
+            summary.append(f"{exchange}: ${value:,.2f}")
+        
+        summary.append(f"\nTotal: ${total_value:,.2f}")
+        return "\n".join(summary)
+    
+    def print_portfolio_table(self):
+        """Print portfolio in table format"""
+        all_data = self.get_all_portfolio_data()
+        
+        if not all_data:
+            print("No portfolio data available")
             return
         
-        print("\n" + "="*80)
-        print("PORTFOLIO SUMMARY")
-        print("="*80 + "\n")
+        table_data = []
+        total_value = 0
         
-        # Display individual exchange portfolios
-        for portfolio in portfolios:
-            exchange = portfolio['exchange']
-            total_value = portfolio['total_value_usdt']
+        for data in all_data:
+            exchange = data.get('exchange', 'Unknown')
+            balances = data.get('balances', [])
             
-            print(f"\n📊 {exchange}:")
-            print(f"Total Value: ${total_value:,.2f} USDT")
-            
-            if portfolio['balances']:
-                table_data = []
-                for balance in portfolio['balances']:
-                    table_data.append([
-                        balance['asset'],
-                        f"{balance['total']:.8f}",
-                        f"{balance['free']:.8f}",
-                        f"{balance['locked']:.8f}"
-                    ])
+            for balance in balances:
+                asset = balance.get('asset', '')
+                amount = balance.get('total', 0)
+                value_usdt = balance.get('value_usdt', 0)
                 
-                print(tabulate(
-                    table_data,
-                    headers=['Asset', 'Total', 'Available', 'Locked'],
-                    tablefmt='grid'
-                ))
-            else:
-                print("No balances found")
+                if amount > 0:
+                    table_data.append([
+                        exchange,
+                        asset,
+                        f"{amount:.6f}",
+                        f"${value_usdt:.2f}"
+                    ])
+                    total_value += value_usdt
         
-        # Calculate total across all exchanges
-        total_portfolio_value = sum(p['total_value_usdt'] for p in portfolios)
-        
-        print("\n" + "="*80)
-        print(f"💼 TOTAL PORTFOLIO VALUE: ${total_portfolio_value:,.2f} USDT")
-        print("="*80 + "\n")
-    
-    def get_detailed_stats(self):
-        """Get detailed statistics"""
-        portfolios = self.get_all_portfolios()
-        
-        stats = {
-            'total_value': sum(p['total_value_usdt'] for p in portfolios),
-            'exchange_count': len(portfolios),
-            'exchanges': {}
-        }
-        
-        for portfolio in portfolios:
-            stats['exchanges'][portfolio['exchange']] = {
-                'value': portfolio['total_value_usdt'],
-                'percentage': 0
-            }
-        
-        # Calculate percentages
-        if stats['total_value'] > 0:
-            for exchange in stats['exchanges']:
-                stats['exchanges'][exchange]['percentage'] = (
-                    stats['exchanges'][exchange]['value'] / stats['total_value'] * 100
-                )
-        
-        return stats
+        if table_data:
+            headers = ["Exchange", "Asset", "Amount", "Value (USDT)"]
+            print(tabulate(table_data, headers=headers, tablefmt="grid"))
+            print(f"\nTotal Portfolio Value: ${total_value:,.2f}")
+        else:
+            print("No assets found in portfolio")
 
+if __name__ == "__main__":
+    tracker = PortfolioTracker()
+    tracker.print_portfolio_table()

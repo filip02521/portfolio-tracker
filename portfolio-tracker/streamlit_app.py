@@ -4,13 +4,21 @@ Professional Portfolio Tracker Dashboard - Main Summary Page
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
-from portfolio_tracker import PortfolioTracker
-from config import Config
-from utils import get_usd_to_pln_rate, calculate_diversification
-from transaction_history import TransactionHistory
-from portfolio_history import PortfolioHistory
-from stock_prices import get_multiple_stock_prices
 import time
+
+# Try to import portfolio tracker with error handling
+try:
+    from portfolio_tracker import PortfolioTracker
+    from config import Config
+    from utils import get_usd_to_pln_rate, calculate_diversification
+    from transaction_history import TransactionHistory
+    from portfolio_history import PortfolioHistory
+    from stock_prices import get_multiple_stock_prices
+    IMPORTS_SUCCESSFUL = True
+except ImportError as e:
+    st.error(f"❌ Błąd importu modułów: {e}")
+    st.error("Sprawdź czy wszystkie zależności są zainstalowane i API keys są skonfigurowane.")
+    IMPORTS_SUCCESSFUL = False
 
 # Page configuration
 st.set_page_config(
@@ -102,6 +110,19 @@ st.markdown("""
 # Sidebar
 with st.sidebar:
     st.header("Panel Sterowania")
+    
+    if not IMPORTS_SUCCESSFUL:
+        st.error("⚠️ Aplikacja nie może się uruchomić z powodu błędów importu.")
+        st.stop()
+    
+    # Initialize configuration
+    try:
+        Config.validate()
+        st.success("✅ Konfiguracja API załadowana")
+    except Exception as e:
+        st.error(f"❌ Błąd konfiguracji: {e}")
+        st.info("💡 Dodaj API keys w Settings → Secrets")
+        st.stop()
     
     st.markdown("### Waluta")
     currency = st.selectbox("Wybierz walutę", ["USD", "PLN"], index=0, label_visibility="collapsed")
