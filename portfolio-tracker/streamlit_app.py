@@ -147,8 +147,7 @@ with st.sidebar:
     
     exchange_status = {
         'Binance': 'Binance' not in missing,
-        'Bybit': 'Bybit' not in missing,
-        'XTB': 'XTB' not in missing
+        'Bybit': 'Bybit' not in missing
     }
     
     for exchange, configured in exchange_status.items():
@@ -187,60 +186,8 @@ try:
     portfolio_history = PortfolioHistory()
     transaction_history = TransactionHistory()
     
-    # Add XTB stocks from transaction history if not in API portfolio
+    # Calculate totals
     if portfolios:
-        # Check if we have XTB transactions but no XTB portfolio from API
-        xtb_transactions = [t for t in transaction_history.transactions if t['exchange'] == 'XTB']
-        has_xtb_api_data = any(p['exchange'] == 'XTB' and p['total_value_usdt'] > 0 for p in portfolios)
-        
-        if xtb_transactions and not has_xtb_api_data:
-            # Calculate XTB portfolio from transaction history
-            xtb_holdings = {}
-            for tx in xtb_transactions:
-                asset = tx['asset']
-                if asset not in xtb_holdings:
-                    xtb_holdings[asset] = {'amount': 0, 'total_cost': 0}
-                
-                if tx['type'] == 'buy':
-                    xtb_holdings[asset]['amount'] += tx['amount']
-                    xtb_holdings[asset]['total_cost'] += tx['value_usd']
-                else:  # sell
-                    xtb_holdings[asset]['amount'] -= tx['amount']
-                    avg_cost = xtb_holdings[asset]['total_cost'] / (xtb_holdings[asset]['amount'] + tx['amount']) if (xtb_holdings[asset]['amount'] + tx['amount']) > 0 else 0
-                    xtb_holdings[asset]['total_cost'] -= avg_cost * tx['amount']
-            
-            # Filter out sold positions
-            xtb_holdings = {k: v for k, v in xtb_holdings.items() if v['amount'] > 0}
-            
-            if xtb_holdings:
-                # Get current prices
-                stock_symbols = list(xtb_holdings.keys())
-                current_prices = get_multiple_stock_prices(stock_symbols)
-                
-                # Calculate total value and create balances with value_usdt
-                xtb_balances = []
-                for asset, data in xtb_holdings.items():
-                    current_price = current_prices.get(asset, 0)
-                    value_usdt = data['amount'] * current_price
-                    xtb_balances.append({
-                        'asset': asset, 
-                        'total': data['amount'], 
-                        'free': data['amount'], 
-                        'locked': 0,
-                        'value_usdt': value_usdt
-                    })
-                
-                xtb_total_value = sum(b['value_usdt'] for b in xtb_balances)
-                
-                # Add XTB portfolio to portfolios list
-                xtb_portfolio = {
-                    'exchange': 'XTB',
-                    'total_value_usdt': xtb_total_value,
-                    'balances': xtb_balances
-                }
-                portfolios.append(xtb_portfolio)
-        
-        # Calculate totals
         total_value_usd = sum(p['total_value_usdt'] for p in portfolios)
         total_value_pln = total_value_usd * usd_to_pln
         
