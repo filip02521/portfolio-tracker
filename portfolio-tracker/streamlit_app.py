@@ -130,7 +130,11 @@ with st.sidebar:
             st.markdown("---")
             st.markdown("### 🔧 Debug Info:")
             st.markdown(f"**Missing keys:** {missing}")
-            st.markdown(f"**Config loaded:** {Config._secrets_loaded}")
+            try:
+                config_loaded = getattr(Config, '_secrets_loaded', 'N/A')
+                st.markdown(f"**Config loaded:** {config_loaded}")
+            except Exception as e:
+                st.markdown(f"**Config loaded:** Error - {e}")
             st.markdown("**Aby kontynuować bez API:**")
             st.markdown("- Przejdź do zakładki 'Kryptowaluty'")
             st.markdown("- Użyj przycisku 'Pobierz z API'")
@@ -191,7 +195,23 @@ with st.sidebar:
 try:
     st.markdown("### 🔧 Debug Info:")
     st.markdown(f"**Imports successful:** {IMPORTS_SUCCESSFUL}")
-    st.markdown(f"**Config secrets loaded:** {Config._secrets_loaded}")
+    
+    # Safe check for Config._secrets_loaded
+    try:
+        config_loaded = getattr(Config, '_secrets_loaded', 'N/A')
+        st.markdown(f"**Config secrets loaded:** {config_loaded}")
+    except Exception as e:
+        st.markdown(f"**Config secrets loaded:** Error - {e}")
+    
+    # Check API configuration status
+    try:
+        Config.init()
+        missing = Config.validate()
+        st.markdown(f"**Missing API keys:** {missing if missing else 'None'}")
+        st.markdown(f"**Binance configured:** {'Yes' if Config.BINANCE_API_KEY and Config.BINANCE_SECRET_KEY else 'No'}")
+        st.markdown(f"**Bybit configured:** {'Yes' if Config.BYBIT_API_KEY and Config.BYBIT_SECRET_KEY else 'No'}")
+    except Exception as e:
+        st.markdown(f"**API config error:** {e}")
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_portfolio_data():
