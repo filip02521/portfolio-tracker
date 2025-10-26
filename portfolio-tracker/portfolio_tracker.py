@@ -2,7 +2,7 @@
 Unified portfolio tracker for multiple exchanges
 """
 try:
-    from exchanges import BinanceClient, BybitClient, XTBClient
+    from exchanges import BinanceClient, BybitClient
 except ImportError as e:
     print(f"Warning: Could not import exchange clients: {e}")
     # Create dummy classes for fallback
@@ -10,8 +10,6 @@ except ImportError as e:
         def __init__(self): raise ValueError("Binance not available")
     class BybitClient:
         def __init__(self): raise ValueError("Bybit not available")
-    class XTBClient:
-        def __init__(self): raise ValueError("XTB not available")
 
 class PortfolioTracker:
     """Main portfolio tracker class"""
@@ -37,15 +35,6 @@ class PortfolioTracker:
             print(f"⚠ Bybit: {e}")
         except Exception as e:
             print(f"✗ Bybit initialization failed: {e}")
-        
-        # Initialize XTB
-        try:
-            self.exchanges['XTB'] = XTBClient()
-            print("✓ XTB initialized successfully")
-        except ValueError as e:
-            print(f"⚠ XTB: {e}")
-        except Exception as e:
-            print(f"✗ XTB initialization failed: {e}")
         
         print(f"Initialized {len(self.exchanges)} exchange(s)")
     

@@ -37,10 +37,6 @@ class Config:
     BYBIT_API_KEY = ''
     BYBIT_SECRET_KEY = ''
     
-    # XTB
-    XTB_USER_ID = ''
-    XTB_PASSWORD = ''
-    
     @classmethod
     def init(cls):
         """Initialize configuration - load values when accessed"""
@@ -48,8 +44,6 @@ class Config:
         cls.BINANCE_SECRET_KEY = cls._get_env('BINANCE_SECRET_KEY')
         cls.BYBIT_API_KEY = cls._get_env('BYBIT_API_KEY')
         cls.BYBIT_SECRET_KEY = cls._get_env('BYBIT_SECRET_KEY')
-        cls.XTB_USER_ID = cls._get_env('XTB_USER_ID')
-        cls.XTB_PASSWORD = cls._get_env('XTB_PASSWORD')
     
     @classmethod
     def validate(cls):
@@ -61,8 +55,6 @@ class Config:
             missing.append('Binance')
         if not cls.BYBIT_API_KEY or not cls.BYBIT_SECRET_KEY:
             missing.append('Bybit')
-        if not cls.XTB_USER_ID or not cls.XTB_PASSWORD:
-            missing.append('XTB')
             
         return missing
 

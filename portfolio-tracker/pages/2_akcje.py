@@ -1,5 +1,5 @@
 """
-Podstrona dla akcji i tradycyjnych aktywów - XTB
+Podstrona dla akcji i tradycyjnych aktywów
 """
 import streamlit as st
 import pandas as pd
@@ -65,45 +65,45 @@ try:
     usd_to_pln = get_exchange_rate()
     transaction_history = TransactionHistory()
     
-    # Get XTB transactions
-    xtb_transactions = [t for t in transaction_history.transactions if t['exchange'] == 'XTB']
+    # Get transactions (no XTB, just manual entries)
+    transactions = [t for t in transaction_history.transactions if t['exchange'] == 'Manual']
     
-    if not xtb_transactions:
-        st.info("Nie masz jeszcze żadnych transakcji z XTB. Dodaj pierwszą transakcję poniżej.")
+    if not transactions:
+        st.info("Nie masz jeszcze żadnych transakcji z akcjami. Dodaj pierwszą transakcję poniżej.")
         st.markdown("---")
     else:
         # Calculate holdings
-        xtb_holdings = {}
-        for tx in xtb_transactions:
+        holdings = {}
+        for tx in transactions:
             asset = tx['asset']
-            if asset not in xtb_holdings:
-                xtb_holdings[asset] = {'amount': 0, 'total_cost': 0, 'transactions': []}
+            if asset not in holdings:
+                holdings[asset] = {'amount': 0, 'total_cost': 0, 'transactions': []}
             
-            if tx['type'] == 'buy':
-                xtb_holdings[asset]['amount'] += tx['amount']
-                xtb_holdings[asset]['total_cost'] += tx['value_usd']
+            if tx['transaction_type'] == 'buy':
+                holdings[asset]['amount'] += tx['amount']
+                holdings[asset]['total_cost'] += tx['amount'] * tx['price_usd']
             else:  # sell
-                xtb_holdings[asset]['amount'] -= tx['amount']
-                avg_cost = xtb_holdings[asset]['total_cost'] / (xtb_holdings[asset]['amount'] + tx['amount']) if (xtb_holdings[asset]['amount'] + tx['amount']) > 0 else 0
-                xtb_holdings[asset]['total_cost'] -= avg_cost * tx['amount']
+                holdings[asset]['amount'] -= tx['amount']
+                avg_cost = holdings[asset]['total_cost'] / (holdings[asset]['amount'] + tx['amount']) if (holdings[asset]['amount'] + tx['amount']) > 0 else 0
+                holdings[asset]['total_cost'] -= avg_cost * tx['amount']
             
-            xtb_holdings[asset]['transactions'].append(tx)
+            holdings[asset]['transactions'].append(tx)
         
         # Filter out sold positions
-        xtb_holdings = {k: v for k, v in xtb_holdings.items() if v['amount'] > 0}
+        holdings = {k: v for k, v in holdings.items() if v['amount'] > 0}
         
-        if xtb_holdings:
+        if holdings:
             # ==========================================
             # SEKCJA 1: PODSUMOWANIE (METRICS)
             # ==========================================
             st.markdown("## Podsumowanie")
             
             # Calculate totals
-            stock_symbols = list(xtb_holdings.keys())
+            stock_symbols = list(holdings.keys())
             current_prices = get_multiple_stock_prices(stock_symbols)
             
-            total_value = sum(data['amount'] * current_prices.get(asset, 0) for asset, data in xtb_holdings.items())
-            total_invested = sum(data['total_cost'] for data in xtb_holdings.values())
+            total_value = sum(data['amount'] * current_prices.get(asset, 0) for asset, data in holdings.items())
+            total_invested = sum(data['total_cost'] for data in holdings.values())
             total_pnl = total_value - total_invested
             total_pnl_percent = (total_pnl / total_invested * 100) if total_invested > 0 else 0
             
@@ -120,7 +120,7 @@ try:
                 )
             
             with col2:
-                st.metric("Aktywa", len(xtb_holdings))
+                st.metric("Aktywa", len(holdings))
             
             with col3:
                 pnl_display = total_pnl if currency == 'USD' else total_pnl * usd_to_pln
@@ -143,7 +143,7 @@ try:
             
             # Prepare display data
             xtb_data = []
-            for asset, data in xtb_holdings.items():
+            for asset, data in holdings.items():
                 avg_price = data['total_cost'] / data['amount'] if data['amount'] > 0 else 0
                 current_price = current_prices.get(asset, avg_price)
                 
@@ -366,7 +366,7 @@ try:
                     total_value = amount_t * price_t + commission_t
                     
                     transaction_history.add_transaction(
-                        exchange="XTB",
+                        exchange="Manual",
                         asset=asset_t.upper(),
                         amount=amount_t,
                         price_usd=price_t,
@@ -391,18 +391,18 @@ try:
         with col_t2:
             st.markdown("### Historia Transakcji")
             
-            if xtb_transactions:
-                recent_tx = xtb_transactions[-10:][::-1]
+            if transactions:
+                recent_tx = transactions[-10:][::-1]
                 
                 for tx in recent_tx:
                     type_name = "Kupno" if tx['type'] == 'buy' else "Sprzedaż"
                     st.markdown(f"**{type_name}** {tx['asset']} - {tx['amount']:.2f} akcji @ ${tx['price_usd']:.2f}")
                 
-                if len(xtb_transactions) > 10:
-                    st.info(f"... i {len(xtb_transactions) - 10} więcej")
+                if len(transactions) > 10:
+                    st.info(f"... i {len(transactions) - 10} więcej")
                 
                 # Export
-                df_tx = pd.DataFrame(xtb_transactions)
+                df_tx = pd.DataFrame(transactions)
                 csv_tx = df_tx.to_csv(index=False)
                 st.download_button(
                     label="Eksportuj historię",

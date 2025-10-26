@@ -30,8 +30,6 @@ BINANCE_API_KEY = "twoj_binance_api_key_tutaj"
 BINANCE_SECRET_KEY = "twoj_binance_secret_key_tutaj"
 BYBIT_API_KEY = "twoj_bybit_api_key_tutaj"
 BYBIT_SECRET_KEY = "twoj_bybit_secret_key_tutaj"
-XTB_USER_ID = "twoj_xtb_user_id_tutaj"
-XTB_PASSWORD = "twoj_xtb_password_tutaj"
 ```
 
 7. **Kliknij "Save"**
