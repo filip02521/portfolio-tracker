@@ -130,6 +130,24 @@ try:
             with col4:
                 st.metric("ROI", f"{total_pnl_percent:.2f}%")
             
+            # Przyciski odświeżania
+            st.markdown("---")
+            col_refresh1, col_refresh2 = st.columns(2)
+            
+            with col_refresh1:
+                if st.button("🔄 Odśwież dane", type="secondary", use_container_width=True):
+                    st.cache_data.clear()
+                    if 'portfolios' in st.session_state:
+                        del st.session_state.portfolios
+                    st.success("✅ Cache wyczyszczony - dane zostaną ponownie załadowane")
+                    st.rerun()
+            
+            with col_refresh2:
+                if st.button("📊 Wyczyść portfolio", type="secondary", use_container_width=True):
+                    st.cache_data.clear()
+                    st.success("✅ Portfolio wyczyszczone")
+                    st.rerun()
+            
             st.markdown("---")
             
             # ==========================================
