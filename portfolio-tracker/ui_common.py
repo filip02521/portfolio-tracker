@@ -13,6 +13,41 @@ def setup_page_config():
         initial_sidebar_state="expanded"
     )
 
+def render_navigation_menu():
+    """Renderuje menu nawigacyjne na górze strony"""
+    st.markdown("""
+    <style>
+    .nav-menu {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem 0;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 1rem;
+    }
+    .nav-link {
+        padding: 0.5rem 1rem;
+        color: #6b7280;
+        text-decoration: none;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .nav-link:hover {
+        background: #f3f4f6;
+        color: #111827;
+    }
+    .nav-link.active {
+        background: #111827;
+        color: white;
+    }
+    </style>
+    
+    <div class="nav-menu">
+        <a href="./" class="nav-link">🏠 Główna</a>
+        <a href="./1_Kryptowaluty" class="nav-link">💎 Kryptowaluty</a>
+        <a href="./2_Akcje" class="nav-link">📈 Akcje</a>
+    </div>
+    """, unsafe_allow_html=True)
+
 def load_custom_css():
     """Minimalistyczny CSS"""
     st.markdown("""
@@ -137,6 +172,9 @@ def render_sidebar():
             st.cache_data.clear()
             st.rerun()
         
+        # Reset history button
+        add_reset_button()
+        
         st.markdown("---")
         
         st.markdown("### Status giełd")
@@ -161,188 +199,14 @@ def render_sidebar():
     
     return currency
 
+def add_reset_button():
+    """Dodaje przycisk resetu portfolio history"""
+    if st.button("🗑️ Reset history", type="secondary", use_container_width=True):
+        import json
+        with open('portfolio_history.json', 'w') as f:
+            json.dump([], f)
+        st.success("✅ Historia portfolio wyczyszczona")
+        st.rerun()
+
 def render_asset_cards(assets_data, currency='USD', usd_to_pln=4.0):
     """Renderuje kompaktowe karty z aktywami zamiast szerokich tabel"""
-    # Convert to DataFrame if needed
-    if isinstance(assets_data, list):
-        if not assets_data:
-            return
-        df = pd.DataFrame(assets_data)
-    else:
-        df = assets_data
-    
-    # Check if DataFrame is empty
-    if df.empty or len(df) == 0:
-        return
-    
-    # Parse PNL percentage for sorting
-    def parse_pnl(pnl_str):
-        try:
-            return float(str(pnl_str).replace('%', '').replace('+', '').replace('-', ''))
-        except:
-            return 0
-    
-    if 'PNL %' in df.columns:
-        df['pnl_num'] = df['PNL %'].apply(parse_pnl)
-        df = df.sort_values('pnl_num', ascending=False)
-    
-    # Display cards in grid
-    cols_per_row = 3
-    rows = []
-    for idx in range(0, len(df), cols_per_row):
-        rows.append(df.iloc[idx:idx+cols_per_row])
-    
-    for row in rows:
-        cols = st.columns(cols_per_row)
-        for col_idx, (_, asset) in enumerate(row.iterrows()):
-            with cols[col_idx]:
-                # Determine card style based on PNL
-                status = asset.get('Status', '⚪')
-                card_class = "asset-card-neutral"
-                if status == '🟢':
-                    card_class = "asset-card-profit"
-                elif status == '🔴':
-                    card_class = "asset-card-loss"
-                
-                # Format values
-                asset_name = asset.get('Aktywo', asset.get('asset', 'N/A'))
-                value_usd = asset.get('Wartość USD', asset.get('Wartość', 'N/A'))
-                pnl_pct = asset.get('PNL %', '-')
-                
-                st.markdown(f"""
-                <div class="asset-card {card_class}">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <strong style="font-size: 1.1rem;">{asset_name}</strong>
-                        <span style="font-size: 0.9rem; color: #94a3b8;">{asset.get('Giełda', '')}</span>
-                    </div>
-                    <div style="margin-bottom: 0.5rem;">
-                        <span style="font-size: 1.5rem; font-weight: 600;">{value_usd}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: #94a3b8; font-size: 0.85rem;">PNL:</span>
-                        <span style="font-weight: 600; color: {'#10b981' if pnl_pct != '-' and float(str(pnl_pct).replace('%', '').replace('+', '').replace('-', '')) > 0 else '#ef4444' if pnl_pct != '-' and float(str(pnl_pct).replace('%', '').replace('+', '').replace('-', '')) < 0 else '#94a3b8'};">{pnl_pct}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-def render_performance_section(title, assets_data, top_n=5):
-    """Renderuje sekcję Best/Worst Performers"""
-    # Convert to DataFrame if needed
-    if isinstance(assets_data, list):
-        if not assets_data:
-            return
-        df = pd.DataFrame(assets_data)
-    else:
-        df = assets_data
-    
-    # Check if DataFrame is empty
-    if df.empty or len(df) == 0:
-        return
-    
-    # Ensure we have PNL data
-    if 'PNL %' not in df.columns:
-        return
-    
-    # Parse PNL percentages
-    def parse_pnl(pnl_str):
-        try:
-            return float(str(pnl_str).replace('%', '').replace('+', '').replace('-', ''))
-        except:
-            return 0
-    
-    df['pnl_num'] = df['PNL %'].apply(parse_pnl)
-    
-    # Sort and get top/bottom
-    df_sorted = df.sort_values('pnl_num', ascending=False)
-    
-    # Best performers
-    best = df_sorted.head(top_n)
-    worst = df_sorted.tail(top_n)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"#### Top {top_n} Najlepszych")
-        for idx, row in best.iterrows():
-            pnl_val = row['pnl_num']
-            pnl_class = "performance-good" if pnl_val > 0 else "performance-bad"
-            st.markdown(f"""
-            <div class="performance-card {pnl_class}">
-                <strong>{row.get('Aktywo', row.get('asset', 'N/A'))}</strong><br>
-                <span style="color: {'#10b981' if pnl_val > 0 else '#ef4444'}">
-                    {pnl_val:+.2f}%
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"#### Top {top_n} Najgorszych")
-        for idx, row in worst.iterrows():
-            pnl_val = row['pnl_num']
-            pnl_class = "performance-good" if pnl_val > 0 else "performance-bad"
-            st.markdown(f"""
-            <div class="performance-card {pnl_class}">
-                <strong>{row.get('Aktywo', row.get('asset', 'N/A'))}</strong><br>
-                <span style="color: {'#10b981' if pnl_val > 0 else '#ef4444'}">
-                    {pnl_val:+.2f}%
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-
-def render_diversification_analysis(portfolios, crypto_holdings=None, stocks_holdings=None):
-    """Renderuje analizę dywersyfikacji"""
-    st.markdown("## 🌍 Analiza Dywersyfikacji")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    # Exchange diversification
-    with col1:
-        exchange_values = {}
-        for p in portfolios:
-            if p['total_value_usdt'] > 0:
-                exchange_values[p['exchange']] = p['total_value_usdt']
-        
-        total_value = sum(exchange_values.values())
-        if total_value > 0:
-            st.markdown("### 📊 Podział na giełdy")
-            for exchange, value in exchange_values.items():
-                percentage = (value / total_value) * 100
-                st.metric(exchange, f"{percentage:.1f}%", f"${value:,.0f}")
-    
-    # Crypto vs Stocks
-    with col2:
-        crypto_value = sum([p['total_value_usdt'] for p in portfolios if p['exchange'] in ['Binance', 'Bybit']])
-        stocks_value = sum([p['total_value_usdt'] for p in portfolios if p['exchange'] == 'Manual'])
-        total_value = crypto_value + stocks_value
-        
-        if total_value > 0:
-            st.markdown("### 💼 Podział Crypto vs Akcje")
-            crypto_pct = (crypto_value / total_value) * 100
-            stocks_pct = (stocks_value / total_value) * 100
-            st.metric("Kryptowaluty", f"{crypto_pct:.1f}%", f"${crypto_value:,.0f}")
-            st.metric("Akcje", f"{stocks_pct:.1f}%", f"${stocks_value:,.0f}")
-    
-    # Top asset concentration
-    with col3:
-        st.markdown("### 🎯 Koncentracja")
-        all_assets = []
-        for p in portfolios:
-            for balance in p['balances']:
-                # Use value_usdt if available, otherwise skip (we need value, not quantity)
-                value_usdt = balance.get('value_usdt', 0)
-                if value_usdt > 0:
-                    all_assets.append({
-                        'asset': balance['asset'],
-                        'value': value_usdt
-                    })
-        
-        if all_assets:
-            # Calculate concentration
-            df_assets = pd.DataFrame(all_assets)
-            df_assets = df_assets.groupby('asset')['value'].sum().reset_index()
-            df_assets = df_assets.sort_values('value', ascending=False)
-            
-            if len(df_assets) > 0:
-                total_portfolio_value = df_assets['value'].sum()
-                top_asset_pct = (df_assets.iloc[0]['value'] / total_portfolio_value * 100) if total_portfolio_value > 0 else 0
-                st.metric("Największa pozycja", f"{top_asset_pct:.1f}%", df_assets.iloc[0]['asset'])

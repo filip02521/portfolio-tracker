@@ -3,7 +3,7 @@
 ## 🎯 Cel
 Dodanie IP adresu Railway do whitelist w Binance i Bybit, aby API mogły działać.
 
-## 🌐 IP Adres Railway: `78.142.224.51`
+## 🌐 IP Adres Railway: `66.33.22.189`
 
 ---
 
@@ -20,7 +20,7 @@ Dodanie IP adresu Railway do whitelist w Binance i Bybit, aby API mogły działa
 
 ### Krok 3: Dodaj IP do Whitelist
 1. W sekcji **"Restrict access to trusted IPs only"**
-2. Wklej IP: `78.142.224.51`
+2. Wklej IP: `66.33.22.189`
 3. Kliknij **"Save"**
 
 ### Krok 4: Potwierdzenie
@@ -41,7 +41,7 @@ Dodanie IP adresu Railway do whitelist w Binance i Bybit, aby API mogły działa
 ### Krok 3: Dodaj IP do Whitelist
 1. Wybierz **"Edit"** dla swojego klucza API
 2. W sekcji **"IP Whitelist"**
-3. Wklej IP: `78.142.224.51`
+3. Wklej IP: `66.33.22.189`
 4. Kliknij **"Confirm"**
 
 ### Krok 4: Potwierdzenie

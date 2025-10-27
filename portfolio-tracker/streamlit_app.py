@@ -100,6 +100,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Import navigation menu
+from ui_common import render_navigation_menu
+
+# Render navigation menu
+render_navigation_menu()
+
 # Title
 st.markdown("""
 <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">

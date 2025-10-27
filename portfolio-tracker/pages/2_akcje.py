@@ -26,9 +26,12 @@ st.set_page_config(
     layout="wide"
 )
 
-from ui_common import load_custom_css, render_sidebar
+from ui_common import load_custom_css, render_sidebar, render_navigation_menu
 
 load_custom_css()
+
+# Render navigation menu
+render_navigation_menu()
 
 # Title
 st.markdown("""
