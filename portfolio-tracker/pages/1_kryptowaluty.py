@@ -60,34 +60,11 @@ if not IMPORTS_SUCCESSFUL:
     st.error("⚠️ Aplikacja nie może się uruchomić z powodu błędów importu.")
     st.stop()
 
-# Debug info
-st.markdown("### 🔧 Debug Info:")
-st.markdown(f"**Imports successful:** {IMPORTS_SUCCESSFUL}")
-try:
-    Config.init()
-    missing = Config.validate()
-    st.markdown(f"**Missing API keys:** {missing if missing else 'None'}")
-    st.markdown(f"**Binance configured:** {'Yes' if Config.BINANCE_API_KEY and Config.BINANCE_SECRET_KEY else 'No'}")
-    st.markdown(f"**Bybit configured:** {'Yes' if Config.BYBIT_API_KEY and Config.BYBIT_SECRET_KEY else 'No'}")
-except Exception as e:
-    st.markdown(f"**Config error:** {e}")
-
-st.markdown("---")
-
 try:
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_portfolio_data():
         tracker = PortfolioTracker()
-        data = tracker.get_all_portfolio_data()
-        
-        # Check if we're using mock data
-        if tracker.use_mock_data:
-            st.warning("⚠️ Używane są dane demonstracyjne - API nie są dostępne")
-            st.info("💡 Aplikacja używa przykładowych danych do pokazania funkcjonalności")
-            st.markdown("### 🔧 Informacje o API:")
-            st.markdown("- **Binance**: Zablokowane przez ograniczenia geograficzne")
-            st.markdown("- **Bybit**: Zablokowane przez ograniczenia IP dla Streamlit Cloud")
-            st.markdown("- **Rozwiązanie**: Uruchom aplikację lokalnie z własnego IP")
+        data = tracker.get_all_portfolios()
         
         return data
     
@@ -118,12 +95,20 @@ try:
             if st.button("Pobierz z API", type="primary", use_container_width=True):
                 try:
                     from auto_sync_transactions import sync_all_transactions
-                    with st.spinner("Synchronizowanie..."):
-                        sync_all_transactions()
-                    st.success("Zsynchronizowano!")
+                    with st.spinner("Synchronizowanie z API..."):
+                        success = sync_all_transactions()
+                        if success:
+                            st.success("✅ Synchronizacja zakończona!")
+                            # Force refresh portfolio data
+                            st.cache_data.clear()
+                            if 'portfolios' in st.session_state:
+                                del st.session_state.portfolios
+                        else:
+                            st.warning("⚠️ Synchronizacja nie powiodła się - sprawdź logi w konsoli")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Błąd: {e}")
+                    st.error(f"❌ Błąd synchronizacji: {e}")
+                    st.exception(e)
         
         with col_sync2:
             if st.button("Odśwież portfolio", type="secondary", use_container_width=True):
@@ -374,12 +359,20 @@ try:
                 if st.button("Pobierz z API", type="secondary", use_container_width=True):
                     try:
                         from auto_sync_transactions import sync_all_transactions
-                        with st.spinner("Synchronizowanie..."):
-                            sync_all_transactions()
-                        st.success("Zsynchronizowano!")
+                        with st.spinner("Synchronizowanie z API..."):
+                            success = sync_all_transactions()
+                            if success:
+                                st.success("✅ Synchronizacja zakończona!")
+                                # Force refresh portfolio data
+                                st.cache_data.clear()
+                                if 'portfolios' in st.session_state:
+                                    del st.session_state.portfolios
+                            else:
+                                st.warning("⚠️ Synchronizacja nie powiodła się - sprawdź logi w konsoli")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Błąd: {e}")
+                        st.error(f"❌ Błąd synchronizacji: {e}")
+                        st.exception(e)
                 
                 st.markdown("---")
                 
