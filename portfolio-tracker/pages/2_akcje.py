@@ -72,7 +72,7 @@ try:
     transactions = [t for t in transaction_history.transactions if t['exchange'] == 'Manual']
     
     if not transactions:
-        st.info("Nie masz jeszcze żadnych transakcji z akcjami. Dodaj pierwszą transakcję poniżej.")
+        st.info("Nie masz jeszcze żadnych transakcji z akcjami.")
         st.markdown("---")
     else:
         # Calculate holdings
@@ -246,10 +246,11 @@ try:
         # ==========================================
         st.markdown("## Historia Transakcji")
         
+        st.markdown("### Dodaj transakcję")
+        
         col_t1, col_t2 = st.columns(2)
         
         with col_t1:
-            st.markdown("### Dodaj transakcję")
             
             # Selection method
             search_method = st.radio(
