@@ -457,8 +457,8 @@ try:
             pnl_color = "+" if crypto_total_pnl >= 0 else ""
             st.metric("PNL", f"{pnl_color}{limit_pnl_display:,.2f} {currency}")
             
-            st.markdown("**Przejdź do sekcji:**")
-            st.markdown("👉 Użyj nawigacji w sidebarze")
+            if st.button("Przejdź do Kryptowaluty", type="secondary", use_container_width=True):
+                st.switch_page("pages/1_Kryptowaluty.py")
         
         with col_div2:
             st.markdown("### Akcje")
@@ -472,8 +472,8 @@ try:
             pnl_color = "+" if stocks_total_pnl >= 0 else ""
             st.metric("PNL", f"{pnl_color}{limit_pnl_display:,.2f} {currency}")
             
-            st.markdown("**Przejdź do sekcji:**")
-            st.markdown("👉 Użyj nawigacji w sidebarze")
+            if st.button("Przejdź do Akcji", type="secondary", use_container_width=True):
+                st.switch_page("pages/2_Akcje.py")
         
         st.markdown("---")
         
