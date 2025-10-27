@@ -73,7 +73,6 @@ try:
     
     if not transactions:
         st.info("Nie masz jeszcze żadnych transakcji z akcjami.")
-        st.markdown("---")
     else:
         # Calculate holdings
         holdings = {}
