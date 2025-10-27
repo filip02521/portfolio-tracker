@@ -459,7 +459,7 @@ try:
             
             btn_crypto = st.button("Przejdź do Kryptowaluty", type="secondary", use_container_width=True)
             if btn_crypto:
-                st.switch_page("pages/1_kryptowaluty.py")
+                st.switch_page("pages/1_kryptowaluty")
         
         with col_div2:
             st.markdown("### Akcje")
@@ -475,7 +475,7 @@ try:
             
             btn_stocks = st.button("Przejdź do Akcji", type="secondary", use_container_width=True)
             if btn_stocks:
-                st.switch_page("pages/2_akcje.py")
+                st.switch_page("pages/2_akcje")
         
         st.markdown("---")
         
