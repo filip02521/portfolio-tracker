@@ -128,29 +128,12 @@ with st.sidebar:
             st.markdown("3. Kliknij 'Edit secrets'")
             st.markdown("4. Wklej swoje klucze API")
             st.markdown("---")
-            st.markdown("### 🔧 Debug Info:")
-            st.markdown(f"**Missing keys:** {missing}")
-            try:
-                config_loaded = getattr(Config, '_secrets_loaded', 'N/A')
-                st.markdown(f"**Config loaded:** {config_loaded}")
-            except Exception as e:
-                st.markdown(f"**Config loaded:** Error - {e}")
             st.markdown("**Aby kontynuować bez API:**")
             st.markdown("- Przejdź do zakładki 'Kryptowaluty'")
             st.markdown("- Użyj przycisku 'Pobierz z API'")
             # Don't stop here - let user navigate to other pages
         else:
             st.success("✅ Konfiguracja API załadowana")
-    except Exception as e:
-        st.error(f"❌ Błąd konfiguracji: {e}")
-        st.info("💡 Dodaj API keys w Settings → Secrets")
-        st.markdown("---")
-        st.markdown("### 🔧 Debug Info:")
-        st.markdown(f"**Error:** {str(e)}")
-        st.markdown("**Aby kontynuować bez API:**")
-        st.markdown("- Przejdź do zakładki 'Kryptowaluty'")
-        st.markdown("- Użyj przycisku 'Pobierz z API'")
-        # Don't stop here - let user navigate to other pages
     
     st.markdown("### Waluta")
     currency = st.selectbox("Wybierz walutę", ["USD", "PLN"], index=0, label_visibility="collapsed")
@@ -193,35 +176,10 @@ with st.sidebar:
 
 # Main content
 try:
-    st.markdown("### 🔧 Debug Info:")
-    st.markdown(f"**Imports successful:** {IMPORTS_SUCCESSFUL}")
-    
-    # Safe check for Config._secrets_loaded
-    try:
-        config_loaded = getattr(Config, '_secrets_loaded', 'N/A')
-        st.markdown(f"**Config secrets loaded:** {config_loaded}")
-    except Exception as e:
-        st.markdown(f"**Config secrets loaded:** Error - {e}")
-    
-    # Check API configuration status
-    try:
-        Config.init()
-        missing = Config.validate()
-        st.markdown(f"**Missing API keys:** {missing if missing else 'None'}")
-        st.markdown(f"**Binance configured:** {'Yes' if Config.BINANCE_API_KEY and Config.BINANCE_SECRET_KEY else 'No'}")
-        st.markdown(f"**Bybit configured:** {'Yes' if Config.BYBIT_API_KEY and Config.BYBIT_SECRET_KEY else 'No'}")
-    except Exception as e:
-        st.markdown(f"**API config error:** {e}")
-    
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_portfolio_data():
         tracker = PortfolioTracker()
-        data = tracker.get_all_portfolio_data()
-        
-        # Check if we're using mock data
-        if tracker.use_mock_data:
-            st.warning("⚠️ Używane są dane demonstracyjne - API nie są dostępne")
-            st.info("💡 Aplikacja używa przykładowych danych do pokazania funkcjonalności")
+        data = tracker.get_all_portfolios()
         
         return data
     

@@ -50,7 +50,7 @@ try:
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_portfolio_data():
         tracker = PortfolioTracker()
-        return tracker.get_all_portfolio_data()
+        return tracker.get_all_portfolios()
     
     @st.cache_data(ttl=3600)
     def get_exchange_rate():

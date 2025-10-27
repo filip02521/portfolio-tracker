@@ -95,6 +95,10 @@ try:
         if tracker.use_mock_data:
             st.warning("⚠️ Używane są dane demonstracyjne - API nie są dostępne")
             st.info("💡 Aplikacja używa przykładowych danych do pokazania funkcjonalności")
+            st.markdown("### 🔧 Informacje o API:")
+            st.markdown("- **Binance**: Zablokowane przez ograniczenia geograficzne")
+            st.markdown("- **Bybit**: Zablokowane przez ograniczenia IP dla Streamlit Cloud")
+            st.markdown("- **Rozwiązanie**: Uruchom aplikację lokalnie z własnego IP")
         
         return data
     

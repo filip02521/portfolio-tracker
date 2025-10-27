@@ -210,39 +210,24 @@ def sync_all_transactions():
     print("🚀 Rozpoczynam synchronizację historii transakcji...")
     print("=" * 60)
     
-    binance_ok = False
-    bybit_ok = False
+    binance_success = False
+    bybit_success = False
     
-    # Skip Binance for now - focus on Bybit only
     print("\n📊 === BINANCE ===")
-    print("⏸️ Binance tymczasowo wyłączone (problemy z ograniczeniami geograficznymi)")
-    binance_ok = False
+    binance_success = sync_binance_transactions()
     
-    # Try Bybit with error handling
-    try:
-        print("\n📊 === BYBIT ===")
-        bybit_ok = sync_bybit_transactions()
-    except Exception as e:
-        print(f"❌ Bybit sync failed completely: {e}")
-        bybit_ok = False
+    print("\n📊 === BYBIT ===")
+    bybit_success = sync_bybit_transactions()
     
     print("\n" + "=" * 60)
     print("📋 PODSUMOWANIE SYNCHRONIZACJI:")
-    print(f"Binance: ⏸️ Wyłączone")
-    print(f"Bybit: {'✅ OK' if bybit_ok else '❌ Błąd'}")
+    print(f"Binance: {'✅ OK' if binance_success else '❌ Błąd'}")
+    print(f"Bybit: {'✅ OK' if bybit_success else '❌ Błąd'}")
     
-    if not bybit_ok:
-        print("\n⚠️ Synchronizacja z Bybit zakończyła się niepowodzeniem.")
-        print("Możliwe przyczyny:")
-        print("- Problemy z połączeniem internetowym")
-        print("- Ograniczenia geograficzne API")
-        print("- Nieprawidłowe klucze API")
-        print("- Przekroczenie limitów API")
-        print("\n💡 Spróbuj ponownie później lub skontaktuj się z pomocą techniczną.")
-    else:
-        print(f"\n🎉 Synchronizacja z Bybit zakończona pomyślnie!")
+    if binance_success or bybit_success:
+        print("\n🎉 Synchronizacja zakończona!")
     
-    return bybit_ok
+    return binance_success or bybit_success
 
 if __name__ == "__main__":
     sync_all_transactions()
