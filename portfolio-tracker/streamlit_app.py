@@ -480,8 +480,11 @@ try:
         # ==========================================
         # SEKCJA 5: ANALIZA DYWERSYFIKACJI
         # ==========================================
-        from ui_common import render_diversification_analysis
-        render_diversification_analysis(portfolios)
+        st.markdown("## Analiza dywersyfikacji")
+        st.markdown("Podział aktywów między giełdami i aktywami")
+        
+        diversification = calculate_diversification(portfolios)
+        st.info(f"Dywersyfikacja: {diversification['total_exchanges']} giełd, {diversification['total_assets']} aktywów")
         
         st.markdown("---")
         
