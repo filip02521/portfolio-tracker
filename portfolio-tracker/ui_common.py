@@ -48,9 +48,9 @@ def render_navigation_menu():
     </style>
     
     <div class="nav-menu">
-        <a href="./" class="nav-link">Główna</a>
-        <a href="./1_Kryptowaluty" class="nav-link">Kryptowaluty</a>
-        <a href="./2_Akcje" class="nav-link">Akcje</a>
+        <a href="streamlit_app.py" class="nav-link">Główna</a>
+        <a href="pages/1_kryptowaluty.py" class="nav-link">Kryptowaluty</a>
+        <a href="pages/2_akcje.py" class="nav-link">Akcje</a>
     </div>
     """, unsafe_allow_html=True)
 
