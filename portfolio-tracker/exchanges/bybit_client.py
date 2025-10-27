@@ -40,6 +40,11 @@ class BybitClient:
                     else:
                         print(f"Max retries reached for rate limit. Error: {e}")
                         raise e
+                elif "unmatched ip" in error_msg.lower() or "bound ip" in error_msg.lower() or error_code == 10010:
+                    print(f"Bybit API: IP not whitelisted. Error: {e}")
+                    # Don't retry for IP whitelist errors - need to add IP to whitelist
+                    print("IP whitelist error detected - not retrying")
+                    raise e
                 elif "ip is from the usa" in error_msg.lower() or "restricted" in error_msg.lower():
                     print(f"Bybit API restricted for this IP/location: {e}")
                     # Don't retry for IP restrictions - they won't change
