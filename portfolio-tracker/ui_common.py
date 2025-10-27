@@ -223,7 +223,7 @@ def render_performance_section(title, df_filtered):
     # Extract PNL percentage from string column
     if 'PNL %' in df_filtered.columns:
         df_filtered = df_filtered.copy()
-        df_filtered['PNL_num'] = df_filtered['PNL %'].str.replace('%', '').str.replace('+', '').astype(float, errors='coerce')
+        df_filtered['PNL_num'] = pd.to_numeric(df_filtered['PNL %'].str.replace('%', '').str.replace('+', ''), errors='coerce')
         df_sorted = df_filtered.sort_values('PNL_num', ascending=False, na_position='last')
         
         col_perf1, col_perf2 = st.columns(2)
