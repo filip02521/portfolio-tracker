@@ -4,6 +4,7 @@ Professional Portfolio Tracker Dashboard - Main Summary Page
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
+import numpy as np
 import time
 
 # Try to import portfolio tracker with error handling
@@ -393,7 +394,6 @@ try:
         chart_data_history = portfolio_history.get_chart_data(days=30)
         
         if chart_data_history and len(chart_data_history) > 1:
-            import numpy as np
             
             df_history = pd.DataFrame(chart_data_history)
             df_history['timestamp'] = pd.to_datetime(df_history['timestamp'])
