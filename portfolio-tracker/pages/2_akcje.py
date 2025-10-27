@@ -71,6 +71,201 @@ try:
     # Get transactions (no XTB, just manual entries)
     transactions = [t for t in transaction_history.transactions if t['exchange'] == 'Manual']
     
+    # ==========================================
+    # SEKCJA 3: HISTORIA TRANSAKCJI
+    # ==========================================
+    st.markdown("## Historia Transakcji")
+    
+    st.markdown("### Dodaj transakcję")
+    
+    col_t1, col_t2 = st.columns(2)
+    
+    with col_t1:
+        
+        # Selection method
+        search_method = st.radio(
+            "**Wybierz metodę dodawania:**",
+            ["Symbol ticker", "ISIN", "Popularne symbole"],
+            horizontal=True
+        )
+        
+        # Show popular stocks
+        if search_method == "Popularne symbole":
+            st.markdown("### Popularne symbole akcji")
+            popular_stocks = get_popular_stocks()
+            
+            cols = st.columns(3)
+            for idx, (symbol, name) in enumerate(list(popular_stocks.items())[:15]):
+                with cols[idx % 3]:
+                    st.markdown(f"**{symbol}** - *{name}*")
+            
+            if st.checkbox("Pokaż więcej symboli", key="show_more_stocks"):
+                with st.expander("Szukaj symbolu lub nazwy", expanded=True):
+                    search_query = st.text_input("Wyszukaj:", key="stock_search_extended")
+                    
+                    if search_query:
+                        filtered = {k: v for k, v in popular_stocks.items() 
+                                  if search_query.upper() in k.upper() or search_query.upper() in v.upper()}
+                        
+                        if filtered:
+                            st.markdown(f"**Znaleziono {len(filtered)} wyników:**")
+                            cols2 = st.columns(3)
+                            for idx, (symbol, name) in enumerate(filtered.items()):
+                                with cols2[idx % 3]:
+                                    st.markdown(f"**{symbol}** - {name}")
+                        else:
+                            st.info("Nie znaleziono. Spróbuj: AAPL, TSLA, MSFT")
+                    else:
+                        cols3 = st.columns(3)
+                        for idx, (symbol, name) in enumerate(list(popular_stocks.items())[15:]):
+                            with cols3[idx % 3]:
+                                st.markdown(f"**{symbol}** - {name}")
+        
+        st.markdown("---")
+        
+        # ISIN search form (if ISIN method)
+        if search_method == "ISIN":
+            st.info("ISIN - International Securities Identification Number (np. US0378331005 dla Apple)")
+            
+            with st.form("isin_search_form"):
+                identifier_t = st.text_input(
+                    "Kod ISIN", 
+                    placeholder="np. US0378331005",
+                    key="isin_input"
+                )
+                search_btn = st.form_submit_button("Znajdź symbol", use_container_width=True)
+                
+                if search_btn and identifier_t:
+                    with st.spinner("Szukanie symbolu..."):
+                        symbol, stock_name = search_by_isin(identifier_t.upper())
+                        if symbol:
+                            st.success(f"Znaleziono: **{symbol}** - {stock_name}")
+                            st.session_state['found_symbol'] = symbol
+                            st.session_state['found_name'] = stock_name
+                        else:
+                            st.error("Nie znaleziono symbolu dla tego ISIN")
+                            st.session_state['found_symbol'] = None
+        
+        # Display found symbol or prompt
+        if st.session_state.get('found_symbol'):
+            st.success(f"**Symbol:** {st.session_state['found_symbol']} | **Nazwa:** {st.session_state['found_name']}")
+        elif search_method == "ISIN":
+            st.warning("Najpierw wprowadź ISIN i kliknij 'Znajdź symbol'")
+        
+        st.markdown("---")
+        
+        # Transaction form
+        with st.form("add_stock_transaction_form"):
+            st.markdown("### Szczegóły transakcji")
+            
+            if search_method == "ISIN":
+                # Use found symbol from ISIN search
+                asset_t = st.session_state.get('found_symbol', '')
+                if asset_t:
+                    st.text_input("Symbol akcji", value=asset_t, disabled=True)
+            else:  # Symbol method
+                asset_t = st.text_input(
+                    "Symbol akcji/aktywa", 
+                    placeholder="np. AAPL, TSLA, MSFT, EURUSD",
+                    help="Wpisz symbol ticker z Yahoo Finance"
+                )
+            
+            amount_t = st.number_input("Ilość akcji/lotów", min_value=0.0, step=0.01, format="%.2f")
+            
+            col_form1, col_form2 = st.columns(2)
+            
+            with col_form1:
+                price_t = st.number_input("Cena ($)", min_value=0.0, step=0.01)
+                transaction_type_t = st.selectbox("Typ", ["kupno", "sprzedaż"])
+            
+            with col_form2:
+                date_t = st.date_input("Data transakcji")
+                commission_t = st.number_input("Prowizja ($)", min_value=0.0, step=0.01, value=0.0, help="Opcjonalna prowizja")
+            
+            # Additional notes
+            notes_t = st.text_area("Uwagi (opcjonalne)", placeholder="Dodatkowe informacje o transakcji...")
+            
+            submitted = st.form_submit_button("Dodaj transakcję", type="primary", use_container_width=True)
+            
+            if submitted:
+                # Validate all inputs
+                errors = []
+                
+                if not asset_t:
+                    errors.append("Wprowadź symbol akcji/aktywa")
+                
+                if amount_t <= 0:
+                    errors.append("Ilość musi być większa od 0")
+                
+                if price_t <= 0:
+                    errors.append("Cena musi być większa od 0")
+                
+                if errors:
+                    for error in errors:
+                        st.error(error)
+                    st.stop()
+                
+                # Validate stock symbol
+                is_valid, stock_name = validate_stock_symbol(asset_t.upper())
+                if not is_valid:
+                    st.error(f"Symbol '{asset_t.upper()}' nie został znaleziony. Sprawdź czy jest poprawny.")
+                    st.stop()
+                
+                # Add transaction
+                tx_type = "buy" if transaction_type_t == "kupno" else "sell"
+                
+                # Calculate total value (including commission)
+                total_value = amount_t * price_t + commission_t
+                
+                transaction_history.add_transaction(
+                    exchange="Manual",
+                    asset=asset_t.upper(),
+                    amount=amount_t,
+                    price_usd=price_t,
+                    transaction_type=tx_type,
+                    date=date_t.isoformat()
+                )
+                
+                # Clear ISIN session state after successful transaction
+                if search_method == "ISIN":
+                    st.session_state['found_symbol'] = None
+                    st.session_state['found_name'] = None
+                
+                # Show confirmation
+                st.success(f"Dodano {transaction_type_t}: {amount_t} {asset_t.upper()} @ ${price_t:.2f}")
+                if commission_t > 0:
+                    st.info(f"Wartość całkowita: ${total_value:.2f} (w tym prowizja: ${commission_t:.2f})")
+                if notes_t:
+                    st.info(f"Uwagi: {notes_t}")
+                
+                st.rerun()
+    
+    with col_t2:
+        st.markdown("### Historia Transakcji")
+        
+        if transactions:
+            recent_tx = transactions[-10:][::-1]
+            
+            for tx in recent_tx:
+                type_name = "Kupno" if tx['type'] == 'buy' else "Sprzedaż"
+                st.markdown(f"**{type_name}** {tx['asset']} - {tx['amount']:.2f} akcji @ ${tx['price_usd']:.2f}")
+            
+            if len(transactions) > 10:
+                st.info(f"... i {len(transactions) - 10} więcej")
+            
+            # Export
+            df_tx = pd.DataFrame(transactions)
+            csv_tx = df_tx.to_csv(index=False)
+            st.download_button(
+                label="Eksportuj historię",
+                data=csv_tx,
+                file_name=f"stocks_transactions_{time.strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.info("Brak transakcji. Dodaj pierwszą po lewej stronie.")
+    
     if not transactions:
         st.info("Nie masz jeszcze żadnych transakcji z akcjami.")
     else:
