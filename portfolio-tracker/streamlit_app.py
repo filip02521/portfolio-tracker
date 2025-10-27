@@ -121,12 +121,7 @@ with st.sidebar:
         missing = Config.validate()
         if missing:
             st.warning(f"⚠️ Brakuje kluczy API: {', '.join(missing)}")
-            st.info("💡 Dodaj API keys w Settings → Secrets")
-            st.markdown("### Jak dodać API keys:")
-            st.markdown("1. Kliknij ⚙️ w prawym górnym rogu")
-            st.markdown("2. Wybierz 'Settings' → 'Secrets'")
-            st.markdown("3. Kliknij 'Edit secrets'")
-            st.markdown("4. Wklej swoje klucze API")
+            st.info("💡 API keys są konfigurowane w Railway")
             st.markdown("---")
             st.markdown("**Aby kontynuować bez API:**")
             st.markdown("- Przejdź do zakładki 'Kryptowaluty'")
@@ -481,7 +476,7 @@ try:
     else:
         st.info("📊 Brak danych portfolio. Sprawdź czy API keys są skonfigurowane i czy masz aktywa na giełdach.")
         st.markdown("### Jak rozpocząć:")
-        st.markdown("1. **Dodaj API keys** w Settings → Secrets")
+        st.markdown("1. **API keys** są już skonfigurowane w Railway")
         st.markdown("2. **Sprawdź status giełd** w panelu bocznym")
         st.markdown("3. **Przejdź do zakładki 'Kryptowaluty'** - tam znajdziesz przycisk 'Pobierz z API'")
         st.markdown("4. **Dodaj transakcje** w zakładkach Kryptowaluty/Akcje")

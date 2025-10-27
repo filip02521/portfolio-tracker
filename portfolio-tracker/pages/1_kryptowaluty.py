@@ -47,22 +47,11 @@ try:
     missing = Config.validate()
     if missing:
         st.warning(f"⚠️ Brakuje kluczy API: {', '.join(missing)}")
-        st.info("💡 Dodaj API keys w Settings → Secrets")
-        st.markdown("### Jak dodać API keys:")
-        st.markdown("1. Kliknij ⚙️ w prawym górnym rogu")
-        st.markdown("2. Wybierz 'Settings' → 'Secrets'")
-        st.markdown("3. Kliknij 'Edit secrets'")
-        st.markdown("4. Wklej swoje klucze API")
-        st.markdown("---")
-        st.markdown("### 🔧 Debug Info:")
-        st.markdown(f"**Missing keys:** {missing}")
+        st.info("💡 API keys są konfigurowane w Railway")
         st.markdown("**Możesz kontynuować i użyć przycisku 'Pobierz z API' poniżej**")
         # Don't stop here - let user continue to see the API button
 except Exception as e:
     st.error(f"❌ Błąd konfiguracji: {e}")
-    st.markdown("---")
-    st.markdown("### 🔧 Debug Info:")
-    st.markdown(f"**Error:** {str(e)}")
     st.markdown("**Możesz kontynuować i użyć przycisku 'Pobierz z API' poniżej**")
     # Don't stop here - let user continue to see the API button
 

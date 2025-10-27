@@ -12,22 +12,11 @@ class Config:
     
     @classmethod
     def _get_env(cls, key):
-        """Get environment variable from Streamlit Secrets or .env file"""
-        # First try to get from Streamlit Secrets (for cloud deployment)
-        try:
-            import streamlit as st
-            if hasattr(st, 'secrets'):
-                try:
-                    value = st.secrets.get(key, '')
-                    if value:
-                        return value
-                except (AttributeError, Exception):
-                    pass
-        except (ImportError, RuntimeError):
-            pass
-        
-        # Fallback to environment variables
-        return os.getenv(key, '')
+        """Get environment variable from .env file or environment variables"""
+        # On Railway, we use environment variables directly
+        # No need to check st.secrets which causes messages about secrets.toml
+        value = os.getenv(key, '')
+        return value
     
     # Binance
     BINANCE_API_KEY = ''
