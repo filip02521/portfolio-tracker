@@ -129,6 +129,8 @@ with st.sidebar:
             # Don't stop here - let user navigate to other pages
         else:
             st.success("✅ Konfiguracja API załadowana")
+    except Exception as e:
+        st.error(f"❌ Błąd konfiguracji: {e}")
     
     st.markdown("### Waluta")
     currency = st.selectbox("Wybierz walutę", ["USD", "PLN"], index=0, label_visibility="collapsed")
