@@ -14,37 +14,43 @@ def setup_page_config():
     )
 
 def render_navigation_menu():
-    """Renderuje menu nawigacyjne na górze strony"""
+    """Renderuje profesjonalne menu nawigacyjne na górze strony"""
     st.markdown("""
     <style>
     .nav-menu {
         display: flex;
-        gap: 1rem;
-        padding: 1rem 0;
-        border-bottom: 1px solid #e5e7eb;
-        margin-bottom: 1rem;
+        gap: 0;
+        padding: 0;
+        border-bottom: 2px solid #e5e7eb;
+        margin-bottom: 2rem;
+        background: #ffffff;
     }
     .nav-link {
-        padding: 0.5rem 1rem;
+        padding: 0.75rem 1.5rem;
         color: #6b7280;
         text-decoration: none;
-        border-radius: 4px;
+        border-bottom: 3px solid transparent;
         transition: all 0.2s;
+        font-weight: 500;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     .nav-link:hover {
-        background: #f3f4f6;
         color: #111827;
+        background: #f9fafb;
     }
     .nav-link.active {
-        background: #111827;
-        color: white;
+        color: #111827;
+        border-bottom-color: #111827;
+        font-weight: 600;
     }
     </style>
     
     <div class="nav-menu">
-        <a href="./" class="nav-link">🏠 Główna</a>
-        <a href="./1_Kryptowaluty" class="nav-link">💎 Kryptowaluty</a>
-        <a href="./2_Akcje" class="nav-link">📈 Akcje</a>
+        <a href="./" class="nav-link">Główna</a>
+        <a href="./1_Kryptowaluty" class="nav-link">Kryptowaluty</a>
+        <a href="./2_Akcje" class="nav-link">Akcje</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -201,11 +207,11 @@ def render_sidebar():
 
 def add_reset_button():
     """Dodaje przycisk resetu portfolio history"""
-    if st.button("🗑️ Reset history", type="secondary", use_container_width=True):
+    if st.button("Reset History", type="secondary", use_container_width=True):
         import json
         with open('portfolio_history.json', 'w') as f:
             json.dump([], f)
-        st.success("✅ Historia portfolio wyczyszczona")
+        st.success("Historia portfolio wyczyszczona")
         st.rerun()
 
 def render_asset_cards(assets_data, currency='USD', usd_to_pln=4.0):

@@ -114,11 +114,11 @@ try:
                     st.exception(e)
         
         with col_sync2:
-            if st.button("🔄 Wyczyść cache", type="secondary", use_container_width=True):
+            if st.button("Odśwież dane", type="secondary", use_container_width=True):
                 st.cache_data.clear()
                 if 'portfolios' in st.session_state:
                     del st.session_state.portfolios
-                st.success("✅ Cache wyczyszczony - dane zostaną ponownie załadowane z API")
+                st.success("Cache wyczyszczony - dane zostaną ponownie załadowane z API")
                 st.rerun()
         
         st.markdown("---")
