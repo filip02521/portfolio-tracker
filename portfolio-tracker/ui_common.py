@@ -214,5 +214,36 @@ def add_reset_button():
         st.success("Historia portfolio wyczyszczona")
         st.rerun()
 
+def render_performance_section(title, df_filtered):
+    """Renderuje sekcję najlepszych/najgorszych performerów"""
+    if df_filtered.empty:
+        st.info("Brak danych do wyświetlenia")
+        return
+    
+    # Sort by PNL percentage
+    df_sorted = df_filtered.sort_values('pnl_percent', ascending=False)
+    
+    col_perf1, col_perf2 = st.columns(2)
+    
+    with col_perf1:
+        st.markdown("#### 🏆 Najlepsze")
+        if len(df_sorted) > 0:
+            best = df_sorted.iloc[0]
+            st.metric(
+                f"{best['asset']} ({best['exchange']})",
+                f"{best['pnl_percent']:+.2f}%",
+                f"{best['pnl']:+,.2f} USD"
+            )
+    
+    with col_perf2:
+        st.markdown("#### 📉 Najgorsze")
+        if len(df_sorted) > 0:
+            worst = df_sorted.iloc[-1]
+            st.metric(
+                f"{worst['asset']} ({worst['exchange']})",
+                f"{worst['pnl_percent']:+.2f}%",
+                f"{worst['pnl']:+,.2f} USD"
+            )
+
 def render_asset_cards(assets_data, currency='USD', usd_to_pln=4.0):
     """Renderuje kompaktowe karty z aktywami zamiast szerokich tabel"""
