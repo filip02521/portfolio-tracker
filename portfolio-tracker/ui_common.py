@@ -220,30 +220,43 @@ def render_performance_section(title, df_filtered):
         st.info("Brak danych do wyświetlenia")
         return
     
-    # Sort by PNL percentage
-    df_sorted = df_filtered.sort_values('pnl_percent', ascending=False)
-    
-    col_perf1, col_perf2 = st.columns(2)
-    
-    with col_perf1:
-        st.markdown("#### 🏆 Najlepsze")
-        if len(df_sorted) > 0:
-            best = df_sorted.iloc[0]
-            st.metric(
-                f"{best['asset']} ({best['exchange']})",
-                f"{best['pnl_percent']:+.2f}%",
-                f"{best['pnl']:+,.2f} USD"
-            )
-    
-    with col_perf2:
-        st.markdown("#### 📉 Najgorsze")
-        if len(df_sorted) > 0:
-            worst = df_sorted.iloc[-1]
-            st.metric(
-                f"{worst['asset']} ({worst['exchange']})",
-                f"{worst['pnl_percent']:+.2f}%",
-                f"{worst['pnl']:+,.2f} USD"
-            )
+    # Extract PNL percentage from string column
+    if 'PNL %' in df_filtered.columns:
+        df_filtered = df_filtered.copy()
+        df_filtered['PNL_num'] = df_filtered['PNL %'].str.replace('%', '').str.replace('+', '').astype(float, errors='coerce')
+        df_sorted = df_filtered.sort_values('PNL_num', ascending=False, na_position='last')
+        
+        col_perf1, col_perf2 = st.columns(2)
+        
+        with col_perf1:
+            st.markdown("#### Najlepsze")
+            if len(df_sorted) > 0:
+                best = df_sorted.iloc[0]
+                asset = best.get('Aktywo', 'N/A')
+                exchange = best.get('Giełda', 'N/A')
+                pnl_pct = best.get('PNL_num', 0)
+                value = best.get('Wartość USD', '$0')
+                st.metric(
+                    f"{asset} ({exchange})",
+                    f"{pnl_pct:+.2f}%",
+                    value
+                )
+        
+        with col_perf2:
+            st.markdown("#### Najgorsze")
+            if len(df_sorted) > 0:
+                worst = df_sorted.iloc[-1]
+                asset = worst.get('Aktywo', 'N/A')
+                exchange = worst.get('Giełda', 'N/A')
+                pnl_pct = worst.get('PNL_num', 0)
+                value = worst.get('Wartość USD', '$0')
+                st.metric(
+                    f"{asset} ({exchange})",
+                    f"{pnl_pct:+.2f}%",
+                    value
+                )
+    else:
+        st.warning("Nie znaleziono kolumny PNL %")
 
 def render_asset_cards(assets_data, currency='USD', usd_to_pln=4.0):
     """Renderuje kompaktowe karty z aktywami zamiast szerokich tabel"""
