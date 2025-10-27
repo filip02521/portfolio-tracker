@@ -25,9 +25,12 @@ def render_navigation_menu():
         margin-bottom: 2rem;
         background: #ffffff;
     }
-    .nav-link {
+    .nav-button {
         padding: 0.75rem 1.5rem;
+        border: none;
+        background: transparent;
         color: #6b7280;
+        cursor: pointer;
         text-decoration: none;
         border-bottom: 3px solid transparent;
         transition: all 0.2s;
@@ -36,23 +39,26 @@ def render_navigation_menu():
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    .nav-link:hover {
+    .nav-button:hover {
         color: #111827;
         background: #f9fafb;
     }
-    .nav-link.active {
-        color: #111827;
-        border-bottom-color: #111827;
-        font-weight: 600;
-    }
     </style>
-    
-    <div class="nav-menu">
-        <a href="?page=home" class="nav-link">Główna</a>
-        <a href="?page=kryptowaluty" class="nav-link">Kryptowaluty</a>
-        <a href="?page=akcje" class="nav-link">Akcje</a>
-    </div>
     """, unsafe_allow_html=True)
+    
+    col_nav1, col_nav2, col_nav3, col_nav4 = st.columns(4)
+    
+    with col_nav1:
+        if st.button("Główna", key="nav_main", use_container_width=True):
+            st.switch_page("streamlit_app.py")
+    
+    with col_nav2:
+        if st.button("Kryptowaluty", key="nav_crypto", use_container_width=True):
+            st.switch_page("pages/1_kryptowaluty.py")
+    
+    with col_nav3:
+        if st.button("Akcje", key="nav_stocks", use_container_width=True):
+            st.switch_page("pages/2_akcje.py")
 
 def load_custom_css():
     """Minimalistyczny CSS"""
