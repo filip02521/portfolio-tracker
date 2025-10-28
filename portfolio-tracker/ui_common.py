@@ -1,11 +1,40 @@
 """
-Wspólny kod dla wszystkich podstron Streamlit - profesjonalny i spójny design
+Common code for all Streamlit pages - professional and consistent design
 """
 import streamlit as st
 import pandas as pd
 
+def _safe_switch_page(page_name: str):
+    """Switch to another page if supported by Streamlit, otherwise fall back.
+
+    If `st.switch_page` is available (newer Streamlit), use it. Otherwise set a
+    query param and rerun to allow manual handling in pages.
+    """
+    try:
+        if hasattr(st, "switch_page"):
+            st.switch_page(page_name)
+        else:
+            # Fallback: set a query param and rerun. Pages can read this if needed.
+            try:
+                st.experimental_set_query_params(_page=page_name)
+            except Exception:
+                # If even experimental_set_query_params isn't available, do nothing
+                pass
+            # Avoid programmatic rerun here (can cause recursion in some
+            # Streamlit/runtime versions). Instead, set a query param so pages
+            # can detect navigation intent, and render a link fallback.
+            try:
+                st.experimental_set_query_params(_page=page_name)
+            except Exception:
+                pass
+            # Provide a clickable link as a last-resort fallback
+            st.markdown(f"[Open {page_name}]()")
+    except Exception:
+        # Prevent any navigation helper from raising inside the UI rendering
+        return
+
 def setup_page_config():
-    """Setup strony"""
+    """Setup page configuration"""
     st.set_page_config(
         page_title="Portfolio Tracker Pro",
         page_icon="📊",
@@ -14,7 +43,7 @@ def setup_page_config():
     )
 
 def render_navigation_menu():
-    """Renderuje profesjonalne menu nawigacyjne na górze strony"""
+    """Render professional navigation menu at the top of the page"""
     st.markdown("""
     <style>
     .nav-menu {
@@ -49,44 +78,111 @@ def render_navigation_menu():
     col_nav1, col_nav2, col_nav3, col_nav4 = st.columns(4)
     
     with col_nav1:
-        if st.button("Główna", key="nav_main", use_container_width=True):
-            st.switch_page("streamlit_app.py")
+        if st.button("Dashboard", key="nav_main", use_container_width=True):
+            _safe_switch_page("streamlit_app.py")
     
     with col_nav2:
-        if st.button("Kryptowaluty", key="nav_crypto", use_container_width=True):
-            st.switch_page("pages/1_kryptowaluty.py")
+        if st.button("Cryptocurrencies", key="nav_crypto", use_container_width=True):
+            _safe_switch_page("pages/1_kryptowaluty.py")
     
     with col_nav3:
-        if st.button("Akcje", key="nav_stocks", use_container_width=True):
-            st.switch_page("pages/2_akcje.py")
+        if st.button("Stocks", key="nav_stocks", use_container_width=True):
+            _safe_switch_page("pages/2_akcje.py")
 
 def load_custom_css():
-    """Minimalistyczny CSS"""
+    """Professional minimalist CSS with 3-color layout"""
     st.markdown("""
     <style>
         * {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
         }
         
         .main {
             padding: 2rem;
-            background: #ffffff;
+            background: #f9fafb;
         }
         
         .block-container {
             background: transparent;
         }
         
+        /* Metrics cards - professional card style */
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #111827;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace;
+        }
+        [data-testid="stMetricLabel"] {
+            font-size: 0.875rem;
+            color: #6b7280;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+        [data-testid="stMetricDelta"] {
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        /* Custom metric card container */
         .stMetric {
-            background: #ffffff;
-            padding: 1rem;
-            border-radius: 4px;
+            background: white;
             border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .stMetric:hover {
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+            transform: translateY(-2px);
+            border-color: #2563eb;
+        }
+        
+        /* Buttons - professional blue */
+        .stButton>button {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1.5rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        
+        .stButton>button:hover {
+            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .stButton>button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        
+        /* Secondary buttons */
+        button[kind="secondary"] {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+            color: white !important;
+        }
+        
+        /* Dataframes - professional table style */
+        .dataframe {
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+        
+        /* Info boxes */
+        .stAlert {
+            border-radius: 8px;
         }
         
         h1 {
             color: #111827;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 2rem;
             margin-bottom: 1rem;
         }
@@ -101,7 +197,7 @@ def load_custom_css():
         
         h3 {
             color: #374151;
-            font-weight: 500;
+            font-weight: 600;
             font-size: 1.125rem;
             margin-top: 1.5rem;
             margin-bottom: 0.75rem;
@@ -114,73 +210,107 @@ def load_custom_css():
             margin: 2rem 0;
         }
         
-        .stButton>button {
-            background: #111827;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 0.5rem 1rem;
-            font-weight: 500;
-        }
-        
-        .stButton>button:hover {
-            background: #374151;
-        }
-        
         .asset-card {
             background: #ffffff;
             padding: 1rem;
-            border-radius: 4px;
+            border-radius: 8px;
             border: 1px solid #e5e7eb;
             margin-bottom: 0.5rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
         
         .asset-card-profit {
-            border-left: 2px solid #10b981;
+            border-left: 3px solid #10b981;
         }
         
         .asset-card-loss {
-            border-left: 2px solid #ef4444;
+            border-left: 3px solid #ef4444;
         }
         
         .asset-card-neutral {
-            border-left: 2px solid #e5e7eb;
+            border-left: 3px solid #6b7280;
         }
         
-        .performance-card {
+        /* Sidebar styling */
+        section[data-testid="stSidebar"] {
             background: #ffffff;
-            padding: 0.75rem;
-            border-radius: 4px;
+        }
+        
+        /* Status badges */
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        /* Data card */
+        .data-card {
+            background: white;
             border: 1px solid #e5e7eb;
-            margin-bottom: 0.5rem;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
         }
         
-        .performance-good {
-            border-left: 2px solid #10b981;
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
         
-        .performance-bad {
-            border-left: 2px solid #ef4444;
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Caption styling */
+        .caption-text {
+            color: #6b7280;
+            font-size: 0.875rem;
         }
     </style>
     """, unsafe_allow_html=True)
 
 def render_sidebar():
-    """Render sidebar z kontrolami"""
+    """Render sidebar with controls"""
     with st.sidebar:
-        st.header("Kontrola")
+        st.header("Controls")
         
-        st.markdown("### Waluta")
-        currency = st.selectbox("Wybierz walutę", ["USD", "PLN"], index=0, label_visibility="collapsed")
+        st.markdown("### Currency")
+        currency = st.selectbox("Select currency", ["USD", "PLN"], index=0, label_visibility="collapsed")
         
         st.markdown("---")
         
-        st.markdown("### Odświeżanie")
-        auto_refresh = st.checkbox("Auto-odświeżanie", value=False)
+        st.markdown("### Refresh")
+        auto_refresh = st.checkbox("Auto-refresh", value=False)
         if auto_refresh:
-            refresh_interval = st.slider("Interwał (sek)", 10, 300, 60)
+            _refresh_interval = st.slider("Interval (sec)", 10, 300, 60)
         
-        if st.button("Odśwież teraz", type="primary", use_container_width=True):
+        if st.button("Refresh Now", type="primary", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
         
@@ -206,7 +336,7 @@ def render_sidebar():
         
         st.markdown("---")
         import time
-        st.markdown(f"**Ostatnia aktualizacja:**")
+        st.markdown("**Ostatnia aktualizacja:**")
         st.markdown(f"*{time.strftime('%H:%M:%S')}*")
     
     return currency

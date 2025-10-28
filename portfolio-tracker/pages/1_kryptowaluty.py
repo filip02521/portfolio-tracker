@@ -1,9 +1,8 @@
 """
-Podstrona dla kryptowalut - Binance i Bybit
+Cryptocurrencies page - Binance and Bybit
 """
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
 import time
 
 # Try to import modules with error handling
@@ -13,6 +12,7 @@ try:
     from utils import get_usd_to_pln_rate, get_top_assets
     from purchase_prices import PurchasePriceTracker
     from transaction_history import TransactionHistory
+    from ui_common import load_custom_css, render_sidebar
     IMPORTS_SUCCESSFUL = True
 except ImportError as e:
     st.error(f"❌ Błąd importu modułów: {e}")
@@ -21,25 +21,16 @@ except ImportError as e:
 
 # Setup
 st.set_page_config(
-    page_title="Kryptowaluty - Portfolio Tracker",
+    page_title="Cryptocurrencies - Portfolio Tracker",
     page_icon="📊",
     layout="wide"
 )
 
-from ui_common import load_custom_css, render_sidebar, render_navigation_menu
-
 load_custom_css()
 
-# Render navigation menu
-render_navigation_menu()
-
 # Title
-st.markdown("""
-<div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-    <h1 style="margin: 0;">Kryptowaluty</h1>
-    <span style="color: #6b7280; font-size: 0.9rem; font-weight: 400;">Binance • Bybit</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Cryptocurrencies")
+st.caption("Binance • Bybit")
 
 # Sidebar
 currency = render_sidebar()
@@ -232,7 +223,7 @@ try:
                         asset_dict['Zainwestowano'] = f"${pnl_data['invested']:,.2f}"
                         asset_dict['PNL całkowity'] = f"${pnl_data['pnl']:+,.2f}"
                         asset_dict['PNL %'] = f"{pnl_data['pnl_percent']:+.2f}%"
-                        asset_dict['Status'] = '🟢' if pnl_data['pnl'] > 0 else '🔴' if pnl_data['pnl'] < 0 else '⚪'
+                        asset_dict['Status'] = 'Profit' if pnl_data['pnl'] > 0 else 'Loss' if pnl_data['pnl'] < 0 else 'Break even'
                     else:
                         purchase_price = price_tracker.get_purchase_price(asset['exchange'], asset['asset'])
                         if purchase_price:
@@ -241,12 +232,12 @@ try:
                             asset_dict['Zainwestowano'] = f"${asset['total'] * purchase_price:,.2f}"
                             asset_dict['PNL całkowity'] = f"${pnl:+,.2f}"
                             asset_dict['PNL %'] = f"{pnl_percent:+.2f}%"
-                            asset_dict['Status'] = '🟢' if pnl > 0 else '🔴' if pnl < 0 else '⚪'
+                            asset_dict['Status'] = 'Profit' if pnl > 0 else 'Loss' if pnl < 0 else 'Break even'
                         else:
                             asset_dict['Zainwestowano'] = "Brak"
                             asset_dict['PNL całkowity'] = "-"
                             asset_dict['PNL %'] = "-"
-                            asset_dict['Status'] = '❓'
+                            asset_dict['Status'] = 'No data'
                     
                     assets_data.append(asset_dict)
                 
@@ -285,11 +276,11 @@ try:
                     df_filtered = df_filtered[df_filtered['Giełda'].isin(filter_exchange)]
                 
                 if filter_pnl == "Na plusie":
-                    df_filtered = df_filtered[df_filtered['Status'] == '🟢']
+                    df_filtered = df_filtered[df_filtered['Status'] == 'Profit']
                 elif filter_pnl == "Na minusie":
-                    df_filtered = df_filtered[df_filtered['Status'] == '🔴']
+                    df_filtered = df_filtered[df_filtered['Status'] == 'Loss']
                 elif filter_pnl == "Brak danych":
-                    df_filtered = df_filtered[df_filtered['Status'] == '❓']
+                    df_filtered = df_filtered[df_filtered['Status'] == 'No data']
                 
                 # Sort
                 if sort_by == "PNL %":
