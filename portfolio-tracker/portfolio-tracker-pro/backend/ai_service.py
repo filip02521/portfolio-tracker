@@ -542,414 +542,6 @@ class AIService:
         
         return indicators
 
-    # ==================== ANALYSIS METHODS ====================
-    
-    def _calculate_volume_profile(self, df: pd.DataFrame, num_levels: int = 20) -> Dict:
-        """Calculate Volume Profile (POC, VAH, VAL)"""
-        if df is None or len(df) < 20:
-            return {}
-        
-        try:
-            if 'close' not in df.columns or 'volume' not in df.columns:
-                return {}
-            
-            cache_key = self._get_cache_key('vol_profile', len(df), num_levels)
-            cached_result = self._get_from_cache(self._volume_profile_cache, cache_key)
-            if cached_result:
-                return cached_result
-            
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(close))
-            current_price = close[-1]
-            
-            # Create price bins
-            min_price = np.min(close)
-            max_price = np.max(close)
-            price_bins = np.linspace(min_price, max_price, num_levels + 1)
-            
-            # Calculate volume at each price level
-            volume_at_price = np.zeros(num_levels)
-            for i in range(len(close)):
-                bin_idx = int((close[i] - min_price) / (max_price - min_price) * num_levels)
-                bin_idx = max(0, min(num_levels - 1, bin_idx))
-                volume_at_price[bin_idx] += volume[i]
-            
-            # Find POC (Point of Control) - price level with highest volume
-            poc_idx = np.argmax(volume_at_price)
-            poc_price = (price_bins[poc_idx] + price_bins[poc_idx + 1]) / 2
-            
-            # Calculate Value Area (70% of volume)
-            total_volume = np.sum(volume_at_price)
-            value_area_volume = total_volume * 0.70
-            
-            # Find VAH and VAL
-            sorted_indices = np.argsort(volume_at_price)[::-1]
-            cumulative_volume = 0
-            val_idx = poc_idx
-            vah_idx = poc_idx
-            
-            for idx in sorted_indices:
-                cumulative_volume += volume_at_price[idx]
-                if idx < poc_idx:
-                    val_idx = min(val_idx, idx)
-                if idx > poc_idx:
-                    vah_idx = max(vah_idx, idx)
-                if cumulative_volume >= value_area_volume:
-                    break
-            
-            val_price = (price_bins[val_idx] + price_bins[val_idx + 1]) / 2
-            vah_price = (price_bins[vah_idx] + price_bins[vah_idx + 1]) / 2
-            
-            # Determine current price position
-            if current_price < val_price:
-                position = 'below_val'
-            elif current_price > vah_price:
-                position = 'above_vah'
-            elif current_price < poc_price:
-                position = 'below_poc'
-            elif current_price > poc_price:
-                position = 'above_poc'
-            else:
-                position = 'at_poc'
-            
-            result = {
-                'poc_price': float(poc_price),
-                'vah_price': float(vah_price),
-                'val_price': float(val_price),
-                'current_price_position': position
-            }
-            
-            self._save_to_cache(self._volume_profile_cache, cache_key, result)
-            return result
-            
-        except Exception as e:
-            self.logger.debug(f"Volume Profile calculation failed: {e}")
-            return {}
-    
-    def _detect_candlestick_patterns(self, df: pd.DataFrame) -> Dict:
-        """Detect candlestick patterns (Doji, Hammer, Shooting Star, Engulfing)"""
-        if df is None or len(df) < 3:
-            return {}
-        
-        try:
-            if 'open' not in df.columns or 'high' not in df.columns or 'low' not in df.columns or 'close' not in df.columns:
-                return {}
-            
-            patterns = {}
-            open_prices = df['open'].values
-            high_prices = df['high'].values
-            low_prices = df['low'].values
-            close_prices = df['close'].values
-            
-            # Get last 5 candles for pattern detection
-            for i in range(max(1, len(df) - 5), len(df)):
-                o = open_prices[i]
-                h = high_prices[i]
-                l = low_prices[i]
-                c = close_prices[i]
-                
-                body = abs(c - o)
-                upper_shadow = h - max(o, c)
-                lower_shadow = min(o, c) - l
-                total_range = h - l
-                
-                if total_range == 0:
-                    continue
-                
-                # Doji pattern
-                if body / total_range < 0.1:
-                    patterns['doji'] = {
-                        'signal': 'neutral',
-                        'confidence': 0.7,
-                        'index': i
-                    }
-                
-                # Hammer pattern (bullish reversal)
-                if lower_shadow > 2 * body and upper_shadow < 0.2 * total_range and c > o:
-                    patterns['hammer'] = {
-                        'signal': 'buy',
-                        'confidence': 0.75,
-                        'index': i
-                    }
-                
-                # Shooting Star pattern (bearish reversal)
-                if upper_shadow > 2 * body and lower_shadow < 0.2 * total_range and c < o:
-                    patterns['shooting_star'] = {
-                        'signal': 'sell',
-                        'confidence': 0.75,
-                        'index': i
-                    }
-                
-                # Engulfing patterns (need previous candle)
-                if i > 0:
-                    prev_o = open_prices[i-1]
-                    prev_c = close_prices[i-1]
-                    
-                    # Bullish Engulfing
-                    if prev_c < prev_o and c > o and o < prev_c and c > prev_o:
-                        patterns['bullish_engulfing'] = {
-                            'signal': 'buy',
-                            'confidence': 0.8,
-                            'index': i
-                        }
-                    
-                    # Bearish Engulfing
-                    if prev_c > prev_o and c < o and o > prev_c and c < prev_o:
-                        patterns['bearish_engulfing'] = {
-                            'signal': 'sell',
-                            'confidence': 0.8,
-                            'index': i
-                        }
-            
-            return patterns
-            
-        except Exception as e:
-            self.logger.debug(f"Candlestick pattern detection failed: {e}")
-            return {}
-    
-    def _detect_chart_patterns(self, df: pd.DataFrame, timeframe: str = 'daily') -> Dict:
-        """Detect chart patterns (Head & Shoulders, Triangles, Flags)"""
-        if df is None or len(df) < 20:
-            return {}
-        
-        try:
-            if 'high' not in df.columns or 'low' not in df.columns:
-                return {}
-            
-            patterns = {}
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-            
-            # Use recent 60 days for pattern detection
-            lookback = min(60, len(df))
-            recent_highs = high[-lookback:]
-            recent_lows = low[-lookback:]
-            
-            # Head & Shoulders pattern
-            if lookback >= 20:
-                # Find peaks (local maxima)
-                peaks = []
-                for i in range(2, len(recent_highs) - 2):
-                    if recent_highs[i] > recent_highs[i-1] and recent_highs[i] > recent_highs[i+1]:
-                        if recent_highs[i] > recent_highs[i-2] and recent_highs[i] > recent_highs[i+2]:
-                            peaks.append((i, recent_highs[i]))
-                
-                if len(peaks) >= 3:
-                    peaks.sort(key=lambda x: x[1], reverse=True)
-                    head = peaks[0]
-                    shoulders = [p for p in peaks[1:] if abs(p[1] - head[1]) / head[1] < 0.15]
-                    
-                    if len(shoulders) >= 2:
-                        # Check if shoulders are on both sides of head
-                        left_shoulder = None
-                        right_shoulder = None
-                        for s in shoulders:
-                            if s[0] < head[0]:
-                                left_shoulder = s
-                            else:
-                                right_shoulder = s
-                        
-                        if left_shoulder and right_shoulder:
-                            patterns['head_shoulders'] = {
-                                'signal': 'sell',
-                                'weight': 15 if timeframe == 'weekly' else 20,
-                                'confidence': 0.7
-                            }
-            
-            # Triangle patterns (simplified detection)
-            if lookback >= 15:
-                recent_closes = close[-lookback:]
-                trend = np.polyfit(range(len(recent_closes)), recent_closes, 1)[0]
-                volatility = np.std(recent_closes) / np.mean(recent_closes)
-                
-                # Ascending triangle (rising support, flat resistance)
-                max_high = np.max(recent_highs)
-                if trend > 0 and volatility < 0.1:
-                    patterns['ascending_triangle'] = {
-                        'signal': 'buy',
-                        'weight': 10 if timeframe == 'weekly' else 15,
-                        'confidence': 0.65
-                    }
-                
-                # Descending triangle (falling resistance, flat support)
-                min_low = np.min(recent_lows)
-                if trend < 0 and volatility < 0.1:
-                    patterns['descending_triangle'] = {
-                        'signal': 'sell',
-                        'weight': 10 if timeframe == 'weekly' else 15,
-                        'confidence': 0.65
-                    }
-            
-            # Flag patterns (simplified)
-            if lookback >= 10:
-                first_half_high = np.max(recent_highs[:lookback//2])
-                second_half_high = np.max(recent_highs[lookback//2:])
-                first_half_low = np.min(recent_lows[:lookback//2])
-                second_half_low = np.min(recent_lows[lookback//2:])
-                
-                # Bull flag: strong uptrend followed by consolidation
-                if first_half_high > second_half_high * 1.05 and abs(second_half_high - second_half_low) / second_half_high < 0.05:
-                    patterns['bull_flag'] = {
-                        'signal': 'buy',
-                        'weight': 12 if timeframe == 'weekly' else 18,
-                        'confidence': 0.7
-                    }
-                
-                # Bear flag: strong downtrend followed by consolidation
-                if first_half_low < second_half_low * 0.95 and abs(second_half_high - second_half_low) / second_half_high < 0.05:
-                    patterns['bear_flag'] = {
-                        'signal': 'sell',
-                        'weight': 12 if timeframe == 'weekly' else 18,
-                        'confidence': 0.7
-                    }
-            
-            return patterns
-            
-        except Exception as e:
-            self.logger.debug(f"Chart pattern detection failed: {e}")
-            return {}
-    
-    def _detect_support_resistance(self, df: pd.DataFrame) -> Dict:
-        """Detect support and resistance levels using swing highs/lows and Fibonacci"""
-        if df is None or len(df) < 20:
-            return {}
-        
-        try:
-            if 'high' not in df.columns or 'low' not in df.columns or 'close' not in df.columns:
-                return {}
-            
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-            current_price = close[-1]
-            
-            # Find swing highs and lows (local extrema)
-            swing_highs = []
-            swing_lows = []
-            
-            for i in range(2, len(high) - 2):
-                # Swing high
-                if high[i] > high[i-1] and high[i] > high[i+1] and high[i] > high[i-2] and high[i] > high[i+2]:
-                    swing_highs.append(high[i])
-                
-                # Swing low
-                if low[i] < low[i-1] and low[i] < low[i+1] and low[i] < low[i-2] and low[i] < low[i+2]:
-                    swing_lows.append(low[i])
-            
-            # Calculate support and resistance levels
-            support_levels = sorted(swing_lows)[-3:] if swing_lows else []
-            resistance_levels = sorted(swing_highs)[-3:] if swing_highs else []
-            
-            # Check if price is near support/resistance
-            near_support = False
-            near_resistance = False
-            
-            price_tolerance = current_price * 0.02  # 2% tolerance
-            
-            for support in support_levels:
-                if abs(current_price - support) < price_tolerance:
-                    near_support = True
-                    break
-            
-            for resistance in resistance_levels:
-                if abs(current_price - resistance) < price_tolerance:
-                    near_resistance = True
-                    break
-            
-            # Calculate Fibonacci retracements
-            if len(df) >= 50:
-                recent_high = np.max(high[-50:])
-                recent_low = np.min(low[-50:])
-                fib_range = recent_high - recent_low
-                
-                fib_levels = {
-                    'fib_236': recent_high - fib_range * 0.236,
-                    'fib_382': recent_high - fib_range * 0.382,
-                    'fib_500': recent_high - fib_range * 0.500,
-                    'fib_618': recent_high - fib_range * 0.618
-                }
-            else:
-                fib_levels = {}
-            
-            return {
-                'support_levels': [float(s) for s in support_levels],
-                'resistance_levels': [float(r) for r in resistance_levels],
-                'near_support': near_support,
-                'near_resistance': near_resistance,
-                'fibonacci_levels': fib_levels
-            }
-            
-        except Exception as e:
-            self.logger.debug(f"Support/Resistance detection failed: {e}")
-            return {}
-    
-    def _calculate_correlation_and_beta(self, df: pd.DataFrame, symbol: str, benchmark_symbol: str = None) -> Dict:
-        """Calculate correlation and beta relative to benchmark"""
-        if df is None or len(df) < 50:
-            return {}
-        
-        try:
-            if 'close' not in df.columns or not self.market_data_service:
-                return {}
-            
-            # Get benchmark data
-            if not benchmark_symbol:
-                benchmark_symbol = 'BTC' if symbol not in ['BTC', 'ETH'] else 'SPY'
-            
-            benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                benchmark_symbol, 'crypto' if benchmark_symbol in ['BTC', 'ETH'] else 'stock', '1d'
-            )
-            
-            if not benchmark_data or len(benchmark_data) < 50:
-                return {}
-            
-            benchmark_df = pd.DataFrame(benchmark_data)
-            if 'close' not in benchmark_df.columns:
-                return {}
-            
-            # Align dataframes by date
-            df_aligned = df[['close']].copy()
-            df_aligned['benchmark_close'] = benchmark_df['close'].values[:len(df_aligned)]
-            
-            # Calculate returns
-            df_aligned['returns'] = df_aligned['close'].pct_change()
-            df_aligned['benchmark_returns'] = df_aligned['benchmark_close'].pct_change()
-            
-            # Remove NaN values
-            df_aligned = df_aligned.dropna()
-            
-            if len(df_aligned) < 30:
-                return {}
-            
-            returns = df_aligned['returns'].values
-            benchmark_returns = df_aligned['benchmark_returns'].values
-            
-            # Calculate correlation
-            correlation = np.corrcoef(returns, benchmark_returns)[0, 1]
-            
-            # Calculate beta
-            covariance = np.cov(returns, benchmark_returns)[0, 1]
-            benchmark_variance = np.var(benchmark_returns)
-            beta = covariance / benchmark_variance if benchmark_variance > 0 else 0
-            
-            # Calculate relative performance
-            symbol_total_return = (df_aligned['close'].iloc[-1] / df_aligned['close'].iloc[0] - 1) * 100
-            benchmark_total_return = (df_aligned['benchmark_close'].iloc[-1] / df_aligned['benchmark_close'].iloc[0] - 1) * 100
-            
-            outperforming = symbol_total_return > benchmark_total_return
-            
-            return {
-                'correlation': float(correlation) if not np.isnan(correlation) else 0.0,
-                'beta': float(beta) if not np.isnan(beta) else 0.0,
-                'outperforming': outperforming,
-                'relative_return': float(symbol_total_return - benchmark_total_return)
-            }
-            
-        except Exception as e:
-            self.logger.debug(f"Correlation/Beta calculation failed for {symbol}: {e}")
-            return {}
-
     # ==================== MAIN AI METHODS ====================
     
     def recommend_rebalance(
@@ -1456,4 +1048,277 @@ class AIService:
                 "model_used": "error",
                 "status": "error",
                 "error": str(e)
+            }
+
+    def predict_price(
+        self,
+        symbol: str,
+        asset_type: str = "crypto",
+        days_ahead: int = 7
+    ) -> Optional[Dict]:
+        """
+        Predict future price using Prophet (if available) or fallback to mock predictions.
+        
+        Args:
+            symbol: Asset symbol (e.g., 'BTC', 'AAPL')
+            asset_type: 'crypto' or 'stock'
+            days_ahead: Number of days to predict (7-90)
+        
+        Returns:
+            Dictionary with predictions and confidence
+        """
+        if not symbol or days_ahead < 1 or days_ahead > 90:
+            return None
+        
+        try:
+            # Get historical data
+            if not self.market_data_service:
+                return self._mock_predict_price(symbol, asset_type, days_ahead)
+            
+            historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
+                symbol, asset_type, '1d'
+            )
+            
+            if not historical_data or len(historical_data) < 50:
+                self.logger.warning(f"Insufficient data for {symbol}, using mock predictions")
+                return self._mock_predict_price(symbol, asset_type, days_ahead)
+            
+            # Use Prophet if available
+            if PROPHET_AVAILABLE:
+                try:
+                    df = pd.DataFrame(historical_data)
+                    df['ds'] = pd.to_datetime(df['timestamp'] if 'timestamp' in df.columns else df.index)
+                    df['y'] = df['close'].values
+                    
+                    # Prepare Prophet dataframe
+                    prophet_df = df[['ds', 'y']].copy()
+                    
+                    # Initialize and fit Prophet model
+                    model = Prophet(
+                        daily_seasonality=True,
+                        weekly_seasonality=True,
+                        yearly_seasonality=False,
+                        changepoint_prior_scale=0.05
+                    )
+                    model.fit(prophet_df)
+                    
+                    # Make future predictions
+                    future = model.make_future_dataframe(periods=days_ahead)
+                    forecast = model.predict(future)
+                    
+                    # Extract predictions
+                    predictions = []
+                    current_price = df['close'].iloc[-1]
+                    
+                    for i in range(len(df), len(forecast)):
+                        pred_row = forecast.iloc[i]
+                        predicted_price = max(current_price * 0.01, min(pred_row['yhat'], current_price * 10))
+                        upper_bound = max(predicted_price, min(pred_row['yhat_upper'], current_price * 10))
+                        lower_bound = max(current_price * 0.01, pred_row['yhat_lower'])
+                        
+                        predictions.append({
+                            'date': pred_row['ds'].isoformat(),
+                            'predicted_price': float(predicted_price),
+                            'upper_bound': float(upper_bound),
+                            'lower_bound': float(lower_bound)
+                        })
+                    
+                    # Calculate confidence based on prediction interval width
+                    avg_interval_width = np.mean([p['upper_bound'] - p['lower_bound'] for p in predictions]) / current_price
+                    confidence = max(0.5, min(0.95, 1.0 - (avg_interval_width / 2)))
+                    
+                    return {
+                        'symbol': symbol,
+                        'model_used': 'prophet',
+                        'status': 'success',
+                        'predictions': predictions,
+                        'confidence': float(confidence),
+                        'current_price': float(current_price)
+                    }
+                    
+                except Exception as e:
+                    self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
+                    return self._mock_predict_price(symbol, asset_type, days_ahead)
+            else:
+                return self._mock_predict_price(symbol, asset_type, days_ahead)
+                
+        except Exception as e:
+            self.logger.error(f"Error in predict_price for {symbol}: {e}", exc_info=True)
+            return self._mock_predict_price(symbol, asset_type, days_ahead)
+    
+    def _fetch_real_news(self, symbol: str, max_articles: int = 10) -> List[str]:
+        """Fetch real news articles using NewsAPI"""
+        headlines = []
+        
+        if not NEWSAPI_AVAILABLE or not hasattr(self, 'newsapi_client') or not self.newsapi_client:
+            return self._get_mock_news_headlines(symbol)
+        
+        try:
+            # Search for news about the symbol
+            query = f"{symbol} cryptocurrency" if symbol in ['BTC', 'ETH', 'SOL'] else f"{symbol} stock"
+            articles = self.newsapi_client.get_everything(
+                q=query,
+                language='en',
+                sort_by='relevancy',
+                page_size=max_articles
+            )
+            
+            if articles and 'articles' in articles:
+                for article in articles['articles']:
+                    if article.get('title'):
+                        headlines.append(article['title'])
+            
+            if not headlines:
+                return self._get_mock_news_headlines(symbol)
+            
+            return headlines[:max_articles]
+            
+        except Exception as e:
+            self.logger.warning(f"Error fetching news for {symbol}: {e}")
+            return self._get_mock_news_headlines(symbol)
+    
+    def analyze_sentiment(
+        self,
+        symbol: str,
+        asset_type: str = "crypto"
+    ) -> Optional[Dict]:
+        """
+        Analyze sentiment from news articles using FinBERT (if available).
+        
+        Args:
+            symbol: Asset symbol
+            asset_type: 'crypto' or 'stock'
+        
+        Returns:
+            Dictionary with sentiment analysis results
+        """
+        if not symbol:
+            return None
+        
+        try:
+            # Fetch news headlines
+            headlines = self._fetch_real_news(symbol, max_articles=10)
+            
+            if not headlines:
+                return {
+                    'symbol': symbol,
+                    'sentiment': 'neutral',
+                    'score': 0.0,
+                    'confidence': 0.5,
+                    'model_used': 'fallback',
+                    'status': 'no_data'
+                }
+            
+            # Use FinBERT if available
+            if TRANSFORMERS_AVAILABLE and self.sentiment_pipeline:
+                try:
+                    # Analyze sentiment for each headline
+                    sentiments = []
+                    scores = []
+                    
+                    for headline in headlines:
+                        result = self.sentiment_pipeline(headline)
+                        if isinstance(result, list) and len(result) > 0:
+                            result = result[0]
+                        
+                        label = result.get('label', 'neutral')
+                        score = result.get('score', 0.5)
+                        
+                        # Map FinBERT labels to our sentiment scale
+                        if 'positive' in label.lower():
+                            sentiments.append('positive')
+                            scores.append(score)
+                        elif 'negative' in label.lower():
+                            sentiments.append('negative')
+                            scores.append(-score)
+                        else:
+                            sentiments.append('neutral')
+                            scores.append(0.0)
+                    
+                    # Aggregate sentiment
+                    if scores:
+                        avg_score = np.mean(scores)
+                        positive_count = sum(1 for s in sentiments if s == 'positive')
+                        negative_count = sum(1 for s in sentiments if s == 'negative')
+                        
+                        if avg_score > 0.1:
+                            sentiment = 'positive'
+                        elif avg_score < -0.1:
+                            sentiment = 'negative'
+                        else:
+                            sentiment = 'neutral'
+                        
+                        confidence = min(0.95, abs(avg_score) * 2 + 0.5)
+                        
+                        return {
+                            'symbol': symbol,
+                            'sentiment': sentiment,
+                            'score': float(avg_score),
+                            'confidence': float(confidence),
+                            'model_used': 'finbert',
+                            'status': 'success',
+                            'positive_articles': positive_count,
+                            'negative_articles': negative_count,
+                            'total_articles': len(headlines)
+                        }
+                    else:
+                        return {
+                            'symbol': symbol,
+                            'sentiment': 'neutral',
+                            'score': 0.0,
+                            'confidence': 0.5,
+                            'model_used': 'fallback',
+                            'status': 'no_results'
+                        }
+                        
+                except Exception as e:
+                    self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
+                    return {
+                        'symbol': symbol,
+                        'sentiment': 'neutral',
+                        'score': 0.0,
+                        'confidence': 0.5,
+                        'model_used': 'fallback',
+                        'status': 'error'
+                    }
+            else:
+                # Fallback: simple keyword-based sentiment
+                positive_keywords = ['up', 'rise', 'gain', 'bullish', 'surge', 'rally', 'soar', 'climb']
+                negative_keywords = ['down', 'fall', 'drop', 'bearish', 'plunge', 'crash', 'decline', 'slide']
+                
+                positive_count = sum(1 for h in headlines if any(kw in h.lower() for kw in positive_keywords))
+                negative_count = sum(1 for h in headlines if any(kw in h.lower() for kw in negative_keywords))
+                
+                if positive_count > negative_count:
+                    sentiment = 'positive'
+                    score = 0.3
+                elif negative_count > positive_count:
+                    sentiment = 'negative'
+                    score = -0.3
+                else:
+                    sentiment = 'neutral'
+                    score = 0.0
+                
+                return {
+                    'symbol': symbol,
+                    'sentiment': sentiment,
+                    'score': score,
+                    'confidence': 0.6,
+                    'model_used': 'keyword_based',
+                    'status': 'success',
+                    'positive_articles': positive_count,
+                    'negative_articles': negative_count,
+                    'total_articles': len(headlines)
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
+            return {
+                'symbol': symbol,
+                'sentiment': 'neutral',
+                'score': 0.0,
+                'confidence': 0.5,
+                'model_used': 'fallback',
+                'status': 'error',
+                'error': str(e)
             }
