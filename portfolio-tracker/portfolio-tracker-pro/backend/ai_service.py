@@ -134,6 +134,28 @@ class AIService:
         }
         return mock_headlines.get(symbol.upper(), [f"{symbol} shows market activity"])
 
+    # ==================== CACHE HELPER METHODS ====================
+    
+    def _get_from_cache(self, cache_dict: Dict, cache_key: str) -> Optional[Any]:
+        """Get value from cache if not expired"""
+        if cache_key not in cache_dict:
+            return None
+        
+        cached = cache_dict[cache_key]
+        if time.time() - cached['timestamp'] > self._cache_ttl:
+            # Expired, remove from cache
+            del cache_dict[cache_key]
+            return None
+        
+        return cached['data']
+    
+    def _save_to_cache(self, cache_dict: Dict, cache_key: str, data: Any):
+        """Save value to cache with timestamp"""
+        cache_dict[cache_key] = {
+            'data': data,
+            'timestamp': time.time()
+        }
+    
     # ==================== TECHNICAL ANALYSIS METHODS ====================
     
     def _calculate_technical_indicators(self, df: pd.DataFrame, symbol: str = None) -> Dict:
@@ -720,7 +742,7 @@ class AIService:
             if df is None or len(df) < 10 or not self.market_data_service:
                 return {}
             try:
-                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 'crypto', '1d')
+                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 30)
                 if not benchmark_data or len(benchmark_data) < 10:
                     return {}
             except:
@@ -862,10 +884,24 @@ class AIService:
                 # For non-stablecoins, perform comprehensive technical analysis
                 if self.market_data_service:
                     try:
-                        # Get historical data
-                        historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, asset_type, '1d'
+                        # Get historical data for multiple timeframes to determine recommendation timeframe
+                        # Daily data for short-term analysis
+                        daily_data, daily_interval = self.market_data_service.get_symbol_history_with_interval(
+                            symbol, 30
                         )
+                        # Weekly data for long-term analysis
+                        weekly_data, weekly_interval = self.market_data_service.get_symbol_history_with_interval(
+                            symbol, 90  # Gets weekly data (prediction_horizon > 60)
+                        )
+                        
+                        # Use daily data as primary for calculations
+                        historical_data = daily_data
+                        interval = daily_interval
+                        
+                        # Calculate signals for both timeframes
+                        daily_signal = 0.0
+                        weekly_signal = 0.0
+                        timeframe_info = "medium_term"  # Default
                         
                         if historical_data and len(historical_data) >= 50:
                             df = pd.DataFrame(historical_data)
@@ -1139,8 +1175,121 @@ class AIService:
                                 # Clamp signal_strength to [-100, 100]
                                 signal_strength = max(-100, min(100, signal_strength))
                                 
+                                # Store daily signal for timeframe analysis
+                                daily_signal = signal_strength
+                                
+                                # Calculate weekly timeframe signal for timeframe determination
+                                if weekly_data and len(weekly_data) >= 20:
+                                    try:
+                                        weekly_df = pd.DataFrame(weekly_data)
+                                        weekly_indicators = self._calculate_technical_indicators(weekly_df, symbol)
+                                        
+                                        if weekly_indicators and len(weekly_indicators) > 0:
+                                            weekly_signal_temp = 0.0
+                                            
+                                            # Quick calculation of weekly signal (simplified version focusing on key indicators)
+                                            if 'rsi' in weekly_indicators:
+                                                rsi_w = weekly_indicators['rsi'].get('value', 50)
+                                                if rsi_w < 30:
+                                                    weekly_signal_temp += 15
+                                                elif rsi_w > 70:
+                                                    weekly_signal_temp -= 15
+                                            
+                                            if 'macd' in weekly_indicators:
+                                                macd_w = weekly_indicators['macd']
+                                                if macd_w.get('crossover') == 'bullish':
+                                                    weekly_signal_temp += 20
+                                                elif macd_w.get('crossover') == 'bearish':
+                                                    weekly_signal_temp -= 20
+                                                elif macd_w.get('trend') == 'bullish':
+                                                    weekly_signal_temp += 5
+                                                elif macd_w.get('trend') == 'bearish':
+                                                    weekly_signal_temp -= 5
+                                            
+                                            if 'ma_cross' in weekly_indicators:
+                                                ma_cross_w = weekly_indicators['ma_cross']
+                                                if ma_cross_w.get('golden_cross'):
+                                                    weekly_signal_temp += 10
+                                                elif ma_cross_w.get('death_cross'):
+                                                    weekly_signal_temp -= 10
+                                            
+                                            if 'bollinger_bands' in weekly_indicators:
+                                                bb_w = weekly_indicators['bollinger_bands']
+                                                if bb_w.get('signal') == 'buy':
+                                                    weekly_signal_temp += 12
+                                                elif bb_w.get('signal') == 'sell':
+                                                    weekly_signal_temp -= 12
+                                            
+                                            weekly_signal = max(-100, min(100, weekly_signal_temp))
+                                        else:
+                                            weekly_signal = 0.0
+                                    except Exception as e:
+                                        self.logger.debug(f"Error calculating weekly indicators for {symbol}: {e}")
+                                        weekly_signal = 0.0
+                                else:
+                                    weekly_signal = 0.0
+                                
+                                # Determine timeframe based on alignment of daily and weekly signals
+                                # Strong buy/sell on both = długoterminowe+
+                                # Strong on one = średnioterminowe
+                                # Weak signals = krótkoterminowe
+                                abs_daily = abs(daily_signal)
+                                abs_weekly = abs(weekly_signal)
+                                same_direction = (daily_signal > 0 and weekly_signal > 0) or (daily_signal < 0 and weekly_signal < 0)
+                                
+                                if same_direction and abs_daily > 30 and abs_weekly > 30:
+                                    # Both timeframes show strong signal in same direction = długoterminowe+
+                                    timeframe_info = "długoterminowe+"
+                                    if abs_daily > 50 and abs_weekly > 50:
+                                        timeframe_info = "długoterminowe+ (mocny sygnał)"
+                                elif same_direction and (abs_daily > 20 or abs_weekly > 20):
+                                    # Some alignment with moderate signals = średnioterminowe
+                                    timeframe_info = "średnioterminowe"
+                                elif abs_daily > 20 or abs_weekly > 20:
+                                    # Strong signal on one timeframe = średnioterminowe
+                                    timeframe_info = "średnioterminowe"
+                                else:
+                                    # Weak signals or no clear trend = krótkoterminowe
+                                    timeframe_info = "krótkoterminowe"
+                                
                                 # Debug: Log signal_strength calculation
-                                self.logger.debug(f"{symbol}: signal_strength={signal_strength:.2f}, buy_score={buy_score:.2f}, sell_score={sell_score:.2f}")
+                                self.logger.debug(f"{symbol}: daily_signal={daily_signal:.2f}, weekly_signal={weekly_signal:.2f}, timeframe={timeframe_info}")
+                                
+                                # If key_indicators_list is still empty, add top indicators anyway (always show most important ones)
+                                if len(key_indicators_list) == 0:
+                                    # Add RSI if available (always important)
+                                    if 'rsi' in indicators:
+                                        rsi_val = indicators['rsi'].get('value', 50)
+                                        rsi_signal = 'buy' if rsi_val < 50 else 'sell' if rsi_val > 50 else 'neutral'
+                                        key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": rsi_signal, "weight": "high"})
+                                    
+                                    # Add MACD if available (always important)
+                                    if 'macd' in indicators:
+                                        macd_data = indicators['macd']
+                                        macd_hist = macd_data.get('histogram', 0)
+                                        macd_signal = 'buy' if macd_hist > 0 else 'sell' if macd_hist < 0 else 'neutral'
+                                        key_indicators_list.append({"name": "MACD", "value": macd_hist, "signal": macd_signal, "weight": "very_high"})
+                                    
+                                    # Add Moving Averages if available
+                                    if 'ma50' in indicators:
+                                        ma50_data = indicators['ma50']
+                                        ma50_signal = ma50_data.get('signal', 'neutral')
+                                        ma50_val = ma50_data.get('value', 0)
+                                        key_indicators_list.append({"name": "MA50", "value": ma50_val, "signal": ma50_signal, "weight": "medium"})
+                                    
+                                    # Add Bollinger Bands if available
+                                    if 'bollinger_bands' in indicators:
+                                        bb = indicators['bollinger_bands']
+                                        bb_position = bb.get('position', 50)
+                                        bb_signal = bb.get('signal', 'neutral')
+                                        key_indicators_list.append({"name": "Bollinger", "value": bb_position, "signal": bb_signal, "weight": "high"})
+                                    
+                                    # Add Stochastic if available
+                                    if 'stochastic' in indicators:
+                                        stoch = indicators['stochastic']
+                                        stoch_k = stoch.get('k', 50)
+                                        stoch_signal = stoch.get('signal', 'neutral')
+                                        key_indicators_list.append({"name": "Stochastic", "value": stoch_k, "signal": stoch_signal, "weight": "medium"})
                                 
                                 # Calculate confidence
                                 base_confidence = abs(signal_strength) / 100.0 if signal_strength != 0 else 0.0
@@ -1207,7 +1356,12 @@ class AIService:
                                         "key_indicators": key_indicators_list[:5],  # Top 5 indicators
                                         "strengths": strengths_list[:3],  # Top 3 strengths
                                         "concerns": concerns_list[:3],  # Top 3 concerns
-                                        "timeframe": "medium_term"
+                                        "timeframe": timeframe_info,
+                                        "timeframe_analysis": {
+                                            "daily_signal": round(daily_signal, 2),
+                                            "weekly_signal": round(weekly_signal, 2) if weekly_signal != 0.0 else None,
+                                            "alignment": "aligned" if same_direction else "diverging"
+                                        }
                                     },
                                     "allocation": {
                                         "current": current_pct,
@@ -1302,7 +1456,7 @@ class AIService:
                 return self._mock_predict_price(symbol, asset_type, days_ahead)
             
             historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
-                symbol, asset_type, '1d'
+                symbol, days_ahead
             )
             
             if not historical_data or len(historical_data) < 50:
@@ -1581,10 +1735,10 @@ class AIService:
                         continue
                     
                     try:
-                        # Get historical data
+                        # Get historical data (30 days for anomaly detection)
                         asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                         historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, asset_type, '1d'
+                            symbol, 30
                         )
                         
                         if historical_data and len(historical_data) >= 30:
@@ -1680,8 +1834,8 @@ class AIService:
                                 asset_type1 = 'crypto' if sym1 in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                                 asset_type2 = 'crypto' if sym2 in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                                 
-                                data1, _ = self.market_data_service.get_symbol_history_with_interval(sym1, asset_type1, '1d')
-                                data2, _ = self.market_data_service.get_symbol_history_with_interval(sym2, asset_type2, '1d')
+                                data1, _ = self.market_data_service.get_symbol_history_with_interval(sym1, 30)
+                                data2, _ = self.market_data_service.get_symbol_history_with_interval(sym2, 30)
                                 
                                 if data1 and data2 and len(data1) >= 30 and len(data2) >= 30:
                                     df1 = pd.DataFrame(data1)
@@ -1783,7 +1937,7 @@ class AIService:
                 try:
                     asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                     historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                        symbol, asset_type, '1d'
+                        symbol, 90
                     )
                     
                     if historical_data and len(historical_data) >= 90:
@@ -1985,8 +2139,9 @@ class AIService:
             for symbol in symbols:
                 try:
                     asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
+                    # Use prediction_horizon > 60 to get weekly data
                     data, interval = self.market_data_service.get_symbol_history_with_interval(
-                        symbol, asset_type, '1w'  # Weekly data
+                        symbol, 90  # Weekly data (prediction_horizon > 60 returns weekly)
                     )
                     
                     if data:
