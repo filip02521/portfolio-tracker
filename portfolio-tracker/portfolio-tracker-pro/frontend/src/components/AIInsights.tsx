@@ -5,7 +5,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   CircularProgress,
   Alert,
   Select,
@@ -187,90 +186,88 @@ const AIInsights: React.FC = () => {
 
       {/* Dashboard Summary */}
       {summary.total > 0 && (
-        <Grid container spacing={2} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3} key="total">
-            <Card>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Total Recommendations
-                </Typography>
-                <Typography variant="h4" fontWeight={600}>
-                  {summary.total}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3} key="buy">
-            <Card>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Buy Signals
-                </Typography>
-                <Typography variant="h4" fontWeight={600} color="success.main">
-                  {summary.buyCount}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3} key="sell">
-            <Card>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Sell Signals
-                </Typography>
-                <Typography variant="h4" fontWeight={600} color="error.main">
-                  {summary.sellCount}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3} key="priority">
-            <Card>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  High Priority
-                </Typography>
-                <Typography variant="h4" fontWeight={600} color="warning.main">
-                  {summary.highPriority}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+          gap: 2, 
+          mb: 4 
+        }}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Total Recommendations
+              </Typography>
+              <Typography variant="h4" fontWeight={600}>
+                {summary.total}
+              </Typography>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Buy Signals
+              </Typography>
+              <Typography variant="h4" fontWeight={600} color="success.main">
+                {summary.buyCount}
+              </Typography>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Sell Signals
+              </Typography>
+              <Typography variant="h4" fontWeight={600} color="error.main">
+                {summary.sellCount}
+              </Typography>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                High Priority
+              </Typography>
+              <Typography variant="h4" fontWeight={600} color="warning.main">
+                {summary.highPriority}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Box>
       )}
 
       {/* Controls */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6} md={4} key="risk">
-            <FormControl fullWidth size="small">
-              <InputLabel>Risk Tolerance</InputLabel>
-              <Select
-                value={riskTolerance}
-                label="Risk Tolerance"
-                onChange={(e) => setRiskTolerance(e.target.value as typeof riskTolerance)}
-              >
-                <MenuItem value="conservative">Conservative</MenuItem>
-                <MenuItem value="moderate">Moderate</MenuItem>
-                <MenuItem value="aggressive">Aggressive</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4} key="sort">
-            <FormControl fullWidth size="small">
-              <InputLabel>Sort By</InputLabel>
-              <Select
-                value={sortBy}
-                label="Sort By"
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              >
-                <MenuItem value="priority">Priority</MenuItem>
-                <MenuItem value="composite_score">Composite Score</MenuItem>
-                <MenuItem value="signal_strength">Signal Strength</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+          gap: 2,
+          alignItems: 'center'
+        }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Risk Tolerance</InputLabel>
+            <Select
+              value={riskTolerance}
+              label="Risk Tolerance"
+              onChange={(e) => setRiskTolerance(e.target.value as typeof riskTolerance)}
+            >
+              <MenuItem value="conservative">Conservative</MenuItem>
+              <MenuItem value="moderate">Moderate</MenuItem>
+              <MenuItem value="aggressive">Aggressive</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth size="small">
+            <InputLabel>Sort By</InputLabel>
+            <Select
+              value={sortBy}
+              label="Sort By"
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            >
+              <MenuItem value="priority">Priority</MenuItem>
+              <MenuItem value="composite_score">Composite Score</MenuItem>
+              <MenuItem value="signal_strength">Signal Strength</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
       </Paper>
 
       {/* Recommendations List */}
