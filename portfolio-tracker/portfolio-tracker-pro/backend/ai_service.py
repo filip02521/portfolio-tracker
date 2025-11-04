@@ -876,6 +876,9 @@ class AIService:
                             if indicators is not None and len(indicators) > 0:
                                 model_used = "comprehensive_technical_analysis"
                                 
+                                # Debug: Log indicators for troubleshooting
+                                self.logger.debug(f"Calculated {len(indicators)} indicators for {symbol}: {list(indicators.keys())}")
+                                
                                 # Calculate scoring based on indicators
                                 # RSI
                                 if 'rsi' in indicators:
@@ -1136,8 +1139,11 @@ class AIService:
                                 # Clamp signal_strength to [-100, 100]
                                 signal_strength = max(-100, min(100, signal_strength))
                                 
+                                # Debug: Log signal_strength calculation
+                                self.logger.debug(f"{symbol}: signal_strength={signal_strength:.2f}, buy_score={buy_score:.2f}, sell_score={sell_score:.2f}")
+                                
                                 # Calculate confidence
-                                base_confidence = abs(signal_strength) / 100.0
+                                base_confidence = abs(signal_strength) / 100.0 if signal_strength != 0 else 0.0
                                 confidence = max(0.0, min(1.0, base_confidence + confidence_adjustment))
                                 
                                 # Determine action and priority based on signal_strength and allocation drift
