@@ -1050,275 +1050,196 @@ class AIService:
                 "error": str(e)
             }
 
-    def predict_price(
+    def suggest_holdings_optimization(
         self,
-        symbol: str,
-        asset_type: str = "crypto",
-        days_ahead: int = 7
+        current_holdings: Dict[str, float],
+        risk_tolerance: str = "moderate"
     ) -> Optional[Dict]:
         """
-        Predict future price using Prophet (if available) or fallback to mock predictions.
+        Suggest optimal portfolio allocation using Modern Portfolio Theory (MPT).
         
         Args:
-            symbol: Asset symbol (e.g., 'BTC', 'AAPL')
-            asset_type: 'crypto' or 'stock'
-            days_ahead: Number of days to predict (7-90)
+            current_holdings: Current portfolio allocation {symbol: percentage}
+            risk_tolerance: 'conservative', 'moderate', or 'aggressive'
         
         Returns:
-            Dictionary with predictions and confidence
+            Dictionary with optimized allocation suggestions and metrics
         """
-        if not symbol or days_ahead < 1 or days_ahead > 90:
-            return None
-        
-        try:
-            # Get historical data
-            if not self.market_data_service:
-                return self._mock_predict_price(symbol, asset_type, days_ahead)
-            
-            historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
-                symbol, asset_type, '1d'
-            )
-            
-            if not historical_data or len(historical_data) < 50:
-                self.logger.warning(f"Insufficient data for {symbol}, using mock predictions")
-                return self._mock_predict_price(symbol, asset_type, days_ahead)
-            
-            # Use Prophet if available
-            if PROPHET_AVAILABLE:
-                try:
-                    df = pd.DataFrame(historical_data)
-                    df['ds'] = pd.to_datetime(df['timestamp'] if 'timestamp' in df.columns else df.index)
-                    df['y'] = df['close'].values
-                    
-                    # Prepare Prophet dataframe
-                    prophet_df = df[['ds', 'y']].copy()
-                    
-                    # Initialize and fit Prophet model
-                    model = Prophet(
-                        daily_seasonality=True,
-                        weekly_seasonality=True,
-                        yearly_seasonality=False,
-                        changepoint_prior_scale=0.05
-                    )
-                    model.fit(prophet_df)
-                    
-                    # Make future predictions
-                    future = model.make_future_dataframe(periods=days_ahead)
-                    forecast = model.predict(future)
-                    
-                    # Extract predictions
-                    predictions = []
-                    current_price = df['close'].iloc[-1]
-                    
-                    for i in range(len(df), len(forecast)):
-                        pred_row = forecast.iloc[i]
-                        predicted_price = max(current_price * 0.01, min(pred_row['yhat'], current_price * 10))
-                        upper_bound = max(predicted_price, min(pred_row['yhat_upper'], current_price * 10))
-                        lower_bound = max(current_price * 0.01, pred_row['yhat_lower'])
-                        
-                        predictions.append({
-                            'date': pred_row['ds'].isoformat(),
-                            'predicted_price': float(predicted_price),
-                            'upper_bound': float(upper_bound),
-                            'lower_bound': float(lower_bound)
-                        })
-                    
-                    # Calculate confidence based on prediction interval width
-                    avg_interval_width = np.mean([p['upper_bound'] - p['lower_bound'] for p in predictions]) / current_price
-                    confidence = max(0.5, min(0.95, 1.0 - (avg_interval_width / 2)))
-                    
-                    return {
-                        'symbol': symbol,
-                        'model_used': 'prophet',
-                        'status': 'success',
-                        'predictions': predictions,
-                        'confidence': float(confidence),
-                        'current_price': float(current_price)
-                    }
-                    
-                except Exception as e:
-                    self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
-                    return self._mock_predict_price(symbol, asset_type, days_ahead)
-            else:
-                return self._mock_predict_price(symbol, asset_type, days_ahead)
-                
-        except Exception as e:
-            self.logger.error(f"Error in predict_price for {symbol}: {e}", exc_info=True)
-            return self._mock_predict_price(symbol, asset_type, days_ahead)
-    
-    def _fetch_real_news(self, symbol: str, max_articles: int = 10) -> List[str]:
-        """Fetch real news articles using NewsAPI"""
-        headlines = []
-        
-        if not NEWSAPI_AVAILABLE or not hasattr(self, 'newsapi_client') or not self.newsapi_client:
-            return self._get_mock_news_headlines(symbol)
-        
-        try:
-            # Search for news about the symbol
-            query = f"{symbol} cryptocurrency" if symbol in ['BTC', 'ETH', 'SOL'] else f"{symbol} stock"
-            articles = self.newsapi_client.get_everything(
-                q=query,
-                language='en',
-                sort_by='relevancy',
-                page_size=max_articles
-            )
-            
-            if articles and 'articles' in articles:
-                for article in articles['articles']:
-                    if article.get('title'):
-                        headlines.append(article['title'])
-            
-            if not headlines:
-                return self._get_mock_news_headlines(symbol)
-            
-            return headlines[:max_articles]
-            
-        except Exception as e:
-            self.logger.warning(f"Error fetching news for {symbol}: {e}")
-            return self._get_mock_news_headlines(symbol)
-    
-    def analyze_sentiment(
-        self,
-        symbol: str,
-        asset_type: str = "crypto"
-    ) -> Optional[Dict]:
-        """
-        Analyze sentiment from news articles using FinBERT (if available).
-        
-        Args:
-            symbol: Asset symbol
-            asset_type: 'crypto' or 'stock'
-        
-        Returns:
-            Dictionary with sentiment analysis results
-        """
-        if not symbol:
-            return None
-        
-        try:
-            # Fetch news headlines
-            headlines = self._fetch_real_news(symbol, max_articles=10)
-            
-            if not headlines:
-                return {
-                    'symbol': symbol,
-                    'sentiment': 'neutral',
-                    'score': 0.0,
-                    'confidence': 0.5,
-                    'model_used': 'fallback',
-                    'status': 'no_data'
-                }
-            
-            # Use FinBERT if available
-            if TRANSFORMERS_AVAILABLE and self.sentiment_pipeline:
-                try:
-                    # Analyze sentiment for each headline
-                    sentiments = []
-                    scores = []
-                    
-                    for headline in headlines:
-                        result = self.sentiment_pipeline(headline)
-                        if isinstance(result, list) and len(result) > 0:
-                            result = result[0]
-                        
-                        label = result.get('label', 'neutral')
-                        score = result.get('score', 0.5)
-                        
-                        # Map FinBERT labels to our sentiment scale
-                        if 'positive' in label.lower():
-                            sentiments.append('positive')
-                            scores.append(score)
-                        elif 'negative' in label.lower():
-                            sentiments.append('negative')
-                            scores.append(-score)
-                        else:
-                            sentiments.append('neutral')
-                            scores.append(0.0)
-                    
-                    # Aggregate sentiment
-                    if scores:
-                        avg_score = np.mean(scores)
-                        positive_count = sum(1 for s in sentiments if s == 'positive')
-                        negative_count = sum(1 for s in sentiments if s == 'negative')
-                        
-                        if avg_score > 0.1:
-                            sentiment = 'positive'
-                        elif avg_score < -0.1:
-                            sentiment = 'negative'
-                        else:
-                            sentiment = 'neutral'
-                        
-                        confidence = min(0.95, abs(avg_score) * 2 + 0.5)
-                        
-                        return {
-                            'symbol': symbol,
-                            'sentiment': sentiment,
-                            'score': float(avg_score),
-                            'confidence': float(confidence),
-                            'model_used': 'finbert',
-                            'status': 'success',
-                            'positive_articles': positive_count,
-                            'negative_articles': negative_count,
-                            'total_articles': len(headlines)
-                        }
-                    else:
-                        return {
-                            'symbol': symbol,
-                            'sentiment': 'neutral',
-                            'score': 0.0,
-                            'confidence': 0.5,
-                            'model_used': 'fallback',
-                            'status': 'no_results'
-                        }
-                        
-                except Exception as e:
-                    self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
-                    return {
-                        'symbol': symbol,
-                        'sentiment': 'neutral',
-                        'score': 0.0,
-                        'confidence': 0.5,
-                        'model_used': 'fallback',
-                        'status': 'error'
-                    }
-            else:
-                # Fallback: simple keyword-based sentiment
-                positive_keywords = ['up', 'rise', 'gain', 'bullish', 'surge', 'rally', 'soar', 'climb']
-                negative_keywords = ['down', 'fall', 'drop', 'bearish', 'plunge', 'crash', 'decline', 'slide']
-                
-                positive_count = sum(1 for h in headlines if any(kw in h.lower() for kw in positive_keywords))
-                negative_count = sum(1 for h in headlines if any(kw in h.lower() for kw in negative_keywords))
-                
-                if positive_count > negative_count:
-                    sentiment = 'positive'
-                    score = 0.3
-                elif negative_count > positive_count:
-                    sentiment = 'negative'
-                    score = -0.3
-                else:
-                    sentiment = 'neutral'
-                    score = 0.0
-                
-                return {
-                    'symbol': symbol,
-                    'sentiment': sentiment,
-                    'score': score,
-                    'confidence': 0.6,
-                    'model_used': 'keyword_based',
-                    'status': 'success',
-                    'positive_articles': positive_count,
-                    'negative_articles': negative_count,
-                    'total_articles': len(headlines)
-                }
-                
-        except Exception as e:
-            self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
+        if not current_holdings:
             return {
-                'symbol': symbol,
-                'sentiment': 'neutral',
-                'score': 0.0,
-                'confidence': 0.5,
-                'model_used': 'fallback',
+                'optimized_allocation': {},
+                'expected_return': 0.0,
+                'expected_volatility': 0.0,
+                'sharpe_ratio': 0.0,
+                'improvement': {},
+                'status': 'no_holdings'
+            }
+        
+        try:
+            symbols = list(current_holdings.keys())
+            
+            if not self.market_data_service or len(symbols) < 2:
+                return {
+                    'optimized_allocation': current_holdings,
+                    'expected_return': 0.0,
+                    'expected_volatility': 0.0,
+                    'sharpe_ratio': 0.0,
+                    'improvement': {},
+                    'status': 'insufficient_data'
+                }
+            
+            # Get historical returns for all symbols
+            returns_data = {}
+            for symbol in symbols:
+                try:
+                    asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
+                    historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
+                        symbol, asset_type, '1d'
+                    )
+                    
+                    if historical_data and len(historical_data) >= 30:
+                        df = pd.DataFrame(historical_data)
+                        if 'close' in df.columns:
+                            prices = df['close'].values
+                            returns = np.diff(prices) / prices[:-1]
+                            returns_data[symbol] = returns
+                except Exception as e:
+                    self.logger.debug(f"Error getting data for {symbol}: {e}")
+            
+            if len(returns_data) < 2:
+                return {
+                    'optimized_allocation': current_holdings,
+                    'expected_return': 0.0,
+                    'expected_volatility': 0.0,
+                    'sharpe_ratio': 0.0,
+                    'improvement': {},
+                    'status': 'insufficient_historical_data'
+                }
+            
+            # Align all returns to same length
+            min_length = min(len(r) for r in returns_data.values())
+            aligned_returns = {}
+            for symbol, returns in returns_data.items():
+                aligned_returns[symbol] = returns[-min_length:] if len(returns) > min_length else returns
+            
+            # Calculate expected returns (annualized)
+            expected_returns = {}
+            for symbol, returns in aligned_returns.items():
+                mean_return = np.mean(returns)
+                expected_returns[symbol] = mean_return * 252  # Annualize daily returns
+            
+            # Calculate covariance matrix
+            returns_matrix = np.array([aligned_returns[symbol] for symbol in aligned_returns.keys()])
+            cov_matrix = np.cov(returns_matrix) * 252  # Annualize covariance
+            
+            # Risk tolerance settings
+            risk_free_rate = 0.02  # 2% risk-free rate
+            
+            risk_settings = {
+                'conservative': {'target_volatility': 0.10, 'max_single_asset': 0.30},
+                'moderate': {'target_volatility': 0.15, 'max_single_asset': 0.40},
+                'aggressive': {'target_volatility': 0.25, 'max_single_asset': 0.50}
+            }
+            
+            settings = risk_settings.get(risk_tolerance, risk_settings['moderate'])
+            target_vol = settings['target_volatility']
+            max_allocation = settings['max_single_asset']
+            
+            # Simple optimization: Maximize Sharpe ratio with constraints
+            # Using gradient descent approach
+            symbols_list = list(aligned_returns.keys())
+            n = len(symbols_list)
+            
+            # Initial weights (equal allocation)
+            weights = np.ones(n) / n
+            
+            # Portfolio metrics
+            def portfolio_metrics(w):
+                port_return = np.sum(w * np.array([expected_returns[s] for s in symbols_list]))
+                port_var = np.dot(w, np.dot(cov_matrix, w))
+                port_vol = np.sqrt(port_var)
+                sharpe = (port_return - risk_free_rate) / port_vol if port_vol > 0 else 0
+                return port_return, port_vol, sharpe
+            
+            # Simple optimization (gradient descent-like)
+            learning_rate = 0.01
+            iterations = 100
+            
+            for _ in range(iterations):
+                # Calculate current metrics
+                port_return, port_vol, sharpe = portfolio_metrics(weights)
+                
+                # Calculate gradient (simplified - move towards higher Sharpe)
+                if port_vol > 0:
+                    # Adjust weights towards assets with better risk-adjusted returns
+                    individual_sharpe = []
+                    for symbol in symbols_list:
+                        asset_return = expected_returns[symbol]
+                        asset_vol = np.sqrt(cov_matrix[symbols_list.index(symbol), symbols_list.index(symbol)])
+                        asset_sharpe = (asset_return - risk_free_rate) / asset_vol if asset_vol > 0 else 0
+                        individual_sharpe.append(asset_sharpe)
+                    
+                    # Normalize to probabilities
+                    sharpe_array = np.array(individual_sharpe)
+                    sharpe_array = sharpe_array - np.min(sharpe_array) + 0.01  # Ensure positive
+                    new_weights = sharpe_array / np.sum(sharpe_array)
+                    
+                    # Apply constraints
+                    new_weights = np.clip(new_weights, 0, max_allocation)
+                    new_weights = new_weights / np.sum(new_weights)  # Renormalize
+                    
+                    # Update with momentum
+                    weights = 0.7 * weights + 0.3 * new_weights
+                    weights = weights / np.sum(weights)  # Ensure sum = 1
+            
+            # Final metrics
+            optimized_return, optimized_vol, optimized_sharpe = portfolio_metrics(weights)
+            
+            # Build optimized allocation
+            optimized_allocation = {}
+            for i, symbol in enumerate(symbols_list):
+                optimized_allocation[symbol] = float(weights[i])
+            
+            # Calculate current portfolio metrics for comparison
+            current_weights = np.array([current_holdings.get(s, 0.0) for s in symbols_list])
+            if np.sum(current_weights) > 0:
+                current_weights = current_weights / np.sum(current_weights)
+                current_return, current_vol, current_sharpe = portfolio_metrics(current_weights)
+            else:
+                current_return, current_vol, current_sharpe = 0.0, 0.0, 0.0
+            
+            # Improvement metrics
+            improvement = {
+                'return_change': float(optimized_return - current_return),
+                'volatility_change': float(optimized_vol - current_vol),
+                'sharpe_change': float(optimized_sharpe - current_sharpe),
+                'return_improvement_pct': float((optimized_return - current_return) / abs(current_return) * 100) if current_return != 0 else 0.0,
+                'sharpe_improvement_pct': float((optimized_sharpe - current_sharpe) / abs(current_sharpe) * 100) if current_sharpe != 0 else 0.0
+            }
+            
+            return {
+                'optimized_allocation': optimized_allocation,
+                'expected_return': float(optimized_return),
+                'expected_volatility': float(optimized_vol),
+                'sharpe_ratio': float(optimized_sharpe),
+                'current_metrics': {
+                    'expected_return': float(current_return),
+                    'expected_volatility': float(current_vol),
+                    'sharpe_ratio': float(current_sharpe)
+                },
+                'improvement': improvement,
+                'risk_tolerance': risk_tolerance,
+                'status': 'success'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
+            return {
+                'optimized_allocation': current_holdings,
+                'expected_return': 0.0,
+                'expected_volatility': 0.0,
+                'sharpe_ratio': 0.0,
+                'improvement': {},
                 'status': 'error',
                 'error': str(e)
             }
