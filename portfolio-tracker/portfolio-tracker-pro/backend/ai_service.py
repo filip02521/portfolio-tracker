@@ -1050,229 +1050,275 @@ class AIService:
                 "error": str(e)
             }
 
-    def detect_anomalies(
+    def predict_price(
         self,
-        portfolio_holdings: Dict[str, float],
-        target_allocation: Dict[str, float] = None
+        symbol: str,
+        asset_type: str = "crypto",
+        days_ahead: int = 7
     ) -> Optional[Dict]:
         """
-        Detect anomalies in portfolio data using statistical methods.
+        Predict future price using Prophet (if available) or fallback to mock predictions.
         
         Args:
-            portfolio_holdings: Current portfolio allocation {symbol: percentage}
-            target_allocation: Optional target allocation for drift detection
+            symbol: Asset symbol (e.g., 'BTC', 'AAPL')
+            asset_type: 'crypto' or 'stock'
+            days_ahead: Number of days to predict (7-90)
         
         Returns:
-            Dictionary with detected anomalies and their severity
+            Dictionary with predictions and confidence
         """
-        if not portfolio_holdings:
-            return {
-                'anomalies': [],
-                'total_anomalies': 0,
-                'severity': 'none'
-            }
-        
-        anomalies = []
+        if not symbol or days_ahead < 1 or days_ahead > 90:
+            return None
         
         try:
-            # 1. Price Z-score anomalies
-            if self.market_data_service:
-                for symbol in portfolio_holdings.keys():
-                    if portfolio_holdings[symbol] <= 0:
-                        continue
+            # Get historical data
+            if not self.market_data_service:
+                return self._mock_predict_price(symbol, asset_type, days_ahead)
+            
+            historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
+                symbol, asset_type, '1d'
+            )
+            
+            if not historical_data or len(historical_data) < 50:
+                self.logger.warning(f"Insufficient data for {symbol}, using mock predictions")
+                return self._mock_predict_price(symbol, asset_type, days_ahead)
+            
+            # Use Prophet if available
+            if PROPHET_AVAILABLE:
+                try:
+                    df = pd.DataFrame(historical_data)
+                    df['ds'] = pd.to_datetime(df['timestamp'] if 'timestamp' in df.columns else df.index)
+                    df['y'] = df['close'].values
                     
-                    try:
-                        # Get historical data
-                        asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                        historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, asset_type, '1d'
-                        )
-                        
-                        if historical_data and len(historical_data) >= 30:
-                            df = pd.DataFrame(historical_data)
-                            if 'close' in df.columns:
-                                prices = df['close'].values
-                                current_price = prices[-1]
-                                
-                                # Calculate Z-score
-                                mean_price = np.mean(prices)
-                                std_price = np.std(prices)
-                                
-                                if std_price > 0:
-                                    z_score = abs((current_price - mean_price) / std_price)
-                                    
-                                    if z_score > 3:
-                                        anomalies.append({
-                                            'type': 'price_zscore',
-                                            'symbol': symbol,
-                                            'severity': 'critical',
-                                            'z_score': float(z_score),
-                                            'message': f'{symbol} price is {z_score:.2f} standard deviations from mean'
-                                        })
-                                    elif z_score > 2:
-                                        anomalies.append({
-                                            'type': 'price_zscore',
-                                            'symbol': symbol,
-                                            'severity': 'warning',
-                                            'z_score': float(z_score),
-                                            'message': f'{symbol} price is {z_score:.2f} standard deviations from mean'
-                                        })
-                        
-                        # Volume anomalies
-                        if 'volume' in df.columns:
-                            volumes = df['volume'].values
-                            recent_volume = np.mean(volumes[-5:]) if len(volumes) >= 5 else volumes[-1]
-                            avg_volume = np.mean(volumes[:-5]) if len(volumes) > 5 else np.mean(volumes)
-                            
-                            if avg_volume > 0:
-                                volume_ratio = recent_volume / avg_volume
-                                
-                                if volume_ratio > 3.0:
-                                    anomalies.append({
-                                        'type': 'volume_spike',
-                                        'symbol': symbol,
-                                        'severity': 'warning',
-                                        'volume_ratio': float(volume_ratio),
-                                        'message': f'{symbol} has {volume_ratio:.1f}x average volume spike'
-                                    })
-                                elif volume_ratio < 0.3:
-                                    anomalies.append({
-                                        'type': 'volume_drop',
-                                        'symbol': symbol,
-                                        'severity': 'info',
-                                        'volume_ratio': float(volume_ratio),
-                                        'message': f'{symbol} has {volume_ratio:.1f}x average volume drop'
-                                    })
+                    # Prepare Prophet dataframe
+                    prophet_df = df[['ds', 'y']].copy()
                     
-                    except Exception as e:
-                        self.logger.debug(f"Error detecting anomalies for {symbol}: {e}")
-            
-            # 2. Allocation drift anomalies
-            if target_allocation:
-                total_current = sum(portfolio_holdings.values())
-                total_target = sum(target_allocation.values())
-                
-                if total_current > 0 and total_target > 0:
-                    for symbol in set(portfolio_holdings.keys()) | set(target_allocation.keys()):
-                        current_pct = portfolio_holdings.get(symbol, 0.0) / total_current if total_current > 0 else 0.0
-                        target_pct = target_allocation.get(symbol, 0.0) / total_target if total_target > 0 else 0.0
-                        
-                        drift = abs(current_pct - target_pct)
-                        
-                        if drift > 0.20:  # 20% drift
-                            anomalies.append({
-                                'type': 'allocation_drift',
-                                'symbol': symbol,
-                                'severity': 'critical' if drift > 0.30 else 'warning',
-                                'current_allocation': float(current_pct),
-                                'target_allocation': float(target_pct),
-                                'drift': float(drift),
-                                'message': f'{symbol} allocation drift: {drift*100:.1f}%'
-                            })
-            
-            # 3. Correlation breaks (if we have multiple assets with data)
-            if self.market_data_service and len(portfolio_holdings) >= 2:
-                symbols_with_data = []
-                price_data = {}
-                
-                for symbol in portfolio_holdings.keys():
-                    if portfolio_holdings[symbol] <= 0:
-                        continue
+                    # Initialize and fit Prophet model
+                    model = Prophet(
+                        daily_seasonality=True,
+                        weekly_seasonality=True,
+                        yearly_seasonality=False,
+                        changepoint_prior_scale=0.05
+                    )
+                    model.fit(prophet_df)
                     
-                    try:
-                        asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                        historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, asset_type, '1d'
-                        )
+                    # Make future predictions
+                    future = model.make_future_dataframe(periods=days_ahead)
+                    forecast = model.predict(future)
+                    
+                    # Extract predictions
+                    predictions = []
+                    current_price = df['close'].iloc[-1]
+                    
+                    for i in range(len(df), len(forecast)):
+                        pred_row = forecast.iloc[i]
+                        predicted_price = max(current_price * 0.01, min(pred_row['yhat'], current_price * 10))
+                        upper_bound = max(predicted_price, min(pred_row['yhat_upper'], current_price * 10))
+                        lower_bound = max(current_price * 0.01, pred_row['yhat_lower'])
                         
-                        if historical_data and len(historical_data) >= 30:
-                            df = pd.DataFrame(historical_data)
-                            if 'close' in df.columns:
-                                symbols_with_data.append(symbol)
-                                price_data[symbol] = df['close'].values
-                    except Exception:
-                        continue
-                
-                # Check correlation breaks between pairs
-                if len(symbols_with_data) >= 2:
-                    for i, symbol1 in enumerate(symbols_with_data):
-                        for symbol2 in symbols_with_data[i+1:]:
-                            try:
-                                prices1 = price_data[symbol1]
-                                prices2 = price_data[symbol2]
-                                
-                                # Align lengths
-                                min_len = min(len(prices1), len(prices2))
-                                if min_len < 30:
-                                    continue
-                                
-                                prices1_aligned = prices1[-min_len:]
-                                prices2_aligned = prices2[-min_len:]
-                                
-                                # Calculate returns
-                                returns1 = np.diff(prices1_aligned) / prices1_aligned[:-1]
-                                returns2 = np.diff(prices2_aligned) / prices2_aligned[:-1]
-                                
-                                # Calculate correlation over full period and recent period
-                                full_correlation = np.corrcoef(returns1, returns2)[0, 1]
-                                
-                                if min_len >= 60:
-                                    recent_len = min_len // 2
-                                    recent_correlation = np.corrcoef(
-                                        returns1[-recent_len:], returns2[-recent_len:]
-                                    )[0, 1]
-                                    
-                                    correlation_change = abs(recent_correlation - full_correlation)
-                                    
-                                    if correlation_change > 0.5 and abs(full_correlation) > 0.3:
-                                        anomalies.append({
-                                            'type': 'correlation_break',
-                                            'symbols': [symbol1, symbol2],
-                                            'severity': 'warning',
-                                            'full_correlation': float(full_correlation),
-                                            'recent_correlation': float(recent_correlation),
-                                            'change': float(correlation_change),
-                                            'message': f'Correlation break between {symbol1} and {symbol2}: {full_correlation:.2f} → {recent_correlation:.2f}'
-                                        })
-                            except Exception as e:
-                                self.logger.debug(f"Error checking correlation between {symbol1} and {symbol2}: {e}")
-            
-            # 4. Data inconsistencies
-            total_allocation = sum(portfolio_holdings.values())
-            if total_allocation > 1.05 or total_allocation < 0.95:
-                anomalies.append({
-                    'type': 'allocation_sum',
-                    'severity': 'warning',
-                    'total_allocation': float(total_allocation),
-                    'message': f'Portfolio allocation sums to {total_allocation*100:.1f}% (expected 100%)'
-                })
-            
-            # Calculate overall severity
-            critical_count = sum(1 for a in anomalies if a.get('severity') == 'critical')
-            warning_count = sum(1 for a in anomalies if a.get('severity') == 'warning')
-            
-            if critical_count > 0:
-                severity = 'critical'
-            elif warning_count > 0:
-                severity = 'warning'
-            elif anomalies:
-                severity = 'info'
+                        predictions.append({
+                            'date': pred_row['ds'].isoformat(),
+                            'predicted_price': float(predicted_price),
+                            'upper_bound': float(upper_bound),
+                            'lower_bound': float(lower_bound)
+                        })
+                    
+                    # Calculate confidence based on prediction interval width
+                    avg_interval_width = np.mean([p['upper_bound'] - p['lower_bound'] for p in predictions]) / current_price
+                    confidence = max(0.5, min(0.95, 1.0 - (avg_interval_width / 2)))
+                    
+                    return {
+                        'symbol': symbol,
+                        'model_used': 'prophet',
+                        'status': 'success',
+                        'predictions': predictions,
+                        'confidence': float(confidence),
+                        'current_price': float(current_price)
+                    }
+                    
+                except Exception as e:
+                    self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
+                    return self._mock_predict_price(symbol, asset_type, days_ahead)
             else:
-                severity = 'none'
+                return self._mock_predict_price(symbol, asset_type, days_ahead)
+                
+        except Exception as e:
+            self.logger.error(f"Error in predict_price for {symbol}: {e}", exc_info=True)
+            return self._mock_predict_price(symbol, asset_type, days_ahead)
+    
+    def _fetch_real_news(self, symbol: str, max_articles: int = 10) -> List[str]:
+        """Fetch real news articles using NewsAPI"""
+        headlines = []
+        
+        if not NEWSAPI_AVAILABLE or not hasattr(self, 'newsapi_client') or not self.newsapi_client:
+            return self._get_mock_news_headlines(symbol)
+        
+        try:
+            # Search for news about the symbol
+            query = f"{symbol} cryptocurrency" if symbol in ['BTC', 'ETH', 'SOL'] else f"{symbol} stock"
+            articles = self.newsapi_client.get_everything(
+                q=query,
+                language='en',
+                sort_by='relevancy',
+                page_size=max_articles
+            )
             
-            return {
-                'anomalies': anomalies,
-                'total_anomalies': len(anomalies),
-                'severity': severity,
-                'critical_count': critical_count,
-                'warning_count': warning_count
-            }
+            if articles and 'articles' in articles:
+                for article in articles['articles']:
+                    if article.get('title'):
+                        headlines.append(article['title'])
+            
+            if not headlines:
+                return self._get_mock_news_headlines(symbol)
+            
+            return headlines[:max_articles]
             
         except Exception as e:
-            self.logger.error(f"Error in detect_anomalies: {e}", exc_info=True)
+            self.logger.warning(f"Error fetching news for {symbol}: {e}")
+            return self._get_mock_news_headlines(symbol)
+    
+    def analyze_sentiment(
+        self,
+        symbol: str,
+        asset_type: str = "crypto"
+    ) -> Optional[Dict]:
+        """
+        Analyze sentiment from news articles using FinBERT (if available).
+        
+        Args:
+            symbol: Asset symbol
+            asset_type: 'crypto' or 'stock'
+        
+        Returns:
+            Dictionary with sentiment analysis results
+        """
+        if not symbol:
+            return None
+        
+        try:
+            # Fetch news headlines
+            headlines = self._fetch_real_news(symbol, max_articles=10)
+            
+            if not headlines:
+                return {
+                    'symbol': symbol,
+                    'sentiment': 'neutral',
+                    'score': 0.0,
+                    'confidence': 0.5,
+                    'model_used': 'fallback',
+                    'status': 'no_data'
+                }
+            
+            # Use FinBERT if available
+            if TRANSFORMERS_AVAILABLE and self.sentiment_pipeline:
+                try:
+                    # Analyze sentiment for each headline
+                    sentiments = []
+                    scores = []
+                    
+                    for headline in headlines:
+                        result = self.sentiment_pipeline(headline)
+                        if isinstance(result, list) and len(result) > 0:
+                            result = result[0]
+                        
+                        label = result.get('label', 'neutral')
+                        score = result.get('score', 0.5)
+                        
+                        # Map FinBERT labels to our sentiment scale
+                        if 'positive' in label.lower():
+                            sentiments.append('positive')
+                            scores.append(score)
+                        elif 'negative' in label.lower():
+                            sentiments.append('negative')
+                            scores.append(-score)
+                        else:
+                            sentiments.append('neutral')
+                            scores.append(0.0)
+                    
+                    # Aggregate sentiment
+                    if scores:
+                        avg_score = np.mean(scores)
+                        positive_count = sum(1 for s in sentiments if s == 'positive')
+                        negative_count = sum(1 for s in sentiments if s == 'negative')
+                        
+                        if avg_score > 0.1:
+                            sentiment = 'positive'
+                        elif avg_score < -0.1:
+                            sentiment = 'negative'
+                        else:
+                            sentiment = 'neutral'
+                        
+                        confidence = min(0.95, abs(avg_score) * 2 + 0.5)
+                        
+                        return {
+                            'symbol': symbol,
+                            'sentiment': sentiment,
+                            'score': float(avg_score),
+                            'confidence': float(confidence),
+                            'model_used': 'finbert',
+                            'status': 'success',
+                            'positive_articles': positive_count,
+                            'negative_articles': negative_count,
+                            'total_articles': len(headlines)
+                        }
+                    else:
+                        return {
+                            'symbol': symbol,
+                            'sentiment': 'neutral',
+                            'score': 0.0,
+                            'confidence': 0.5,
+                            'model_used': 'fallback',
+                            'status': 'no_results'
+                        }
+                        
+                except Exception as e:
+                    self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
+                    return {
+                        'symbol': symbol,
+                        'sentiment': 'neutral',
+                        'score': 0.0,
+                        'confidence': 0.5,
+                        'model_used': 'fallback',
+                        'status': 'error'
+                    }
+            else:
+                # Fallback: simple keyword-based sentiment
+                positive_keywords = ['up', 'rise', 'gain', 'bullish', 'surge', 'rally', 'soar', 'climb']
+                negative_keywords = ['down', 'fall', 'drop', 'bearish', 'plunge', 'crash', 'decline', 'slide']
+                
+                positive_count = sum(1 for h in headlines if any(kw in h.lower() for kw in positive_keywords))
+                negative_count = sum(1 for h in headlines if any(kw in h.lower() for kw in negative_keywords))
+                
+                if positive_count > negative_count:
+                    sentiment = 'positive'
+                    score = 0.3
+                elif negative_count > positive_count:
+                    sentiment = 'negative'
+                    score = -0.3
+                else:
+                    sentiment = 'neutral'
+                    score = 0.0
+                
+                return {
+                    'symbol': symbol,
+                    'sentiment': sentiment,
+                    'score': score,
+                    'confidence': 0.6,
+                    'model_used': 'keyword_based',
+                    'status': 'success',
+                    'positive_articles': positive_count,
+                    'negative_articles': negative_count,
+                    'total_articles': len(headlines)
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
             return {
-                'anomalies': [],
-                'total_anomalies': 0,
-                'severity': 'error',
+                'symbol': symbol,
+                'sentiment': 'neutral',
+                'score': 0.0,
+                'confidence': 0.5,
+                'model_used': 'fallback',
+                'status': 'error',
                 'error': str(e)
             }
