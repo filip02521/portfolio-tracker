@@ -873,7 +873,7 @@ class AIService:
                             # Calculate technical indicators
                             indicators = self._calculate_technical_indicators(df, symbol)
                             
-                            if indicators:
+                            if indicators is not None and len(indicators) > 0:
                                 model_used = "comprehensive_technical_analysis"
                                 
                                 # Calculate scoring based on indicators
