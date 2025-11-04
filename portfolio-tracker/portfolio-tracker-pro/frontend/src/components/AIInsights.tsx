@@ -5,14 +5,19 @@ import {
   Typography,
   Card,
   CardContent,
+  Grid,
   CircularProgress,
   Alert,
+  Tabs,
+  Tab,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
+  Chip,
   Paper,
 } from '@mui/material';
+import { TrendingUp, TrendingDown, AutoGraph } from '@mui/icons-material';
 import SimplifiedRecommendationCard from './SimplifiedRecommendationCard';
 
 interface AIRecommendation {
@@ -60,11 +65,17 @@ interface RecommendationsResponse {
 
 const AIInsights: React.FC = () => {
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState(0);
   const [sortBy, setSortBy] = useState<'priority' | 'composite_score' | 'signal_strength'>('priority');
   const [riskTolerance, setRiskTolerance] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate');
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, [riskTolerance]);
 
   const fetchRecommendations = useCallback(async () => {
     try {
@@ -72,6 +83,12 @@ const AIInsights: React.FC = () => {
       setError(null);
       
       const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required. Please log in.');
+        setLoading(false);
+        return;
+      }
+      
       const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       // Ensure baseUrl doesn't end with /api to avoid double /api/api
       const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
@@ -86,7 +103,14 @@ const AIInsights: React.FC = () => {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch recommendations: ${response.statusText}`);
+        if (response.status === 401) {
+          setError('Authentication failed. Please log in again.');
+          // Optionally redirect to login
+          // window.location.href = '/login';
+        } else {
+          throw new Error(`Failed to fetch recommendations: ${response.statusText}`);
+        }
+        return;
       }
 
       const data: RecommendationsResponse = await response.json();
@@ -103,10 +127,6 @@ const AIInsights: React.FC = () => {
       setLoading(false);
     }
   }, [riskTolerance]);
-
-  useEffect(() => {
-    fetchRecommendations();
-  }, [fetchRecommendations]);
 
   const filteredAndSortedRecommendations = useMemo(() => {
     let filtered = [...recommendations];
@@ -189,88 +209,90 @@ const AIInsights: React.FC = () => {
 
       {/* Dashboard Summary */}
       {summary.total > 0 && (
-        <Box sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2, 
-          mb: 4 
-        }}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Total Recommendations
-              </Typography>
-              <Typography variant="h4" fontWeight={600}>
-                {summary.total}
-              </Typography>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Buy Signals
-              </Typography>
-              <Typography variant="h4" fontWeight={600} color="success.main">
-                {summary.buyCount}
-              </Typography>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Sell Signals
-              </Typography>
-              <Typography variant="h4" fontWeight={600} color="error.main">
-                {summary.sellCount}
-              </Typography>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                High Priority
-              </Typography>
-              <Typography variant="h4" fontWeight={600} color="warning.main">
-                {summary.highPriority}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Box>
+        <Grid container spacing={2} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3} key="total">
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Total Recommendations
+                </Typography>
+                <Typography variant="h4" fontWeight={600}>
+                  {summary.total}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3} key="buy">
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Buy Signals
+                </Typography>
+                <Typography variant="h4" fontWeight={600} color="success.main">
+                  {summary.buyCount}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3} key="sell">
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Sell Signals
+                </Typography>
+                <Typography variant="h4" fontWeight={600} color="error.main">
+                  {summary.sellCount}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3} key="priority">
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  High Priority
+                </Typography>
+                <Typography variant="h4" fontWeight={600} color="warning.main">
+                  {summary.highPriority}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
 
       {/* Controls */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
-          gap: 2,
-          alignItems: 'center'
-        }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Risk Tolerance</InputLabel>
-            <Select
-              value={riskTolerance}
-              label="Risk Tolerance"
-              onChange={(e) => setRiskTolerance(e.target.value as typeof riskTolerance)}
-            >
-              <MenuItem value="conservative">Conservative</MenuItem>
-              <MenuItem value="moderate">Moderate</MenuItem>
-              <MenuItem value="aggressive">Aggressive</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth size="small">
-            <InputLabel>Sort By</InputLabel>
-            <Select
-              value={sortBy}
-              label="Sort By"
-              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            >
-              <MenuItem value="priority">Priority</MenuItem>
-              <MenuItem value="composite_score">Composite Score</MenuItem>
-              <MenuItem value="signal_strength">Signal Strength</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={6} md={4} key="risk">
+            <FormControl fullWidth size="small">
+              <InputLabel>Risk Tolerance</InputLabel>
+              <Select
+                value={riskTolerance}
+                label="Risk Tolerance"
+                onChange={(e) => setRiskTolerance(e.target.value as typeof riskTolerance)}
+              >
+                <MenuItem value="conservative">Conservative</MenuItem>
+                <MenuItem value="moderate">Moderate</MenuItem>
+                <MenuItem value="aggressive">Aggressive</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} key="sort">
+            <FormControl fullWidth size="small">
+              <InputLabel>Sort By</InputLabel>
+              <Select
+                value={sortBy}
+                label="Sort By"
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              >
+                <MenuItem value="priority">Priority</MenuItem>
+                <MenuItem value="composite_score">Composite Score</MenuItem>
+                <MenuItem value="signal_strength">Signal Strength</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
       </Paper>
 
       {/* Recommendations List */}
