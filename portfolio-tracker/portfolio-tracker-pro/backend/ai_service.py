@@ -967,7 +967,7 @@ class AIService:
                                     if correlation_beta.get('outperforming'):
                                         signal_strength += 3
                                         buy_score += 3
-                                    elif correlation_beta.get('underperforming'):
+                                    elif correlation_beta.get('not_outperforming'):
                                         signal_strength -= 3
                                         sell_score += 3
                                 
