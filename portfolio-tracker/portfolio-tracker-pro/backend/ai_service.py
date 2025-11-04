@@ -542,499 +542,510 @@ class AIService:
         
         return indicators
 
-    # ==================== HELPER METHODS ====================
+    # ==================== MAIN AI METHODS ====================
     
-    def _safe_isna(self, value) -> bool:
-        """Handle pandas Series/numpy arrays for NaN checks"""
-        if pd.isna(value):
-            return True
-        if isinstance(value, (pd.Series, np.ndarray)):
-            if len(value) == 0:
-                return True
-            return pd.isna(value.iloc[-1] if isinstance(value, pd.Series) else value[-1])
-        return False
-    
-    def _safe_bool_extract(self, value, default: bool = False) -> bool:
-        """Extract bool from Series or scalar"""
-        if isinstance(value, pd.Series):
-            if len(value) == 0:
-                return default
-            return bool(value.iloc[-1])
-        if isinstance(value, np.ndarray):
-            if len(value) == 0:
-                return default
-            return bool(value[-1])
-        return bool(value) if value is not None else default
-    
-    def _normalize_indicator(self, series: pd.Series) -> pd.Series:
-        """Min-max normalization to [0,1]"""
-        if series.empty or series.min() == series.max():
-            return pd.Series([0.5] * len(series), index=series.index)
-        return (series - series.min()) / (series.max() - series.min())
-    
-    def _sanitize_for_json(self, obj):
-        """Convert numpy/pandas types to native Python"""
-        if isinstance(obj, (np.integer, np.floating)):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, pd.Series):
-            return obj.tolist()
-        if isinstance(obj, pd.DataFrame):
-            return obj.to_dict('records')
-        if isinstance(obj, dict):
-            return {k: self._sanitize_for_json(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [self._sanitize_for_json(item) for item in obj]
-        return obj
-    
-    def _get_cache_key(self, symbol: str, timeframe: str, function_name: str) -> str:
-        """Generate cache key"""
-        return f"{symbol}_{timeframe}_{function_name}"
-    
-    def _mock_predict_price(self, symbol: str, asset_type: str, days_ahead: int) -> Dict:
-        """Fallback mock predictions"""
-        base_prices = {
-            'BTC': 50000.0, 'ETH': 3000.0, 'SOL': 150.0,
-            'AAPL': 175.0, 'GOOGL': 140.0, 'TSLA': 250.0
-        }
-        base_price = base_prices.get(symbol.upper(), 100.0)
-        predictions = []
-        for i in range(1, days_ahead + 1):
-            change = np.random.normal(0, 0.02)
-            predicted_price = base_price * (1 + change) ** i
-            predictions.append({
-                'date': (datetime.now() + timedelta(days=i)).isoformat(),
-                'predicted_price': predicted_price,
-                'upper_bound': predicted_price * 1.1,
-                'lower_bound': predicted_price * 0.9
-            })
-        return {
-            'symbol': symbol,
-            'model_used': 'mock',
-            'status': 'fallback',
-            'predictions': predictions,
-            'confidence': 0.5
-        }
-
-    # ==================== VOLUME PROFILE & PATTERN DETECTION ====================
-    
-    def _calculate_volume_profile(self, df: pd.DataFrame, num_levels: int = 20) -> Dict:
-        """Calculate Volume Profile (POC, VAH, VAL)"""
-        if df is None or len(df) < 20 or 'volume' not in df.columns or 'close' not in df.columns:
-            return {}
+    def recommend_rebalance(
+        self,
+        portfolio_holdings: Dict[str, float],
+        target_allocation: Dict[str, float],
+        rebalance_threshold: float = 0.05
+    ) -> Optional[Dict]:
+        """
+        Generate AI-powered rebalancing recommendations using comprehensive technical analysis.
         
-        try:
-            cache_key = f"vp_{len(df)}_{df['close'].iloc[-1]:.2f}"
-            cached_result = self._get_from_cache(self._volume_profile_cache, cache_key)
-            if cached_result is not None:
-                return cached_result
-            
-            close = df['close'].values
-            volume = df['volume'].values
-            high = df['high'].values if 'high' in df.columns else close
-            low = df['low'].values if 'low' in df.columns else close
-            
-            # Create price levels
-            price_min = np.min(low)
-            price_max = np.max(high)
-            price_levels = np.linspace(price_min, price_max, num_levels)
-            
-            # Calculate volume at each price level
-            volume_at_price = np.zeros(num_levels)
-            for i in range(len(close)):
-                price = close[i]
-                vol = volume[i]
-                # Find closest price level
-                level_idx = np.argmin(np.abs(price_levels - price))
-                volume_at_price[level_idx] += vol
-            
-            # Point of Control (POC) - price level with highest volume
-            poc_idx = np.argmax(volume_at_price)
-            poc_price = price_levels[poc_idx]
-            
-            # Value Area (70% of volume)
-            total_volume = np.sum(volume_at_price)
-            target_volume = total_volume * 0.70
-            
-            # Find VAH and VAL
-            sorted_indices = np.argsort(volume_at_price)[::-1]
-            cumulative_volume = 0
-            included_levels = set()
-            
-            for idx in sorted_indices:
-                if cumulative_volume >= target_volume:
-                    break
-                cumulative_volume += volume_at_price[idx]
-                included_levels.add(idx)
-            
-            included_prices = [price_levels[i] for i in included_levels]
-            vah_price = max(included_prices) if included_prices else poc_price
-            val_price = min(included_prices) if included_prices else poc_price
-            
-            current_price = close[-1]
-            current_position = None
-            if current_price < val_price:
-                current_position = 'below_val'
-            elif current_price > vah_price:
-                current_position = 'above_vah'
-            elif val_price <= current_price <= poc_price:
-                current_position = 'below_poc'
-            else:
-                current_position = 'above_poc'
-            
-            result = {
-                'poc_price': float(poc_price),
-                'vah_price': float(vah_price),
-                'val_price': float(val_price),
-                'current_price_position': current_position,
-                'poc_volume': float(volume_at_price[poc_idx])
+        Args:
+            portfolio_holdings: Current portfolio allocation {symbol: percentage}
+            target_allocation: Target allocation {symbol: target_percentage}
+            rebalance_threshold: Minimum drift threshold to trigger recommendation (default 0.05 = 5%)
+        
+        Returns:
+            Dictionary with recommendations list and metadata
+        """
+        if not portfolio_holdings or not target_allocation:
+            return {
+                "recommendations": [],
+                "total_rebalance_amount": 0,
+                "model_used": "none",
+                "status": "invalid_input"
             }
-            
-            self._save_to_cache(self._volume_profile_cache, cache_key, result)
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Error calculating volume profile: {e}", exc_info=True)
-            return {}
-    
-    def _detect_candlestick_patterns(self, df: pd.DataFrame) -> Dict:
-        """Detect candlestick patterns (Doji, Hammer, Shooting Star, Engulfing)"""
-        if df is None or len(df) < 5:
-            return {}
+        
+        recommendations = []
+        processed_symbols = set()
+        model_used = "simple_threshold"
+        diagnostic_info = {}
+        
+        # Stablecoins to exclude from technical analysis
+        stablecoins = {'USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'PAX', 'USDP', 'GUSD', 'HUSD'}
         
         try:
-            open_prices = df['open'].values if 'open' in df.columns else df['close'].values
-            high = df['high'].values if 'high' in df.columns else df['close'].values
-            low = df['low'].values if 'low' in df.columns else df['close'].values
-            close = df['close'].values
+            # Get all unique symbols from both holdings and target allocation
+            all_symbols = set(portfolio_holdings.keys()) | set(target_allocation.keys())
             
-            patterns = {}
-            
-            # Check last few candles
-            for i in range(max(1, len(close) - 5), len(close)):
-                body = abs(close[i] - open_prices[i])
-                total_range = high[i] - low[i]
-                upper_shadow = high[i] - max(close[i], open_prices[i])
-                lower_shadow = min(close[i], open_prices[i]) - low[i]
-                
-                if total_range == 0:
+            # Process each symbol
+            for symbol in all_symbols:
+                if symbol in processed_symbols:
                     continue
                 
-                body_ratio = body / total_range
+                current_pct = portfolio_holdings.get(symbol, 0.0)
+                target_pct = target_allocation.get(symbol, 0.0)
+                allocation_drift = current_pct - target_pct
                 
-                # Doji pattern
-                if body_ratio < 0.1:
-                    patterns[f'doji_{i}'] = {
-                        'pattern': 'doji',
-                        'index': i,
-                        'signal': 'neutral',
-                        'strength': 0.5
-                    }
+                # Skip if both current and target are 0
+                if current_pct == 0 and target_pct == 0:
+                    continue
                 
-                # Hammer (bullish reversal)
-                if lower_shadow > 2 * body and upper_shadow < 0.1 * total_range and close[i] > open_prices[i] * 0.99:
-                    patterns[f'hammer_{i}'] = {
-                        'pattern': 'hammer',
-                        'index': i,
-                        'signal': 'buy',
-                        'strength': 0.7
-                    }
+                # Determine asset type
+                asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC', 'BUSD', 'DAI'] else 'stock'
                 
-                # Shooting Star (bearish reversal)
-                if upper_shadow > 2 * body and lower_shadow < 0.1 * total_range and close[i] < open_prices[i] * 1.01:
-                    patterns[f'shooting_star_{i}'] = {
-                        'pattern': 'shooting_star',
-                        'index': i,
-                        'signal': 'sell',
-                        'strength': 0.7
-                    }
+                # Initialize scoring variables
+                signal_strength = 0.0
+                buy_score = 0.0
+                sell_score = 0.0
+                confidence = 0.0
+                action = "hold"
+                priority = "low"
+                reason_parts = []
+                key_indicators_list = []
+                strengths_list = []
+                concerns_list = []
+                indicators = {}
                 
-                # Engulfing patterns (need previous candle)
-                if i > 0:
-                    prev_body = abs(close[i-1] - open_prices[i-1])
-                    # Bullish Engulfing
-                    if (open_prices[i] < close[i-1] and close[i] > open_prices[i-1] and 
-                        body > prev_body * 1.5):
-                        patterns[f'bullish_engulfing_{i}'] = {
-                            'pattern': 'bullish_engulfing',
-                            'index': i,
-                            'signal': 'buy',
-                            'strength': 0.8
-                        }
-                    # Bearish Engulfing
-                    elif (open_prices[i] > close[i-1] and close[i] < open_prices[i-1] and 
-                          body > prev_body * 1.5):
-                        patterns[f'bearish_engulfing_{i}'] = {
-                            'pattern': 'bearish_engulfing',
-                            'index': i,
-                            'signal': 'sell',
-                            'strength': 0.8
-                        }
-            
-            # Return most recent pattern
-            if patterns:
-                latest_pattern = max(patterns.items(), key=lambda x: x[1]['index'])
-                return {latest_pattern[0]: latest_pattern[1]}
-            
-            return {}
-            
-        except Exception as e:
-            self.logger.error(f"Error detecting candlestick patterns: {e}", exc_info=True)
-            return {}
-    
-    def _detect_chart_patterns(self, df: pd.DataFrame, timeframe: str = 'daily') -> Dict:
-        """Detect chart patterns (Head & Shoulders, Triangles, Flags)"""
-        if df is None or len(df) < 30:
-            return {}
-        
-        try:
-            cache_key = f"cp_{timeframe}_{len(df)}_{df['close'].iloc[-1]:.2f}"
-            cached_result = self._get_from_cache(self._chart_patterns_cache, cache_key)
-            if cached_result is not None:
-                return cached_result
-            
-            high = df['high'].values if 'high' in df.columns else df['close'].values
-            low = df['low'].values if 'low' in df.columns else df['close'].values
-            close = df['close'].values
-            
-            patterns = {}
-            
-            # Find swing highs and lows
-            swing_highs = []
-            swing_lows = []
-            for i in range(2, len(close) - 2):
-                if high[i] > high[i-1] and high[i] > high[i-2] and high[i] > high[i+1] and high[i] > high[i+2]:
-                    swing_highs.append((i, high[i]))
-                if low[i] < low[i-1] and low[i] < low[i-2] and low[i] < low[i+1] and low[i] < low[i+2]:
-                    swing_lows.append((i, low[i]))
-            
-            # Head & Shoulders (bearish reversal) - need 3 peaks
-            if len(swing_highs) >= 3:
-                recent_highs = swing_highs[-3:]
-                if (recent_highs[0][1] < recent_highs[1][1] and 
-                    recent_highs[2][1] < recent_highs[1][1] and
-                    abs(recent_highs[0][1] - recent_highs[2][1]) / recent_highs[1][1] < 0.05):
-                    weight = 20 if timeframe == 'monthly' else 15
-                    patterns['head_shoulders'] = {
-                        'pattern': 'head_shoulders',
-                        'signal': 'sell',
-                        'strength': 0.8,
-                        'weight': weight
-                    }
-            
-            # Inverse Head & Shoulders (bullish reversal)
-            if len(swing_lows) >= 3:
-                recent_lows = swing_lows[-3:]
-                if (recent_lows[0][1] > recent_lows[1][1] and 
-                    recent_lows[2][1] > recent_lows[1][1] and
-                    abs(recent_lows[0][1] - recent_lows[2][1]) / recent_lows[1][1] < 0.05):
-                    weight = 20 if timeframe == 'monthly' else 15
-                    patterns['inverse_head_shoulders'] = {
-                        'pattern': 'inverse_head_shoulders',
-                        'signal': 'buy',
-                        'strength': 0.8,
-                        'weight': weight
-                    }
-            
-            # Triangle patterns (need converging trend lines)
-            if len(swing_highs) >= 3 and len(swing_lows) >= 3:
-                # Check if highs are decreasing and lows are increasing (symmetrical)
-                recent_highs_vals = [h[1] for h in swing_highs[-3:]]
-                recent_lows_vals = [l[1] for l in swing_lows[-3:]]
+                # For stablecoins, use simple allocation drift logic only
+                if symbol in stablecoins:
+                    if abs(allocation_drift) >= rebalance_threshold:
+                        action = "sell" if allocation_drift > 0 else "buy"
+                        priority = "medium" if abs(allocation_drift) >= 0.10 else "low"
+                        reason = f"Allocation drift: {allocation_drift*100:.1f}% from target"
+                        
+                        recommendations.append({
+                            "asset": symbol,
+                            "symbol": symbol,
+                            "action": action,
+                            "priority": priority,
+                            "reason": reason,
+                            "signal_strength": 0.0,
+                            "confidence": min(abs(allocation_drift) * 2, 1.0),
+                            "buy_score": 0.0,
+                            "sell_score": 0.0,
+                            "composite_score": min(abs(allocation_drift) * 200, 100),
+                            "summary": {
+                                "key_indicators": [],
+                                "strengths": [],
+                                "concerns": [f"Allocation drift of {abs(allocation_drift)*100:.1f}%"],
+                                "timeframe": "immediate"
+                            },
+                            "allocation": {
+                                "current": current_pct,
+                                "target": target_pct,
+                                "difference": allocation_drift
+                            },
+                            "metrics": {}
+                        })
+                    processed_symbols.add(symbol)
+                    continue
                 
-                highs_decreasing = recent_highs_vals[0] > recent_highs_vals[-1]
-                lows_increasing = recent_lows_vals[0] < recent_lows_vals[-1]
-                
-                if highs_decreasing and lows_increasing:
-                    # Symmetrical triangle
-                    patterns['symmetrical_triangle'] = {
-                        'pattern': 'symmetrical_triangle',
-                        'signal': 'neutral',
-                        'strength': 0.6,
-                        'weight': 5
-                    }
-                elif highs_decreasing and not lows_increasing:
-                    # Descending triangle (bearish)
-                    weight = 15 if timeframe == 'monthly' else 10
-                    patterns['descending_triangle'] = {
-                        'pattern': 'descending_triangle',
-                        'signal': 'sell',
-                        'strength': 0.7,
-                        'weight': weight
-                    }
-                elif not highs_decreasing and lows_increasing:
-                    # Ascending triangle (bullish)
-                    weight = 15 if timeframe == 'monthly' else 10
-                    patterns['ascending_triangle'] = {
-                        'pattern': 'ascending_triangle',
-                        'signal': 'buy',
-                        'strength': 0.7,
-                        'weight': weight
-                    }
-            
-            # Flag patterns (continuation patterns)
-            if len(close) >= 20:
-                # Bull Flag: strong uptrend + consolidation
-                recent_trend = (close[-1] - close[-20]) / close[-20]
-                recent_volatility = np.std(close[-10:]) / close[-10]
-                
-                if recent_trend > 0.10 and recent_volatility < 0.05:
-                    weight = 18 if timeframe == 'monthly' else 12
-                    patterns['bull_flag'] = {
-                        'pattern': 'bull_flag',
-                        'signal': 'buy',
-                        'strength': 0.75,
-                        'weight': weight
-                    }
-                
-                # Bear Flag: strong downtrend + consolidation
-                if recent_trend < -0.10 and recent_volatility < 0.05:
-                    weight = 18 if timeframe == 'monthly' else 12
-                    patterns['bear_flag'] = {
-                        'pattern': 'bear_flag',
-                        'signal': 'sell',
-                        'strength': 0.75,
-                        'weight': weight
-                    }
-            
-            self._save_to_cache(self._chart_patterns_cache, cache_key, patterns)
-            return patterns
-            
-        except Exception as e:
-            self.logger.error(f"Error detecting chart patterns: {e}", exc_info=True)
-            return {}
-    
-    def _detect_support_resistance(self, df: pd.DataFrame) -> Dict:
-        """Detect support and resistance levels using swing highs/lows and Fibonacci"""
-        if df is None or len(df) < 20:
-            return {}
-        
-        try:
-            high = df['high'].values if 'high' in df.columns else df['close'].values
-            low = df['low'].values if 'low' in df.columns else df['close'].values
-            close = df['close'].values
-            
-            # Find swing highs and lows
-            swing_highs = []
-            swing_lows = []
-            for i in range(2, len(close) - 2):
-                if high[i] > high[i-1] and high[i] > high[i-2] and high[i] > high[i+1] and high[i] > high[i+2]:
-                    swing_highs.append(high[i])
-                if low[i] < low[i-1] and low[i] < low[i-2] and low[i] < low[i+1] and low[i] < low[i+2]:
-                    swing_lows.append(low[i])
-            
-            # Statistical support/resistance levels
-            resistance_levels = sorted(set(swing_highs))[-3:] if swing_highs else []
-            support_levels = sorted(set(swing_lows))[:3] if swing_lows else []
-            
-            current_price = close[-1]
-            
-            # Find nearest support and resistance
-            nearest_resistance = min([r for r in resistance_levels if r > current_price], default=None)
-            nearest_support = max([s for s in support_levels if s < current_price], default=None)
-            
-            # Calculate distance to nearest levels
-            distance_to_resistance = ((nearest_resistance - current_price) / current_price * 100) if nearest_resistance else None
-            distance_to_support = ((current_price - nearest_support) / current_price * 100) if nearest_support else None
-            
-            # Fibonacci Retracements (if we have recent high/low)
-            fib_levels = {}
-            if len(high) >= 50 and len(low) >= 50:
-                recent_high = np.max(high[-50:])
-                recent_low = np.min(low[-50:])
-                fib_range = recent_high - recent_low
-                
-                fib_levels = {
-                    'fib_23.6': recent_high - (fib_range * 0.236),
-                    'fib_38.2': recent_high - (fib_range * 0.382),
-                    'fib_50.0': recent_high - (fib_range * 0.500),
-                    'fib_61.8': recent_high - (fib_range * 0.618)
-                }
-            
-            # Determine if price is near support or resistance
-            near_support = distance_to_support is not None and distance_to_support < 2.0
-            near_resistance = distance_to_resistance is not None and distance_to_resistance < 2.0
-            
-            result = {
-                'support_levels': [float(s) for s in support_levels],
-                'resistance_levels': [float(r) for r in resistance_levels],
-                'nearest_support': float(nearest_support) if nearest_support else None,
-                'nearest_resistance': float(nearest_resistance) if nearest_resistance else None,
-                'distance_to_support_pct': float(distance_to_support) if distance_to_support else None,
-                'distance_to_resistance_pct': float(distance_to_resistance) if distance_to_resistance else None,
-                'near_support': near_support,
-                'near_resistance': near_resistance,
-                'fibonacci_levels': {k: float(v) for k, v in fib_levels.items()} if fib_levels else {}
-            }
-            
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Error detecting support/resistance: {e}", exc_info=True)
-            return {}
-    
-    def _calculate_correlation_and_beta(self, df: pd.DataFrame, symbol: str, benchmark_symbol: str = None) -> Dict:
-        """Calculate correlation and beta relative to benchmark"""
-        if df is None or len(df) < 30:
-            return {}
-        
-        try:
-            if not self.market_data_service:
-                return {}
-            
-            # Get benchmark data if specified
-            benchmark_df = None
-            if benchmark_symbol:
-                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                    benchmark_symbol, 'crypto' if benchmark_symbol in ['BTC', 'ETH'] else 'stock', '1d'
-                )
-                if benchmark_data and len(benchmark_data) >= 30:
-                    benchmark_df = pd.DataFrame(benchmark_data)
-            
-            # Calculate returns
-            close = df['close'].values
-            returns = pd.Series(close).pct_change().dropna()
-            
-            if benchmark_df is not None and 'close' in benchmark_df.columns:
-                benchmark_close = benchmark_df['close'].values
-                benchmark_returns = pd.Series(benchmark_close).pct_change().dropna()
-                
-                # Align series
-                min_len = min(len(returns), len(benchmark_returns))
-                if min_len >= 20:
-                    returns_aligned = returns[-min_len:]
-                    benchmark_aligned = benchmark_returns[-min_len:]
+                # For non-stablecoins, perform comprehensive technical analysis
+                if self.market_data_service:
+                    try:
+                        # Get historical data
+                        historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
+                            symbol, asset_type, '1d'
+                        )
+                        
+                        if historical_data and len(historical_data) >= 50:
+                            df = pd.DataFrame(historical_data)
+                            
+                            # Calculate technical indicators
+                            indicators = self._calculate_technical_indicators(df, symbol)
+                            
+                            if indicators:
+                                model_used = "comprehensive_technical_analysis"
+                                
+                                # Calculate scoring based on indicators
+                                # RSI
+                                if 'rsi' in indicators:
+                                    rsi_val = indicators['rsi'].get('value', 50)
+                                    if rsi_val < 30:
+                                        signal_strength += 15
+                                        buy_score += 15
+                                        key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "buy", "weight": "high"})
+                                        strengths_list.append("RSI indicates oversold condition")
+                                    elif rsi_val > 70:
+                                        signal_strength -= 15
+                                        sell_score += 15
+                                        key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "sell", "weight": "high"})
+                                        concerns_list.append("RSI indicates overbought condition")
+                                
+                                # MACD
+                                if 'macd' in indicators:
+                                    macd_data = indicators['macd']
+                                    macd_crossover = macd_data.get('crossover')
+                                    macd_trend = macd_data.get('trend')
+                                    
+                                    if macd_crossover == 'bullish':
+                                        signal_strength += 20
+                                        buy_score += 20
+                                        key_indicators_list.append({"name": "MACD", "value": macd_data.get('histogram', 0), "signal": "buy", "weight": "very_high"})
+                                        strengths_list.append("MACD bullish crossover detected")
+                                    elif macd_crossover == 'bearish':
+                                        signal_strength -= 20
+                                        sell_score += 20
+                                        key_indicators_list.append({"name": "MACD", "value": macd_data.get('histogram', 0), "signal": "sell", "weight": "very_high"})
+                                        concerns_list.append("MACD bearish crossover detected")
+                                    elif macd_trend == 'bullish' and not macd_crossover:
+                                        signal_strength += 5
+                                        buy_score += 5
+                                    elif macd_trend == 'bearish' and not macd_crossover:
+                                        signal_strength -= 5
+                                        sell_score += 5
+                                
+                                # Moving Averages
+                                if 'ma50' in indicators:
+                                    ma50_signal = indicators['ma50'].get('signal', 'neutral')
+                                    if ma50_signal == 'buy':
+                                        signal_strength += 5
+                                        buy_score += 5
+                                    elif ma50_signal == 'sell':
+                                        signal_strength -= 5
+                                        sell_score += 5
+                                
+                                if 'ma200' in indicators:
+                                    ma200_signal = indicators['ma200'].get('signal', 'neutral')
+                                    if ma200_signal == 'buy':
+                                        signal_strength += 8
+                                        buy_score += 8
+                                    elif ma200_signal == 'sell':
+                                        signal_strength -= 8
+                                        sell_score += 8
+                                
+                                # Golden/Death Cross
+                                if 'ma_cross' in indicators:
+                                    ma_cross = indicators['ma_cross']
+                                    if ma_cross.get('golden_cross'):
+                                        signal_strength += 10
+                                        buy_score += 10
+                                        strengths_list.append("Golden Cross pattern (MA50 > MA200)")
+                                    elif ma_cross.get('death_cross'):
+                                        signal_strength -= 10
+                                        sell_score += 10
+                                        concerns_list.append("Death Cross pattern (MA50 < MA200)")
+                                
+                                # Bollinger Bands
+                                if 'bollinger_bands' in indicators:
+                                    bb = indicators['bollinger_bands']
+                                    bb_signal = bb.get('signal', 'neutral')
+                                    if bb_signal == 'buy':
+                                        signal_strength += 12
+                                        buy_score += 12
+                                        key_indicators_list.append({"name": "Bollinger", "value": bb.get('position', 50), "signal": "buy", "weight": "high"})
+                                    elif bb_signal == 'sell':
+                                        signal_strength -= 12
+                                        sell_score += 12
+                                        key_indicators_list.append({"name": "Bollinger", "value": bb.get('position', 50), "signal": "sell", "weight": "high"})
+                                
+                                # Stochastic
+                                if 'stochastic' in indicators:
+                                    stoch = indicators['stochastic']
+                                    stoch_k = stoch.get('k', 50)
+                                    if stoch_k < 20:
+                                        signal_strength += 8
+                                        buy_score += 8
+                                    elif stoch_k > 80:
+                                        signal_strength -= 8
+                                        sell_score += 8
+                                
+                                # Williams %R
+                                if 'williams_r' in indicators:
+                                    willr = indicators['williams_r']
+                                    willr_signal = willr.get('signal', 'neutral')
+                                    if willr_signal == 'buy':
+                                        signal_strength += 4
+                                        buy_score += 4
+                                    elif willr_signal == 'sell':
+                                        signal_strength -= 4
+                                        sell_score += 4
+                                
+                                # MFI
+                                if 'mfi' in indicators:
+                                    mfi = indicators['mfi']
+                                    mfi_signal = mfi.get('signal', 'neutral')
+                                    if mfi_signal == 'buy':
+                                        signal_strength += 7
+                                        buy_score += 7
+                                    elif mfi_signal == 'sell':
+                                        signal_strength -= 7
+                                        sell_score += 7
+                                
+                                # CCI (with stricter thresholds)
+                                if 'cci' in indicators:
+                                    cci_val = indicators['cci'].get('value', 0)
+                                    if cci_val > 150:
+                                        signal_strength += 8
+                                        buy_score += 8
+                                    elif cci_val < -150:
+                                        signal_strength -= 8
+                                        sell_score += 8
+                                    elif cci_val > 100:
+                                        signal_strength += 4
+                                        buy_score += 4
+                                    elif cci_val < -100:
+                                        signal_strength -= 4
+                                        sell_score += 4
+                                
+                                # ADX
+                                if 'adx' in indicators:
+                                    adx = indicators['adx']
+                                    if adx.get('strength') == 'strong' and adx.get('direction') == 'bullish':
+                                        signal_strength += 8
+                                        buy_score += 8
+                                    elif adx.get('strength') == 'strong' and adx.get('direction') == 'bearish':
+                                        signal_strength -= 8
+                                        sell_score += 8
+                                
+                                # Volume indicators
+                                if 'obv' in indicators:
+                                    obv_signal = indicators['obv'].get('signal', 'neutral')
+                                    if obv_signal == 'buy':
+                                        signal_strength += 5
+                                        buy_score += 5
+                                    elif obv_signal == 'sell':
+                                        signal_strength -= 5
+                                        sell_score += 5
+                                
+                                if 'cmf' in indicators:
+                                    cmf = indicators['cmf']
+                                    cmf_signal = cmf.get('signal', 'neutral')
+                                    if cmf_signal == 'buy':
+                                        signal_strength += 7
+                                        buy_score += 7
+                                    elif cmf_signal == 'sell':
+                                        signal_strength -= 7
+                                        sell_score += 7
+                                
+                                # VWAP
+                                if 'vwap' in indicators:
+                                    vwap_signal = indicators['vwap'].get('signal', 'neutral')
+                                    if vwap_signal == 'buy':
+                                        signal_strength += 6
+                                        buy_score += 6
+                                    elif vwap_signal == 'sell':
+                                        signal_strength -= 6
+                                        sell_score += 6
+                                
+                                # Momentum
+                                if 'momentum' in indicators:
+                                    momentum = indicators['momentum']
+                                    if momentum.get('short_term') == 'bullish':
+                                        signal_strength += 5
+                                        buy_score += 5
+                                    elif momentum.get('short_term') == 'bearish':
+                                        signal_strength -= 5
+                                        sell_score += 5
+                                
+                                # ATR-based confidence adjustment (not signal strength)
+                                if 'atr' in indicators:
+                                    atr = indicators['atr']
+                                    volatility_pct = atr.get('percent', 0)
+                                    # High volatility reduces confidence
+                                    if volatility_pct > 5:
+                                        confidence_adjustment = -0.2
+                                    elif volatility_pct > 3:
+                                        confidence_adjustment = -0.1
+                                    else:
+                                        confidence_adjustment = 0
+                                else:
+                                    confidence_adjustment = 0
+                                
+                                # Support/Resistance
+                                support_resistance = self._detect_support_resistance(df)
+                                if support_resistance:
+                                    if support_resistance.get('near_support'):
+                                        signal_strength += 8
+                                        buy_score += 8
+                                        strengths_list.append("Price near support level")
+                                    elif support_resistance.get('near_resistance'):
+                                        signal_strength -= 8
+                                        sell_score += 8
+                                        concerns_list.append("Price near resistance level")
+                                
+                                # Volume Profile
+                                volume_profile = self._calculate_volume_profile(df)
+                                if volume_profile:
+                                    position = volume_profile.get('current_price_position', '')
+                                    if position == 'below_val':
+                                        signal_strength += 8
+                                        buy_score += 8
+                                    elif position == 'above_vah':
+                                        signal_strength -= 8
+                                        sell_score += 8
+                                
+                                # Chart Patterns
+                                chart_patterns = self._detect_chart_patterns(df)
+                                for pattern_name, pattern_data in chart_patterns.items():
+                                    pattern_signal = pattern_data.get('signal', 'neutral')
+                                    pattern_weight = pattern_data.get('weight', 0)
+                                    if pattern_signal == 'buy':
+                                        signal_strength += pattern_weight
+                                        buy_score += pattern_weight
+                                        strengths_list.append(f"{pattern_name.replace('_', ' ').title()} pattern detected")
+                                    elif pattern_signal == 'sell':
+                                        signal_strength -= pattern_weight
+                                        sell_score += pattern_weight
+                                        concerns_list.append(f"{pattern_name.replace('_', ' ').title()} pattern detected")
+                                
+                                # Candlestick Patterns
+                                candlestick_patterns = self._detect_candlestick_patterns(df)
+                                for pattern_name, pattern_data in candlestick_patterns.items():
+                                    pattern_signal = pattern_data.get('signal', 'neutral')
+                                    if pattern_signal == 'buy':
+                                        signal_strength += 10
+                                        buy_score += 10
+                                    elif pattern_signal == 'sell':
+                                        signal_strength -= 10
+                                        sell_score += 10
+                                
+                                # Correlation/Beta
+                                correlation_beta = self._calculate_correlation_and_beta(df, symbol, 'BTC')
+                                if correlation_beta:
+                                    if correlation_beta.get('outperforming'):
+                                        signal_strength += 3
+                                        buy_score += 3
+                                    elif correlation_beta.get('underperforming'):
+                                        signal_strength -= 3
+                                        sell_score += 3
+                                
+                                # Clamp signal_strength to [-100, 100]
+                                signal_strength = max(-100, min(100, signal_strength))
+                                
+                                # Calculate confidence
+                                base_confidence = abs(signal_strength) / 100.0
+                                confidence = max(0.0, min(1.0, base_confidence + confidence_adjustment))
+                                
+                                # Determine action and priority based on signal_strength and allocation drift
+                                if signal_strength > 20:
+                                    action = "buy"
+                                    priority = "high" if signal_strength > 50 else "medium"
+                                elif signal_strength < -20:
+                                    action = "sell"
+                                    priority = "high" if signal_strength < -50 else "medium"
+                                elif abs(allocation_drift) >= rebalance_threshold:
+                                    action = "sell" if allocation_drift > 0 else "buy"
+                                    priority = "medium" if abs(allocation_drift) >= 0.10 else "low"
+                                
+                                # Build reason
+                                if abs(signal_strength) > 20:
+                                    reason_parts.append(f"Technical signal: {signal_strength:.1f}")
+                                if abs(allocation_drift) >= rebalance_threshold:
+                                    reason_parts.append(f"Allocation drift: {allocation_drift*100:.1f}%")
+                                
+                                reason = "; ".join(reason_parts) if reason_parts else "Portfolio rebalancing recommendation"
+                                
+                                # Calculate composite score (0-100)
+                                composite_score = 0
+                                composite_score += (abs(signal_strength) / 100) * 30  # 30% wagi dla signal strength
+                                composite_score += (confidence * 100) * 0.25  # 25% wagi dla confidence
+                                composite_score += (buy_score if action == "buy" else sell_score) * 0.20  # 20% wagi dla buy/sell score
+                                
+                                # Risk adjustment (15% wagi)
+                                risk_weight = 10  # default medium
+                                if confidence > 0.7:
+                                    risk_weight = 15
+                                elif confidence < 0.4:
+                                    risk_weight = 5
+                                composite_score += risk_weight * 0.15
+                                
+                                # Allocation drift component (10% wagi)
+                                drift_component = min(100, abs(allocation_drift) * 500)  # 20% drift = 100 points
+                                composite_score += drift_component * 0.10
+                                
+                                # Ensure composite_score is in [0, 100]
+                                composite_score = max(0, min(100, composite_score))
+                                
+                                # Build summary
+                                if not strengths_list and signal_strength > 20:
+                                    strengths_list.append("Positive technical indicators")
+                                if not concerns_list and signal_strength < -20:
+                                    concerns_list.append("Negative technical indicators")
+                                
+                                recommendations.append({
+                                    "asset": symbol,
+                                    "symbol": symbol,
+                                    "action": action,
+                                    "priority": priority,
+                                    "reason": reason,
+                                    "signal_strength": round(signal_strength, 2),
+                                    "confidence": round(confidence, 3),
+                                    "buy_score": round(min(100, buy_score), 2),
+                                    "sell_score": round(min(100, sell_score), 2),
+                                    "composite_score": round(composite_score, 2),
+                                    "summary": {
+                                        "key_indicators": key_indicators_list[:5],  # Top 5 indicators
+                                        "strengths": strengths_list[:3],  # Top 3 strengths
+                                        "concerns": concerns_list[:3],  # Top 3 concerns
+                                        "timeframe": "medium_term"
+                                    },
+                                    "allocation": {
+                                        "current": current_pct,
+                                        "target": target_pct,
+                                        "difference": allocation_drift
+                                    },
+                                    "metrics": indicators
+                                })
+                                
+                                processed_symbols.add(symbol)
+                                continue
                     
-                    # Correlation
-                    correlation = returns_aligned.corr(benchmark_aligned)
-                    
-                    # Beta (covariance / variance of benchmark)
-                    covariance = returns_aligned.cov(benchmark_aligned)
-                    benchmark_variance = benchmark_aligned.var()
-                    beta = covariance / benchmark_variance if benchmark_variance > 0 else 1.0
-                    
-                    # Relative strength
-                    symbol_cumulative = (1 + returns_aligned).prod()
-                    benchmark_cumulative = (1 + benchmark_aligned).prod()
-                    relative_strength = symbol_cumulative / benchmark_cumulative if benchmark_cumulative > 0 else 1.0
-                    
-                    return {
-                        'correlation': float(correlation) if not pd.isna(correlation) else 0.0,
-                        'beta': float(beta) if not pd.isna(beta) else 1.0,
-                        'relative_strength': float(relative_strength) if not pd.isna(relative_strength) else 1.0,
-                        'outperforming': relative_strength > 1.1,
-                        'underperforming': relative_strength < 0.9
-                    }
+                    except Exception as e:
+                        self.logger.warning(f"Error processing {symbol}: {e}")
+                        diagnostic_info[symbol] = str(e)
+                
+                # Fallback: simple allocation drift logic if technical analysis failed
+                if symbol not in processed_symbols:
+                    if abs(allocation_drift) >= rebalance_threshold:
+                        action = "sell" if allocation_drift > 0 else "buy"
+                        priority = "medium" if abs(allocation_drift) >= 0.10 else "low"
+                        reason = f"Allocation drift: {allocation_drift*100:.1f}% from target"
+                        
+                        recommendations.append({
+                            "asset": symbol,
+                            "symbol": symbol,
+                            "action": action,
+                            "priority": priority,
+                            "reason": reason,
+                            "signal_strength": 0.0,
+                            "confidence": min(abs(allocation_drift) * 2, 1.0),
+                            "buy_score": 0.0,
+                            "sell_score": 0.0,
+                            "composite_score": min(abs(allocation_drift) * 200, 100),
+                            "summary": {
+                                "key_indicators": [],
+                                "strengths": [],
+                                "concerns": [f"Allocation drift of {abs(allocation_drift)*100:.1f}%"],
+                                "timeframe": "immediate"
+                            },
+                            "allocation": {
+                                "current": current_pct,
+                                "target": target_pct,
+                                "difference": allocation_drift
+                            },
+                            "metrics": {}
+                        })
+                        processed_symbols.add(symbol)
             
-            # If no benchmark, return volatility
-            volatility = returns.std() * np.sqrt(252)  # Annualized
             return {
-                'volatility': float(volatility) if not pd.isna(volatility) else 0.0,
-                'correlation': None,
-                'beta': None
+                "recommendations": recommendations,
+                "total_rebalance_amount": sum(abs(r.get("allocation", {}).get("difference", 0)) for r in recommendations) / 2,
+                "model_used": model_used,
+                "status": "success" if recommendations else "no_recommendations",
+                "diagnostic": diagnostic_info if diagnostic_info else None
             }
             
         except Exception as e:
-            self.logger.error(f"Error calculating correlation/beta: {e}", exc_info=True)
-            return {}
+            self.logger.error(f"Error in recommend_rebalance: {e}", exc_info=True)
+            return {
+                "recommendations": [],
+                "total_rebalance_amount": 0,
+                "model_used": "error",
+                "status": "error",
+                "error": str(e)
+            }
