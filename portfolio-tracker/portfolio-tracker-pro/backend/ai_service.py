@@ -1537,6 +1537,16 @@ class AIService:
                 "error": str(e)
             }
 
+    def predict_price(
+
+def analyze_sentiment(
+
+def _fetch_real_news(self, symbol: str, max_articles: int = 10) -> List[str]:
+
+def detect_anomalies(
+
+def suggest_holdings_optimization(
+
     def backtest_recommendations(
         self,
         start_date: str,
