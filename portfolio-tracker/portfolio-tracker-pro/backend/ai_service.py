@@ -1050,196 +1050,310 @@ class AIService:
                 "error": str(e)
             }
 
-    def suggest_holdings_optimization(
+    def backtest_recommendations(
         self,
-        current_holdings: Dict[str, float],
-        risk_tolerance: str = "moderate"
+        start_date: str,
+        end_date: str,
+        initial_capital: float,
+        symbols: List[str],
+        strategy: str = "follow_ai",
+        signal_threshold: float = 20.0
     ) -> Optional[Dict]:
         """
-        Suggest optimal portfolio allocation using Modern Portfolio Theory (MPT).
+        Backtest AI recommendations strategies on historical data.
         
         Args:
-            current_holdings: Current portfolio allocation {symbol: percentage}
-            risk_tolerance: 'conservative', 'moderate', or 'aggressive'
+            start_date: Start date (ISO format)
+            end_date: End date (ISO format)
+            initial_capital: Starting capital
+            symbols: List of symbols to backtest
+            strategy: 'follow_ai', 'high_confidence', 'weighted_allocation', 'buy_and_hold'
+            signal_threshold: Signal strength threshold for 'follow_ai' strategy
         
         Returns:
-            Dictionary with optimized allocation suggestions and metrics
+            Dictionary with backtest results including equity curve, metrics, trade history
         """
-        if not current_holdings:
+        if not symbols or initial_capital <= 0:
             return {
-                'optimized_allocation': {},
-                'expected_return': 0.0,
-                'expected_volatility': 0.0,
-                'sharpe_ratio': 0.0,
-                'improvement': {},
-                'status': 'no_holdings'
+                'strategy': strategy,
+                'status': 'invalid_input',
+                'error': 'Invalid input parameters'
             }
         
         try:
-            symbols = list(current_holdings.keys())
+            # Parse dates
+            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
             
-            if not self.market_data_service or len(symbols) < 2:
+            if end_dt <= start_dt:
                 return {
-                    'optimized_allocation': current_holdings,
-                    'expected_return': 0.0,
-                    'expected_volatility': 0.0,
-                    'sharpe_ratio': 0.0,
-                    'improvement': {},
-                    'status': 'insufficient_data'
+                    'strategy': strategy,
+                    'status': 'invalid_dates',
+                    'error': 'End date must be after start date'
                 }
             
-            # Get historical returns for all symbols
-            returns_data = {}
+            # Get historical data for all symbols (weekly candles)
+            historical_data = {}
             for symbol in symbols:
                 try:
                     asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                    historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                        symbol, asset_type, '1d'
+                    data, interval = self.market_data_service.get_symbol_history_with_interval(
+                        symbol, asset_type, '1w'  # Weekly data
                     )
                     
-                    if historical_data and len(historical_data) >= 30:
-                        df = pd.DataFrame(historical_data)
-                        if 'close' in df.columns:
-                            prices = df['close'].values
-                            returns = np.diff(prices) / prices[:-1]
-                            returns_data[symbol] = returns
+                    if data:
+                        # Filter to date range
+                        filtered_data = []
+                        for candle in data:
+                            candle_date = datetime.fromisoformat(
+                                candle.get('timestamp', candle.get('date', '')).replace('Z', '+00:00')
+                            )
+                            if start_dt <= candle_date <= end_dt:
+                                filtered_data.append(candle)
+                        
+                        if filtered_data:
+                            historical_data[symbol] = sorted(filtered_data, key=lambda x: x.get('timestamp', x.get('date', '')))
                 except Exception as e:
-                    self.logger.debug(f"Error getting data for {symbol}: {e}")
+                    self.logger.warning(f"Error getting data for {symbol}: {e}")
             
-            if len(returns_data) < 2:
+            if not historical_data:
                 return {
-                    'optimized_allocation': current_holdings,
-                    'expected_return': 0.0,
-                    'expected_volatility': 0.0,
-                    'sharpe_ratio': 0.0,
-                    'improvement': {},
-                    'status': 'insufficient_historical_data'
+                    'strategy': strategy,
+                    'status': 'no_data',
+                    'error': 'No historical data available'
                 }
             
-            # Align all returns to same length
-            min_length = min(len(r) for r in returns_data.values())
-            aligned_returns = {}
-            for symbol, returns in returns_data.items():
-                aligned_returns[symbol] = returns[-min_length:] if len(returns) > min_length else returns
+            # Build unified timeline (all symbols, weekly candles)
+            all_dates = set()
+            for symbol, candles in historical_data.items():
+                for candle in candles:
+                    date_str = candle.get('timestamp', candle.get('date', ''))
+                    all_dates.add(date_str)
             
-            # Calculate expected returns (annualized)
-            expected_returns = {}
-            for symbol, returns in aligned_returns.items():
-                mean_return = np.mean(returns)
-                expected_returns[symbol] = mean_return * 252  # Annualize daily returns
+            sorted_dates = sorted(list(all_dates))
             
-            # Calculate covariance matrix
-            returns_matrix = np.array([aligned_returns[symbol] for symbol in aligned_returns.keys()])
-            cov_matrix = np.cov(returns_matrix) * 252  # Annualize covariance
+            # Initialize portfolio state
+            cash = initial_capital
+            positions = {symbol: 0.0 for symbol in symbols}  # Amount of each asset held
+            equity_curve = [initial_capital]
+            trade_history = []
             
-            # Risk tolerance settings
-            risk_free_rate = 0.02  # 2% risk-free rate
-            
-            risk_settings = {
-                'conservative': {'target_volatility': 0.10, 'max_single_asset': 0.30},
-                'moderate': {'target_volatility': 0.15, 'max_single_asset': 0.40},
-                'aggressive': {'target_volatility': 0.25, 'max_single_asset': 0.50}
-            }
-            
-            settings = risk_settings.get(risk_tolerance, risk_settings['moderate'])
-            target_vol = settings['target_volatility']
-            max_allocation = settings['max_single_asset']
-            
-            # Simple optimization: Maximize Sharpe ratio with constraints
-            # Using gradient descent approach
-            symbols_list = list(aligned_returns.keys())
-            n = len(symbols_list)
-            
-            # Initial weights (equal allocation)
-            weights = np.ones(n) / n
-            
-            # Portfolio metrics
-            def portfolio_metrics(w):
-                port_return = np.sum(w * np.array([expected_returns[s] for s in symbols_list]))
-                port_var = np.dot(w, np.dot(cov_matrix, w))
-                port_vol = np.sqrt(port_var)
-                sharpe = (port_return - risk_free_rate) / port_vol if port_vol > 0 else 0
-                return port_return, port_vol, sharpe
-            
-            # Simple optimization (gradient descent-like)
-            learning_rate = 0.01
-            iterations = 100
-            
-            for _ in range(iterations):
-                # Calculate current metrics
-                port_return, port_vol, sharpe = portfolio_metrics(weights)
+            # Backtest loop (weekly rebalancing)
+            for date_str in sorted_dates:
+                date_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
                 
-                # Calculate gradient (simplified - move towards higher Sharpe)
-                if port_vol > 0:
-                    # Adjust weights towards assets with better risk-adjusted returns
-                    individual_sharpe = []
-                    for symbol in symbols_list:
-                        asset_return = expected_returns[symbol]
-                        asset_vol = np.sqrt(cov_matrix[symbols_list.index(symbol), symbols_list.index(symbol)])
-                        asset_sharpe = (asset_return - risk_free_rate) / asset_vol if asset_vol > 0 else 0
-                        individual_sharpe.append(asset_sharpe)
-                    
-                    # Normalize to probabilities
-                    sharpe_array = np.array(individual_sharpe)
-                    sharpe_array = sharpe_array - np.min(sharpe_array) + 0.01  # Ensure positive
-                    new_weights = sharpe_array / np.sum(sharpe_array)
-                    
-                    # Apply constraints
-                    new_weights = np.clip(new_weights, 0, max_allocation)
-                    new_weights = new_weights / np.sum(new_weights)  # Renormalize
-                    
-                    # Update with momentum
-                    weights = 0.7 * weights + 0.3 * new_weights
-                    weights = weights / np.sum(weights)  # Ensure sum = 1
+                # Get current prices for all symbols
+                current_prices = {}
+                for symbol in symbols:
+                    if symbol in historical_data:
+                        for candle in historical_data[symbol]:
+                            candle_date_str = candle.get('timestamp', candle.get('date', ''))
+                            if candle_date_str == date_str:
+                                current_prices[symbol] = candle.get('close', 0)
+                                break
+                
+                # Calculate current portfolio value
+                portfolio_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
+                
+                # Strategy-specific logic
+                if strategy == 'buy_and_hold':
+                    # Buy and hold: buy at start, hold until end
+                    if date_str == sorted_dates[0]:
+                        # Initial allocation: equal weight
+                        allocation_per_symbol = cash / len(symbols)
+                        for symbol in symbols:
+                            if symbol in current_prices and current_prices[symbol] > 0:
+                                shares = allocation_per_symbol / current_prices[symbol]
+                                positions[symbol] += shares
+                                cash -= shares * current_prices[symbol]
+                                
+                                trade_history.append({
+                                    'date': date_str,
+                                    'symbol': symbol,
+                                    'action': 'buy',
+                                    'shares': shares,
+                                    'price': current_prices[symbol],
+                                    'value': shares * current_prices[symbol]
+                                })
+                
+                elif strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
+                    # Get AI recommendations for this date
+                    if self.market_data_service:
+                        # Build current holdings dict
+                        current_holdings = {}
+                        for symbol in symbols:
+                            if symbol in current_prices and current_prices[symbol] > 0:
+                                value = positions[symbol] * current_prices[symbol]
+                                current_holdings[symbol] = value / portfolio_value if portfolio_value > 0 else 0
+                            
+                            # Build target allocation (equal weight for simplicity)
+                            target_allocation = {s: 1.0 / len(symbols) for s in symbols}
+                            
+                            # Get recommendations
+                            recommendations_result = self.recommend_rebalance(
+                                current_holdings,
+                                target_allocation,
+                                rebalance_threshold=0.05
+                            )
+                            
+                            if recommendations_result and 'recommendations' in recommendations_result:
+                                recommendations = recommendations_result['recommendations']
+                                
+                                # Filter recommendations based on strategy
+                                filtered_recommendations = []
+                                for rec in recommendations:
+                                    signal_strength = rec.get('signal_strength', 0)
+                                    
+                                    if strategy == 'follow_ai':
+                                        if signal_strength > signal_threshold or signal_strength < -signal_threshold:
+                                            filtered_recommendations.append(rec)
+                                    elif strategy == 'high_confidence':
+                                        if signal_strength > 50 or signal_strength < -50:
+                                            filtered_recommendations.append(rec)
+                                    elif strategy == 'weighted_allocation':
+                                        filtered_recommendations.append(rec)
+                                
+                                # Execute trades
+                                for rec in filtered_recommendations:
+                                    symbol = rec.get('symbol', rec.get('asset', ''))
+                                    if symbol not in symbols or symbol not in current_prices:
+                                        continue
+                                    
+                                    action = rec.get('action', 'hold')
+                                    price = current_prices[symbol]
+                                    
+                                    if action == 'buy' and cash > 0:
+                                        if strategy == 'weighted_allocation':
+                                            # Allocate proportionally to signal strength
+                                            signal = rec.get('signal_strength', 0)
+                                            allocation_pct = max(0, signal / 100.0) if signal > 0 else 0
+                                            trade_value = portfolio_value * allocation_pct
+                                        else:
+                                            # Allocate equal share per recommendation
+                                            trade_value = cash / max(1, len([r for r in filtered_recommendations if r.get('action') == 'buy']))
+                                        
+                                        trade_value = min(trade_value, cash)
+                                        shares = trade_value / price if price > 0 else 0
+                                        
+                                        if shares > 0:
+                                            positions[symbol] += shares
+                                            cash -= shares * price
+                                            
+                                            trade_history.append({
+                                                'date': date_str,
+                                                'symbol': symbol,
+                                                'action': 'buy',
+                                                'shares': shares,
+                                                'price': price,
+                                                'value': shares * price,
+                                                'signal_strength': signal_strength
+                                            })
+                                    
+                                    elif action == 'sell' and positions[symbol] > 0:
+                                        shares_to_sell = positions[symbol]  # Sell all
+                                        
+                                        if shares_to_sell > 0:
+                                            positions[symbol] = 0
+                                            cash += shares_to_sell * price
+                                            
+                                            trade_history.append({
+                                                'date': date_str,
+                                                'symbol': symbol,
+                                                'action': 'sell',
+                                                'shares': shares_to_sell,
+                                                'price': price,
+                                                'value': shares_to_sell * price,
+                                                'signal_strength': signal_strength
+                                            })
+                
+                # Record equity curve
+                current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
+                equity_curve.append(current_value)
             
-            # Final metrics
-            optimized_return, optimized_vol, optimized_sharpe = portfolio_metrics(weights)
+            # Calculate final metrics
+            final_value = equity_curve[-1] if equity_curve else initial_capital
+            total_return = (final_value - initial_capital) / initial_capital if initial_capital > 0 else 0
             
-            # Build optimized allocation
-            optimized_allocation = {}
-            for i, symbol in enumerate(symbols_list):
-                optimized_allocation[symbol] = float(weights[i])
+            # Calculate weekly returns for Sharpe ratio
+            returns = []
+            for i in range(1, len(equity_curve)):
+                if equity_curve[i-1] > 0:
+                    weekly_return = (equity_curve[i] - equity_curve[i-1]) / equity_curve[i-1]
+                    returns.append(weekly_return)
             
-            # Calculate current portfolio metrics for comparison
-            current_weights = np.array([current_holdings.get(s, 0.0) for s in symbols_list])
-            if np.sum(current_weights) > 0:
-                current_weights = current_weights / np.sum(current_weights)
-                current_return, current_vol, current_sharpe = portfolio_metrics(current_weights)
+            # Sharpe ratio (for weekly returns, no additional annualization needed)
+            if returns:
+                avg_return = np.mean(returns)
+                std_return = np.std(returns)
+                sharpe_ratio = (avg_return / std_return) if std_return > 0 else 0
             else:
-                current_return, current_vol, current_sharpe = 0.0, 0.0, 0.0
+                sharpe_ratio = 0.0
             
-            # Improvement metrics
-            improvement = {
-                'return_change': float(optimized_return - current_return),
-                'volatility_change': float(optimized_vol - current_vol),
-                'sharpe_change': float(optimized_sharpe - current_sharpe),
-                'return_improvement_pct': float((optimized_return - current_return) / abs(current_return) * 100) if current_return != 0 else 0.0,
-                'sharpe_improvement_pct': float((optimized_sharpe - current_sharpe) / abs(current_sharpe) * 100) if current_sharpe != 0 else 0.0
-            }
+            # CAGR (using actual weekly periods, not calendar days)
+            num_periods = len(equity_curve) - 1  # Number of weekly periods
+            num_years = num_periods / 52.0  # Convert weeks to years
+            cagr = ((final_value / initial_capital) ** (1.0 / num_years) - 1) * 100 if num_years > 0 and final_value > 0 else 0
+            
+            # Max drawdown
+            peak = equity_curve[0]
+            max_drawdown = 0.0
+            for value in equity_curve:
+                if value > peak:
+                    peak = value
+                drawdown = (peak - value) / peak if peak > 0 else 0
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
+            max_drawdown_pct = max_drawdown * 100
+            
+            # Win rate
+            winning_trades = 0
+            total_trades = 0
+            
+            # Match buy/sell pairs
+            for i, buy_trade in enumerate(trade_history):
+                if buy_trade.get('action') == 'buy':
+                    symbol = buy_trade.get('symbol')
+                    buy_price = buy_trade.get('price', 0)
+                    
+                    # Find corresponding sell
+                    for sell_trade in trade_history[i+1:]:
+                        if sell_trade.get('symbol') == symbol and sell_trade.get('action') == 'sell':
+                            sell_price = sell_trade.get('price', 0)
+                            if buy_price > 0:
+                                trade_return = (sell_price - buy_price) / buy_price
+                                total_trades += 1
+                                if trade_return > 0:
+                                    winning_trades += 1
+                            break
+            
+            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
             
             return {
-                'optimized_allocation': optimized_allocation,
-                'expected_return': float(optimized_return),
-                'expected_volatility': float(optimized_vol),
-                'sharpe_ratio': float(optimized_sharpe),
-                'current_metrics': {
-                    'expected_return': float(current_return),
-                    'expected_volatility': float(current_vol),
-                    'sharpe_ratio': float(current_sharpe)
-                },
-                'improvement': improvement,
-                'risk_tolerance': risk_tolerance,
+                'strategy': strategy,
+                'start_date': start_date,
+                'end_date': end_date,
+                'initial_capital': initial_capital,
+                'final_value': final_value,
+                'total_return': total_return * 100,
+                'total_return_usd': final_value - initial_capital,
+                'cagr': cagr,
+                'sharpe_ratio': sharpe_ratio,
+                'max_drawdown': max_drawdown_pct,
+                'win_rate': win_rate,
+                'total_trades': total_trades,
+                'winning_trades': winning_trades,
+                'equity_curve': [
+                    {'date': sorted_dates[i] if i < len(sorted_dates) else end_date, 'value': float(val)}
+                    for i, val in enumerate(equity_curve)
+                ],
+                'trade_history': trade_history,
                 'status': 'success'
             }
             
         except Exception as e:
-            self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
+            self.logger.error(f"Error in backtest_recommendations: {e}", exc_info=True)
             return {
-                'optimized_allocation': current_holdings,
-                'expected_return': 0.0,
-                'expected_volatility': 0.0,
-                'sharpe_ratio': 0.0,
-                'improvement': {},
+                'strategy': strategy,
                 'status': 'error',
                 'error': str(e)
             }
