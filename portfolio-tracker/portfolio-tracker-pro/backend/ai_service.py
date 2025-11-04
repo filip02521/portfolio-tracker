@@ -901,7 +901,8 @@ class AIService:
                         # Calculate signals for both timeframes
                         daily_signal = 0.0
                         weekly_signal = 0.0
-                        timeframe_info = "medium_term"  # Default
+                        timeframe_info = "krótkoterminowe"  # Default - gdy brak danych technicznych
+                        same_direction = False  # Default
                         
                         if historical_data and len(historical_data) >= 50:
                             df = pd.DataFrame(historical_data)
