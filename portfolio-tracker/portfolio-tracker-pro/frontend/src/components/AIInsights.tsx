@@ -72,8 +72,11 @@ const AIInsights: React.FC = () => {
       setError(null);
       
       const token = localStorage.getItem('token');
+      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      // Ensure baseUrl doesn't end with /api to avoid double /api/api
+      const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/ai/recommendations?risk_tolerance=${riskTolerance}`,
+        `${apiUrl}/ai/recommendations?risk_tolerance=${riskTolerance}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
