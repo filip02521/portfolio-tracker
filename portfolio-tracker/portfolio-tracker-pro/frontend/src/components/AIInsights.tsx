@@ -194,7 +194,7 @@ const AIInsights: React.FC = () => {
       {/* Dashboard Summary */}
       {summary.total > 0 && (
         <Grid container spacing={2} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} key="total">
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -206,7 +206,7 @@ const AIInsights: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} key="buy">
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -218,7 +218,7 @@ const AIInsights: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} key="sell">
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -230,7 +230,7 @@ const AIInsights: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} key="priority">
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -248,7 +248,7 @@ const AIInsights: React.FC = () => {
       {/* Controls */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={4} key="risk">
             <FormControl fullWidth size="small">
               <InputLabel>Risk Tolerance</InputLabel>
               <Select
@@ -262,7 +262,7 @@ const AIInsights: React.FC = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={4} key="sort">
             <FormControl fullWidth size="small">
               <InputLabel>Sort By</InputLabel>
               <Select
