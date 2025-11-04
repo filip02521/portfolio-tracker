@@ -45,12 +45,6 @@ try:
 except ImportError:
     NEWSAPI_AVAILABLE = False
 
-try:
-    from scipy.optimize import minimize  # type: ignore
-    SCIPY_AVAILABLE = True
-except ImportError:
-    SCIPY_AVAILABLE = False
-
 import os
 
 logger = logging.getLogger(__name__)
@@ -547,6 +541,443 @@ class AIService:
             self.logger.error(f"Error calculating technical indicators: {e}", exc_info=True)
         
         return indicators
+
+    # ==================== HELPER ANALYSIS METHODS ====================
+    
+    def _calculate_volume_profile(self, df: pd.DataFrame, num_levels: int = 20) -> Dict:
+        """
+        Calculate Volume Profile (POC, VAH, VAL).
+        
+        Args:
+            df: DataFrame with OHLCV data
+            num_levels: Number of price levels for volume distribution
+        
+        Returns:
+            Dictionary with POC, VAH, VAL prices and current price position
+        """
+        try:
+            if df is None or len(df) < 5 or 'volume' not in df.columns:
+                return {}
+            
+            # Get price range
+            min_price = df['low'].min()
+            max_price = df['high'].max()
+            if min_price >= max_price or min_price <= 0:
+                return {}
+            
+            # Create price levels
+            price_levels = np.linspace(min_price, max_price, num_levels)
+            volume_at_price = np.zeros(num_levels)
+            
+            # Distribute volume to price levels
+            for idx, row in df.iterrows():
+                low = row['low']
+                high = row['high']
+                volume = row.get('volume', 0)
+                
+                if volume > 0 and high > low:
+                    # Distribute volume across price range of this candle
+                    for i, level in enumerate(price_levels):
+                        if low <= level <= high:
+                            volume_at_price[i] += volume
+            
+            # Find POC (Point of Control) - level with maximum volume
+            poc_idx = np.argmax(volume_at_price)
+            poc_price = float(price_levels[poc_idx])
+            
+            # Calculate total volume
+            total_volume = volume_at_price.sum()
+            if total_volume == 0:
+                return {}
+            
+            # Find Value Area (70% of volume)
+            sorted_indices = np.argsort(volume_at_price)[::-1]
+            cumulative_volume = 0
+            value_area_indices = []
+            
+            for idx in sorted_indices:
+                cumulative_volume += volume_at_price[idx]
+                value_area_indices.append(idx)
+                if cumulative_volume >= total_volume * 0.70:
+                    break
+            
+            if value_area_indices:
+                value_area_prices = [price_levels[i] for i in value_area_indices]
+                vah_price = float(max(value_area_prices))
+                val_price = float(min(value_area_prices))
+            else:
+                vah_price = poc_price
+                val_price = poc_price
+            
+            # Determine current price position
+            current_price = float(df['close'].iloc[-1])
+            current_price_position = 'neutral'
+            
+            if current_price < val_price:
+                current_price_position = 'below_val'
+            elif current_price > vah_price:
+                current_price_position = 'above_vah'
+            elif abs(current_price - poc_price) / poc_price < 0.02:
+                current_price_position = 'at_poc'
+            else:
+                current_price_position = 'within_va'
+            
+            return {
+                'poc_price': poc_price,
+                'vah_price': vah_price,
+                'val_price': val_price,
+                'current_price_position': current_price_position,
+                'total_volume': float(total_volume)
+            }
+        except Exception as e:
+            self.logger.debug(f"Error calculating volume profile: {e}")
+            return {}
+    
+    def _detect_candlestick_patterns(self, df: pd.DataFrame) -> Dict:
+        """
+        Detect candlestick patterns (Doji, Hammer, Shooting Star, Engulfing).
+        
+        Args:
+            df: DataFrame with OHLCV data
+        
+        Returns:
+            Dictionary with detected patterns and signals
+        """
+        try:
+            if df is None or len(df) < 2:
+                return {}
+            
+            patterns = {}
+            
+            # Get last 2 candles for pattern detection
+            if len(df) < 2:
+                return {}
+            
+            prev_candle = df.iloc[-2]
+            curr_candle = df.iloc[-1]
+            
+            # Calculate body and wick sizes
+            prev_body = abs(prev_candle['close'] - prev_candle['open'])
+            curr_body = abs(curr_candle['close'] - curr_candle['open'])
+            curr_range = curr_candle['high'] - curr_candle['low']
+            
+            if curr_range == 0:
+                return {}
+            
+            # Doji (small body, long wicks)
+            body_ratio = curr_body / curr_range if curr_range > 0 else 0
+            if body_ratio < 0.1:
+                patterns['doji'] = {
+                    'signal': 'neutral',
+                    'weight': 0,
+                    'confidence': 0.7
+                }
+            
+            # Hammer (small body at top, long lower wick)
+            lower_wick = curr_candle['low'] - min(curr_candle['open'], curr_candle['close'])
+            upper_wick = curr_candle['high'] - max(curr_candle['open'], curr_candle['close'])
+            
+            if body_ratio < 0.3 and lower_wick > 2 * curr_body and upper_wick < curr_body:
+                patterns['hammer'] = {
+                    'signal': 'buy',
+                    'weight': 8,
+                    'confidence': 0.7
+                }
+            
+            # Shooting Star (small body at bottom, long upper wick)
+            if body_ratio < 0.3 and upper_wick > 2 * curr_body and lower_wick < curr_body:
+                patterns['shooting_star'] = {
+                    'signal': 'sell',
+                    'weight': 8,
+                    'confidence': 0.7
+                }
+            
+            # Engulfing patterns
+            prev_is_bullish = prev_candle['close'] > prev_candle['open']
+            curr_is_bullish = curr_candle['close'] > curr_candle['open']
+            
+            # Bullish Engulfing
+            if (not prev_is_bullish and curr_is_bullish and
+                curr_candle['open'] < prev_candle['close'] and
+                curr_candle['close'] > prev_candle['open']):
+                patterns['bullish_engulfing'] = {
+                    'signal': 'buy',
+                    'weight': 10,
+                    'confidence': 0.75
+                }
+            
+            # Bearish Engulfing
+            if (prev_is_bullish and not curr_is_bullish and
+                curr_candle['open'] > prev_candle['close'] and
+                curr_candle['close'] < prev_candle['open']):
+                patterns['bearish_engulfing'] = {
+                    'signal': 'sell',
+                    'weight': 10,
+                    'confidence': 0.75
+                }
+            
+            return patterns
+        except Exception as e:
+            self.logger.debug(f"Error detecting candlestick patterns: {e}")
+            return {}
+    
+    def _detect_chart_patterns(self, df: pd.DataFrame) -> Dict:
+        """
+        Detect chart patterns (Head & Shoulders, Triangles, Flags).
+        
+        Args:
+            df: DataFrame with OHLCV data
+        
+        Returns:
+            Dictionary with detected patterns and signals
+        """
+        try:
+            if df is None or len(df) < 20:
+                return {}
+            
+            patterns = {}
+            
+            # Simple swing high/low detection
+            closes = df['close'].values
+            highs = df['high'].values
+            lows = df['low'].values
+            
+            # Find swing highs and lows (local maxima/minima)
+            swing_highs = []
+            swing_lows = []
+            lookback = min(5, len(df) // 4)
+            
+            for i in range(lookback, len(df) - lookback):
+                # Swing high
+                if all(highs[i] >= highs[i-j] for j in range(1, lookback+1)) and \
+                   all(highs[i] >= highs[i+j] for j in range(1, lookback+1)):
+                    swing_highs.append((i, highs[i]))
+                
+                # Swing low
+                if all(lows[i] <= lows[i-j] for j in range(1, lookback+1)) and \
+                   all(lows[i] <= lows[i+j] for j in range(1, lookback+1)):
+                    swing_lows.append((i, lows[i]))
+            
+            # Head & Shoulders (3 swing highs: left shoulder < head > right shoulder)
+            if len(swing_highs) >= 3:
+                last_three = swing_highs[-3:]
+                if (last_three[0][1] < last_three[1][1] > last_three[2][1] and
+                    abs(last_three[0][1] - last_three[2][1]) / last_three[1][1] < 0.1):
+                    patterns['head_and_shoulders'] = {
+                        'signal': 'sell',
+                        'weight': 15,
+                        'confidence': 0.6
+                    }
+            
+            # Inverse Head & Shoulders (3 swing lows)
+            if len(swing_lows) >= 3:
+                last_three = swing_lows[-3:]
+                if (last_three[0][1] > last_three[1][1] < last_three[2][1] and
+                    abs(last_three[0][1] - last_three[2][1]) / last_three[1][1] < 0.1):
+                    patterns['inverse_head_and_shoulders'] = {
+                        'signal': 'buy',
+                        'weight': 15,
+                        'confidence': 0.6
+                    }
+            
+            # Triangle detection (converging trendlines)
+            if len(swing_highs) >= 2 and len(swing_lows) >= 2:
+                # Ascending triangle (horizontal resistance, rising support)
+                recent_highs = [h[1] for h in swing_highs[-3:]]
+                recent_lows = [l[1] for l in swing_lows[-3:]]
+                
+                if len(recent_highs) >= 2 and len(recent_lows) >= 2:
+                    high_std = np.std(recent_highs)
+                    low_trend = (recent_lows[-1] - recent_lows[0]) / max(recent_lows) if recent_lows else 0
+                    
+                    if high_std / np.mean(recent_highs) < 0.02 and low_trend > 0.05:
+                        patterns['ascending_triangle'] = {
+                            'signal': 'buy',
+                            'weight': 10,
+                            'confidence': 0.65
+                        }
+                    
+                    # Descending triangle
+                    low_std = np.std(recent_lows)
+                    high_trend = (recent_highs[-1] - recent_highs[0]) / max(recent_highs) if recent_highs else 0
+                    
+                    if low_std / np.mean(recent_lows) < 0.02 and high_trend < -0.05:
+                        patterns['descending_triangle'] = {
+                            'signal': 'sell',
+                            'weight': 10,
+                            'confidence': 0.65
+                        }
+            
+            # Flag pattern (consolidation after strong move)
+            if len(df) >= 15:
+                # Check for strong move followed by consolidation
+                first_half = closes[:len(closes)//2]
+                second_half = closes[len(closes)//2:]
+                
+                first_trend = (first_half[-1] - first_half[0]) / first_half[0] if first_half[0] > 0 else 0
+                second_volatility = np.std(second_half) / np.mean(second_half) if len(second_half) > 0 else 0
+                
+                if abs(first_trend) > 0.1 and second_volatility < 0.05:
+                    if first_trend > 0:
+                        patterns['bull_flag'] = {
+                            'signal': 'buy',
+                            'weight': 12,
+                            'confidence': 0.6
+                        }
+                    else:
+                        patterns['bear_flag'] = {
+                            'signal': 'sell',
+                            'weight': 12,
+                            'confidence': 0.6
+                        }
+            
+            return patterns
+        except Exception as e:
+            self.logger.debug(f"Error detecting chart patterns: {e}")
+            return {}
+    
+    def _detect_support_resistance(self, df: pd.DataFrame, threshold: float = 0.02) -> Dict:
+        """
+        Detect support and resistance levels.
+        
+        Args:
+            df: DataFrame with OHLCV data
+            threshold: Price threshold for near support/resistance (2% default)
+        
+        Returns:
+            Dictionary with support/resistance levels and current price position
+        """
+        try:
+            if df is None or len(df) < 10:
+                return {}
+            
+            # Find swing highs and lows
+            highs = df['high'].values
+            lows = df['low'].values
+            closes = df['close'].values
+            current_price = closes[-1]
+            
+            # Cluster swing highs and lows
+            lookback = min(5, len(df) // 4)
+            swing_highs = []
+            swing_lows = []
+            
+            for i in range(lookback, len(df) - lookback):
+                if all(highs[i] >= highs[i-j] for j in range(1, lookback+1)) and \
+                   all(highs[i] >= highs[i+j] for j in range(1, lookback+1)):
+                    swing_highs.append(highs[i])
+                
+                if all(lows[i] <= lows[i-j] for j in range(1, lookback+1)) and \
+                   all(lows[i] <= lows[i+j] for j in range(1, lookback+1)):
+                    swing_lows.append(lows[i])
+            
+            # Find nearest support and resistance
+            support_levels = sorted(swing_lows, reverse=True)[:3]  # Top 3 support levels
+            resistance_levels = sorted(swing_highs)[-3:]  # Top 3 resistance levels
+            
+            near_support = False
+            near_resistance = False
+            
+            if support_levels:
+                nearest_support = max([s for s in support_levels if s < current_price], default=None)
+                if nearest_support and abs(current_price - nearest_support) / current_price < threshold:
+                    near_support = True
+            
+            if resistance_levels:
+                nearest_resistance = min([r for r in resistance_levels if r > current_price], default=None)
+                if nearest_resistance and abs(nearest_resistance - current_price) / current_price < threshold:
+                    near_resistance = True
+            
+            return {
+                'near_support': near_support,
+                'near_resistance': near_resistance,
+                'support_levels': [float(s) for s in support_levels] if support_levels else [],
+                'resistance_levels': [float(r) for r in resistance_levels] if resistance_levels else []
+            }
+        except Exception as e:
+            self.logger.debug(f"Error detecting support/resistance: {e}")
+            return {}
+    
+    def _calculate_correlation_and_beta(self, df: pd.DataFrame, symbol: str, benchmark: str = 'BTC') -> Dict:
+        """
+        Calculate correlation and beta relative to benchmark, and determine outperformance.
+        
+        Args:
+            df: DataFrame with OHLCV data for the asset
+            symbol: Asset symbol
+            benchmark: Benchmark symbol (default: 'BTC')
+        
+        Returns:
+            Dictionary with correlation, beta, and outperformance indicators
+        """
+        try:
+            if df is None or len(df) < 10 or not self.market_data_service:
+                return {}
+            
+            # Get benchmark data
+            try:
+                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(
+                    benchmark, 'crypto', '1d'
+                )
+                if not benchmark_data or len(benchmark_data) < 10:
+                    return {}
+            except:
+                return {}
+            
+            # Align data by dates
+            asset_dates = set(df.index) if hasattr(df.index, 'tolist') else set(range(len(df)))
+            
+            # Calculate returns
+            asset_returns = df['close'].pct_change().dropna().values
+            benchmark_returns = pd.Series([d.get('close', 0) for d in benchmark_data]).pct_change().dropna().values
+            
+            # Align lengths
+            min_len = min(len(asset_returns), len(benchmark_returns))
+            if min_len < 10:
+                return {}
+            
+            asset_returns = asset_returns[-min_len:]
+            benchmark_returns = benchmark_returns[-min_len:]
+            
+            # Calculate correlation
+            if len(asset_returns) > 1 and len(benchmark_returns) > 1:
+                correlation = np.corrcoef(asset_returns, benchmark_returns)[0, 1]
+                if np.isnan(correlation):
+                    correlation = 0.0
+            else:
+                correlation = 0.0
+            
+            # Calculate beta (slope of regression)
+            if len(benchmark_returns) > 1 and np.var(benchmark_returns) > 0:
+                beta = np.cov(asset_returns, benchmark_returns)[0, 1] / np.var(benchmark_returns)
+                if np.isnan(beta):
+                    beta = 1.0
+            else:
+                beta = 1.0
+            
+            # Calculate relative performance
+            asset_total_return = (asset_returns + 1).prod() - 1
+            benchmark_total_return = (benchmark_returns + 1).prod() - 1
+            
+            outperforming = False
+            underperforming = False
+            
+            if asset_total_return > benchmark_total_return * 1.1:  # 10% outperformance
+                outperforming = True
+            elif asset_total_return < benchmark_total_return * 0.9:  # 10% underperformance
+                underperforming = True
+            
+            return {
+                'correlation': float(correlation),
+                'beta': float(beta),
+                'outperforming': outperforming,
+                'underperforming': underperforming,
+                'asset_return': float(asset_total_return),
+                'benchmark_return': float(benchmark_total_return)
+            }
+        except Exception as e:
+            self.logger.debug(f"Error calculating correlation/beta: {e}")
+            return {}
 
     # ==================== MAIN AI METHODS ====================
     
@@ -1054,975 +1485,4 @@ class AIService:
                 "model_used": "error",
                 "status": "error",
                 "error": str(e)
-            }
-
-
-    def predict_price(
-        self,
-        symbol: str,
-        asset_type: str = "crypto",
-        days_ahead: int = 7
-    ) -> Optional[Dict]:
-        """
-        Predict future price using Prophet (if available) or fallback to mock predictions.
-        
-        Args:
-            symbol: Asset symbol (e.g., 'BTC', 'AAPL')
-            asset_type: 'crypto' or 'stock'
-            days_ahead: Number of days to predict (7-90)
-        
-        Returns:
-            Dictionary with predictions and confidence
-        """
-        if not symbol or days_ahead < 1 or days_ahead > 90:
-            return None
-        
-        try:
-            # Get historical data
-            if not self.market_data_service:
-                return self._mock_predict_price(symbol, asset_type, days_ahead)
-            
-            historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
-                symbol, asset_type, '1d'
-            )
-            
-            if not historical_data or len(historical_data) < 50:
-                self.logger.warning(f"Insufficient data for {symbol}, using mock predictions")
-                return self._mock_predict_price(symbol, asset_type, days_ahead)
-            
-            # Use Prophet if available
-            if PROPHET_AVAILABLE:
-                try:
-                    df = pd.DataFrame(historical_data)
-                    df['ds'] = pd.to_datetime(df['timestamp'] if 'timestamp' in df.columns else df.index)
-                    df['y'] = df['close'].values
-                    
-                    # Prepare Prophet dataframe
-                    prophet_df = df[['ds', 'y']].copy()
-                    
-                    # Initialize and fit Prophet model
-                    model = Prophet(
-                        daily_seasonality=True,
-                        weekly_seasonality=True,
-                        yearly_seasonality=False,
-                        changepoint_prior_scale=0.05
-                    )
-                    model.fit(prophet_df)
-                    
-                    # Make future predictions
-                    future = model.make_future_dataframe(periods=days_ahead)
-                    forecast = model.predict(future)
-                    
-                    # Extract predictions
-                    predictions = []
-                    current_price = df['close'].iloc[-1]
-                    
-                    for i in range(len(df), len(forecast)):
-                        pred_row = forecast.iloc[i]
-                        predicted_price = max(current_price * 0.01, min(pred_row['yhat'], current_price * 10))
-                        upper_bound = max(predicted_price, min(pred_row['yhat_upper'], current_price * 10))
-                        lower_bound = max(current_price * 0.01, pred_row['yhat_lower'])
-                        
-                        predictions.append({
-                            'date': pred_row['ds'].isoformat(),
-                            'predicted_price': float(predicted_price),
-                            'upper_bound': float(upper_bound),
-                            'lower_bound': float(lower_bound)
-                        })
-                    
-                    # Calculate confidence based on prediction interval width
-                    avg_interval_width = np.mean([p['upper_bound'] - p['lower_bound'] for p in predictions]) / current_price
-                    confidence = max(0.5, min(0.95, 1.0 - (avg_interval_width / 2)))
-                    
-                    return {
-                        'symbol': symbol,
-                        'model_used': 'prophet',
-                        'status': 'success',
-                        'predictions': predictions,
-                        'confidence': float(confidence),
-                        'current_price': float(current_price)
-                    }
-                
-                except Exception as e:
-                    self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
-                    return self._mock_predict_price(symbol, asset_type, days_ahead)
-            else:
-                return self._mock_predict_price(symbol, asset_type, days_ahead)
-        
-        except Exception as e:
-            self.logger.error(f"Error in predict_price for {symbol}: {e}", exc_info=True)
-            return self._mock_predict_price(symbol, asset_type, days_ahead)
-
-    def _fetch_real_news(self, symbol: str, max_articles: int = 10) -> List[str]:
-        """Fetch real news articles using NewsAPI"""
-        headlines = []
-        
-        if not NEWSAPI_AVAILABLE or not hasattr(self, 'newsapi_client') or not self.newsapi_client:
-            return self._get_mock_news_headlines(symbol)
-        
-        try:
-            # Search for news about the symbol
-            query = f"{symbol} cryptocurrency" if symbol in ['BTC', 'ETH', 'SOL'] else f"{symbol} stock"
-            articles = self.newsapi_client.get_everything(
-                q=query,
-                language='en',
-                sort_by='relevancy',
-                page_size=max_articles
-            )
-            
-            if articles and 'articles' in articles:
-                for article in articles['articles']:
-                    if article.get('title'):
-                        headlines.append(article['title'])
-            
-            if not headlines:
-                return self._get_mock_news_headlines(symbol)
-            
-            return headlines[:max_articles]
-        
-        except Exception as e:
-            self.logger.warning(f"Error fetching news for {symbol}: {e}")
-            return self._get_mock_news_headlines(symbol)
-
-    def analyze_sentiment(
-        self,
-        symbol: str,
-        asset_type: str = "crypto"
-    ) -> Optional[Dict]:
-        """
-        Analyze sentiment from news articles using FinBERT (if available).
-        
-        Args:
-            symbol: Asset symbol
-            asset_type: 'crypto' or 'stock'
-        
-        Returns:
-            Dictionary with sentiment analysis results
-        """
-        if not symbol:
-            return None
-        
-        try:
-            # Fetch news headlines
-            headlines = self._fetch_real_news(symbol, max_articles=10)
-            
-            if not headlines:
-                return {
-                    'symbol': symbol,
-                    'sentiment': 'neutral',
-                    'score': 0.0,
-                    'confidence': 0.5,
-                    'model_used': 'fallback',
-                    'status': 'no_data'
-                }
-            
-            # Use FinBERT if available
-            if TRANSFORMERS_AVAILABLE and self.sentiment_pipeline:
-                try:
-                    # Analyze sentiment for each headline
-                    sentiments = []
-                    scores = []
-                    
-                    for headline in headlines:
-                        result = self.sentiment_pipeline(headline)
-                        if isinstance(result, list) and len(result) > 0:
-                            result = result[0]
-                        
-                        label = result.get('label', 'neutral')
-                        score = result.get('score', 0.5)
-                        
-                        # Map FinBERT labels to our sentiment scale
-                        if 'positive' in label.lower():
-                            sentiments.append('positive')
-                            scores.append(score)
-                        elif 'negative' in label.lower():
-                            sentiments.append('negative')
-                            scores.append(-score)
-                        else:
-                            sentiments.append('neutral')
-                            scores.append(0.0)
-                    
-                    # Aggregate sentiment
-                    if scores:
-                        avg_score = np.mean(scores)
-                        positive_count = sum(1 for s in sentiments if s == 'positive')
-                        negative_count = sum(1 for s in sentiments if s == 'negative')
-                        
-                        if avg_score > 0.1:
-                            sentiment = 'positive'
-                        elif avg_score < -0.1:
-                            sentiment = 'negative'
-                        else:
-                            sentiment = 'neutral'
-                        
-                        confidence = min(0.95, abs(avg_score) * 2 + 0.5)
-                        
-                        return {
-                            'symbol': symbol,
-                            'sentiment': sentiment,
-                            'score': float(avg_score),
-                            'confidence': float(confidence),
-                            'model_used': 'finbert',
-                            'status': 'success',
-                            'positive_articles': positive_count,
-                            'negative_articles': negative_count,
-                            'total_articles': len(headlines)
-                        }
-                    else:
-                        return {
-                            'symbol': symbol,
-                            'sentiment': 'neutral',
-                            'score': 0.0,
-                            'confidence': 0.5,
-                            'model_used': 'fallback',
-                            'status': 'no_results'
-                        }
-                
-                except Exception as e:
-                    self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
-                    return {
-                        'symbol': symbol,
-                        'sentiment': 'neutral',
-                        'score': 0.0,
-                        'confidence': 0.5,
-                        'model_used': 'fallback',
-                        'status': 'error'
-                    }
-            else:
-                # Fallback: simple keyword-based sentiment
-                positive_keywords = ['up', 'rise', 'gain', 'bullish', 'surge', 'rally', 'soar', 'climb']
-                negative_keywords = ['down', 'fall', 'drop', 'bearish', 'plunge', 'crash', 'decline', 'slide']
-                
-                positive_count = sum(1 for h in headlines if any(kw in h.lower() for kw in positive_keywords))
-                negative_count = sum(1 for h in headlines if any(kw in h.lower() for kw in negative_keywords))
-                
-                if positive_count > negative_count:
-                    sentiment = 'positive'
-                    score = 0.3
-                elif negative_count > positive_count:
-                    sentiment = 'negative'
-                    score = -0.3
-                else:
-                    sentiment = 'neutral'
-                    score = 0.0
-                
-                return {
-                    'symbol': symbol,
-                    'sentiment': sentiment,
-                    'score': score,
-                    'confidence': 0.6,
-                    'model_used': 'keyword_based',
-                    'status': 'success',
-                    'positive_articles': positive_count,
-                    'negative_articles': negative_count,
-                    'total_articles': len(headlines)
-                }
-        
-        except Exception as e:
-            self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
-            return {
-                'symbol': symbol,
-                'sentiment': 'neutral',
-                'score': 0.0,
-                'confidence': 0.5,
-                'model_used': 'fallback',
-                'status': 'error',
-                'error': str(e)
-            }
-
-    def detect_anomalies(
-        self,
-        portfolio_holdings: Dict[str, float],
-        target_allocation: Dict[str, float] = None
-    ) -> Optional[Dict]:
-        """
-        Detect anomalies in portfolio data using statistical methods.
-        
-        Args:
-            portfolio_holdings: Current portfolio allocation {symbol: percentage}
-            target_allocation: Optional target allocation for drift detection
-        
-        Returns:
-            Dictionary with detected anomalies and their severity
-        """
-        if not portfolio_holdings:
-            return {
-                'anomalies': [],
-                'total_anomalies': 0,
-                'severity': 'none'
-            }
-        
-        anomalies = []
-        
-        try:
-            # 1. Price Z-score anomalies
-            if self.market_data_service:
-                for symbol in portfolio_holdings.keys():
-                    if portfolio_holdings[symbol] <= 0:
-                        continue
-                    
-                    try:
-                        # Get historical data
-                        asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                        historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, asset_type, '1d'
-                        )
-                        
-                        if historical_data and len(historical_data) >= 30:
-                            df = pd.DataFrame(historical_data)
-                            if 'close' in df.columns:
-                                prices = df['close'].values
-                                current_price = prices[-1]
-                                
-                                # Calculate Z-score
-                                mean_price = np.mean(prices)
-                                std_price = np.std(prices)
-                                
-                                if std_price > 0:
-                                    z_score = abs((current_price - mean_price) / std_price)
-                                    
-                                    if z_score > 3:
-                                        anomalies.append({
-                                            'type': 'price_zscore',
-                                            'symbol': symbol,
-                                            'severity': 'critical',
-                                            'z_score': float(z_score),
-                                            'message': f'{symbol} price is {z_score:.2f} standard deviations from mean'
-                                        })
-                                    elif z_score > 2:
-                                        anomalies.append({
-                                            'type': 'price_zscore',
-                                            'symbol': symbol,
-                                            'severity': 'warning',
-                                            'z_score': float(z_score),
-                                            'message': f'{symbol} price is {z_score:.2f} standard deviations from mean'
-                                        })
-                            
-                            # Volume anomalies
-                            if 'volume' in df.columns:
-                                volumes = df['volume'].values
-                                recent_volume = np.mean(volumes[-5:]) if len(volumes) >= 5 else volumes[-1]
-                                avg_volume = np.mean(volumes[:-5]) if len(volumes) > 5 else np.mean(volumes)
-                                
-                                if avg_volume > 0:
-                                    volume_ratio = recent_volume / avg_volume
-                                    
-                                    if volume_ratio > 3.0:
-                                        anomalies.append({
-                                            'type': 'volume_spike',
-                                            'symbol': symbol,
-                                            'severity': 'warning',
-                                            'volume_ratio': float(volume_ratio),
-                                            'message': f'{symbol} has {volume_ratio:.1f}x average volume spike'
-                                        })
-                                    elif volume_ratio < 0.3:
-                                        anomalies.append({
-                                            'type': 'volume_drop',
-                                            'symbol': symbol,
-                                            'severity': 'info',
-                                            'volume_ratio': float(volume_ratio),
-                                            'message': f'{symbol} has {volume_ratio:.1f}x average volume drop'
-                                        })
-                    
-                    except Exception as e:
-                        self.logger.debug(f"Error detecting anomalies for {symbol}: {e}")
-            
-            # 2. Allocation drift anomalies
-            if target_allocation:
-                total_current = sum(portfolio_holdings.values())
-                total_target = sum(target_allocation.values())
-                
-                if total_current > 0 and total_target > 0:
-                    for symbol in set(portfolio_holdings.keys()) | set(target_allocation.keys()):
-                        current_pct = portfolio_holdings.get(symbol, 0.0) / total_current
-                        target_pct = target_allocation.get(symbol, 0.0) / total_target
-                        
-                        drift = abs(current_pct - target_pct)
-                        if drift > 0.15:  # 15% drift threshold
-                            anomalies.append({
-                                'type': 'allocation_drift',
-                                'symbol': symbol,
-                                'severity': 'warning' if drift > 0.25 else 'info',
-                                'current_allocation': float(current_pct),
-                                'target_allocation': float(target_pct),
-                                'drift': float(drift),
-                                'message': f'{symbol} allocation drift: {drift*100:.1f}%'
-                            })
-            
-            # 3. Correlation break anomalies
-            # This would require multiple symbols - simplified version
-            if len(portfolio_holdings) >= 2 and self.market_data_service:
-                symbols_list = list(portfolio_holdings.keys())[:5]  # Limit to 5 symbols
-                try:
-                    correlations = []
-                    for i, sym1 in enumerate(symbols_list):
-                        for sym2 in symbols_list[i+1:]:
-                            try:
-                                asset_type1 = 'crypto' if sym1 in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                                asset_type2 = 'crypto' if sym2 in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                                
-                                data1, _ = self.market_data_service.get_symbol_history_with_interval(sym1, asset_type1, '1d')
-                                data2, _ = self.market_data_service.get_symbol_history_with_interval(sym2, asset_type2, '1d')
-                                
-                                if data1 and data2 and len(data1) >= 30 and len(data2) >= 30:
-                                    df1 = pd.DataFrame(data1)
-                                    df2 = pd.DataFrame(data2)
-                                    
-                                    if 'close' in df1.columns and 'close' in df2.columns:
-                                        min_len = min(len(df1), len(df2))
-                                        returns1 = df1['close'].iloc[:min_len].pct_change().dropna()
-                                        returns2 = df2['close'].iloc[:min_len].pct_change().dropna()
-                                        
-                                        if len(returns1) == len(returns2) and len(returns1) > 10:
-                                            corr = np.corrcoef(returns1, returns2)[0, 1]
-                                            if not np.isnan(corr):
-                                                correlations.append({
-                                                    'pair': f'{sym1}-{sym2}',
-                                                    'correlation': float(corr)
-                                                })
-                            except Exception:
-                                continue
-                    
-                    # Check for unexpected low correlations (would need historical baseline)
-                    # Simplified: flag if correlation is unexpectedly low for crypto pairs
-                    for corr_data in correlations:
-                        if abs(corr_data['correlation']) < 0.3 and '-' in corr_data['pair']:
-                            sym1, sym2 = corr_data['pair'].split('-')
-                            if sym1 in ['BTC', 'ETH'] and sym2 in ['BTC', 'ETH']:
-                                anomalies.append({
-                                    'type': 'correlation_break',
-                                    'symbols': [sym1, sym2],
-                                    'severity': 'info',
-                                    'correlation': corr_data['correlation'],
-                                    'message': f'Low correlation between {sym1} and {sym2}: {corr_data["correlation"]:.2f}'
-                                })
-                
-                except Exception as e:
-                    self.logger.debug(f"Error detecting correlation anomalies: {e}")
-            
-            # Determine overall severity
-            critical_count = sum(1 for a in anomalies if a.get('severity') == 'critical')
-            warning_count = sum(1 for a in anomalies if a.get('severity') == 'warning')
-            
-            if critical_count > 0:
-                overall_severity = 'critical'
-            elif warning_count > 2:
-                overall_severity = 'warning'
-            elif len(anomalies) > 0:
-                overall_severity = 'info'
-            else:
-                overall_severity = 'none'
-            
-            return {
-                'anomalies': anomalies,
-                'total_anomalies': len(anomalies),
-                'severity': overall_severity,
-                'critical_count': critical_count,
-                'warning_count': warning_count
-            }
-        
-        except Exception as e:
-            self.logger.error(f"Error in detect_anomalies: {e}", exc_info=True)
-            return {
-                'anomalies': [],
-                'total_anomalies': 0,
-                'severity': 'error',
-                'error': str(e)
-            }
-
-    def suggest_holdings_optimization(
-        self,
-        current_holdings: Dict[str, float],
-        risk_tolerance: str = "moderate"
-    ) -> Optional[Dict]:
-        """
-        Suggest optimal holdings allocation using Modern Portfolio Theory (MPT).
-        
-        Args:
-            current_holdings: Current portfolio allocation {symbol: percentage}
-            risk_tolerance: 'conservative', 'moderate', or 'aggressive'
-        
-        Returns:
-            Dictionary with optimized allocation suggestions
-        """
-        if not current_holdings:
-            return None
-        
-        try:
-            symbols = list(current_holdings.keys())
-            
-            if not self.market_data_service:
-                return {
-                    'suggested_allocation': current_holdings,
-                    'optimization_method': 'none',
-                    'status': 'no_data_service'
-                }
-            
-            # Get historical returns for all symbols
-            returns_data = {}
-            for symbol in symbols:
-                try:
-                    asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                    historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                        symbol, asset_type, '1d'
-                    )
-                    
-                    if historical_data and len(historical_data) >= 90:
-                        df = pd.DataFrame(historical_data)
-                        if 'close' in df.columns:
-                            returns = df['close'].pct_change().dropna()
-                            if len(returns) >= 30:
-                                returns_data[symbol] = returns.values
-                except Exception as e:
-                    self.logger.debug(f"Error getting returns for {symbol}: {e}")
-            
-            if len(returns_data) < 2:
-                # Fallback: simple equal-weight or risk-based allocation
-                num_assets = len(symbols)
-                equal_weight = 1.0 / num_assets
-                suggested_allocation = {symbol: equal_weight for symbol in symbols}
-                
-                return {
-                    'suggested_allocation': suggested_allocation,
-                    'optimization_method': 'equal_weight_fallback',
-                    'status': 'insufficient_data',
-                    'current_holdings': current_holdings,
-                    'risk_tolerance': risk_tolerance
-                }
-            
-            # Calculate expected returns and covariance matrix
-            expected_returns = {}
-            returns_list = []
-            valid_symbols = []
-            
-            for symbol, returns in returns_data.items():
-                expected_returns[symbol] = np.mean(returns) * 252  # Annualized
-                returns_list.append(returns[:min(len(r) for r in returns_data.values())])
-                valid_symbols.append(symbol)
-            
-            if len(returns_list) < 2:
-                return {
-                    'suggested_allocation': current_holdings,
-                    'optimization_method': 'none',
-                    'status': 'insufficient_data'
-                }
-            
-            # Align returns to same length
-            min_length = min(len(r) for r in returns_list)
-            returns_matrix = np.array([r[:min_length] for r in returns_list])
-            
-            # Calculate covariance matrix (annualized)
-            cov_matrix = np.cov(returns_matrix) * 252
-            
-            # Expected returns vector
-            mu = np.array([expected_returns[symbol] for symbol in valid_symbols])
-            
-            # Risk tolerance weights
-            risk_weights = {
-                'conservative': 0.2,  # Lower risk, more stable assets
-                'moderate': 0.5,
-                'aggressive': 0.8  # Higher risk, more volatile assets
-            }
-            risk_weight = risk_weights.get(risk_tolerance, 0.5)
-            
-            # Simple optimization: maximize Sharpe-like ratio
-            # For simplicity, use mean-variance optimization
-            # Portfolio return = w^T * mu
-            # Portfolio variance = w^T * Cov * w
-            # We want to maximize (return - risk_penalty * variance)
-            
-            from scipy.optimize import minimize
-            
-            # Objective function: minimize negative Sharpe-like ratio
-            def objective(weights):
-                portfolio_return = np.dot(weights, mu)
-                portfolio_variance = np.dot(weights.T, np.dot(cov_matrix, weights))
-                portfolio_std = np.sqrt(portfolio_variance)
-                
-                # Risk-adjusted return
-                if portfolio_std > 0:
-                    sharpe_like = portfolio_return / portfolio_std
-                else:
-                    sharpe_like = 0
-                
-                return -sharpe_like * (1 - risk_weight) + portfolio_variance * risk_weight
-            
-            # Constraints: weights sum to 1, each weight between 0 and 1
-            constraints = {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0}
-            bounds = tuple((0, 1) for _ in range(len(valid_symbols)))
-            
-            # Initial guess: equal weights
-            initial_weights = np.array([1.0 / len(valid_symbols)] * len(valid_symbols))
-            
-            try:
-                result = minimize(objective, initial_weights, method='SLSQP',
-                                bounds=bounds, constraints=constraints)
-                
-                if result.success:
-                    optimized_weights = result.x
-                    suggested_allocation = {
-                        valid_symbols[i]: float(optimized_weights[i])
-                        for i in range(len(valid_symbols))
-                    }
-                    
-                    # Normalize to sum to 1
-                    total = sum(suggested_allocation.values())
-                    if total > 0:
-                        suggested_allocation = {k: v / total for k, v in suggested_allocation.items()}
-                    
-                    # Calculate expected portfolio metrics
-                    portfolio_return = np.dot(optimized_weights, mu)
-                    portfolio_variance = np.dot(optimized_weights.T, np.dot(cov_matrix, optimized_weights))
-                    portfolio_std = np.sqrt(portfolio_variance)
-                    sharpe_ratio = portfolio_return / portfolio_std if portfolio_std > 0 else 0
-                    
-                    return {
-                        'suggested_allocation': suggested_allocation,
-                        'optimization_method': 'mpt_mean_variance',
-                        'status': 'success',
-                        'current_holdings': current_holdings,
-                        'risk_tolerance': risk_tolerance,
-                        'expected_return': float(portfolio_return),
-                        'expected_volatility': float(portfolio_std),
-                        'expected_sharpe_ratio': float(sharpe_ratio)
-                    }
-                else:
-                    # Fallback to equal weights
-                    equal_weight = 1.0 / len(valid_symbols)
-                    suggested_allocation = {symbol: equal_weight for symbol in valid_symbols}
-                    
-                    return {
-                        'suggested_allocation': suggested_allocation,
-                        'optimization_method': 'equal_weight_fallback',
-                        'status': 'optimization_failed',
-                        'current_holdings': current_holdings
-                    }
-            
-            except ImportError:
-                # scipy not available, use simple heuristic
-                equal_weight = 1.0 / len(valid_symbols)
-                suggested_allocation = {symbol: equal_weight for symbol in valid_symbols}
-                
-                return {
-                    'suggested_allocation': suggested_allocation,
-                    'optimization_method': 'equal_weight_fallback',
-                    'status': 'scipy_unavailable',
-                    'current_holdings': current_holdings
-                }
-        
-        except Exception as e:
-            self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
-            return {
-                'suggested_allocation': current_holdings,
-                'optimization_method': 'none',
-                'status': 'error',
-                'error': str(e)
-            }
-
-    def backtest_recommendations(
-        self,
-        start_date: str,
-        end_date: str,
-        initial_capital: float,
-        symbols: List[str],
-        strategy: str = "follow_ai",
-        signal_threshold: float = 20.0
-    ) -> Optional[Dict]:
-        """
-        Backtest AI recommendations strategies on historical data.
-        
-        Args:
-            start_date: Start date (ISO format)
-            end_date: End date (ISO format)
-            initial_capital: Starting capital
-            symbols: List of symbols to backtest
-            strategy: 'follow_ai', 'high_confidence', 'weighted_allocation', 'buy_and_hold'
-            signal_threshold: Signal strength threshold for 'follow_ai' strategy
-        
-        Returns:
-            Dictionary with backtest results including equity curve, metrics, trade history
-        """
-        if not symbols or initial_capital <= 0:
-            return {
-                'strategy': strategy,
-                'status': 'invalid_input',
-                'error': 'Invalid input parameters'
-            }
-        
-        try:
-            # Parse dates
-            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            
-            if end_dt <= start_dt:
-                return {
-                    'strategy': strategy,
-                    'status': 'invalid_dates',
-                    'error': 'End date must be after start date'
-                }
-            
-            # Get historical data for all symbols (weekly candles)
-            historical_data = {}
-            for symbol in symbols:
-                try:
-                    asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
-                    data, interval = self.market_data_service.get_symbol_history_with_interval(
-                        symbol, asset_type, '1w'  # Weekly data
-                    )
-                    
-                    if data:
-                        # Filter to date range
-                        filtered_data = []
-                        for candle in data:
-                            candle_date = datetime.fromisoformat(
-                                candle.get('timestamp', candle.get('date', '')).replace('Z', '+00:00')
-                            )
-                            if start_dt <= candle_date <= end_dt:
-                                filtered_data.append(candle)
-                        
-                        if filtered_data:
-                            historical_data[symbol] = sorted(filtered_data, key=lambda x: x.get('timestamp', x.get('date', '')))
-                except Exception as e:
-                    self.logger.warning(f"Error getting data for {symbol}: {e}")
-            
-            if not historical_data:
-                return {
-                    'strategy': strategy,
-                    'status': 'no_data',
-                    'error': 'No historical data available'
-                }
-            
-            # Build unified timeline (all symbols, weekly candles)
-            all_dates = set()
-            for symbol, candles in historical_data.items():
-                for candle in candles:
-                    date_str = candle.get('timestamp', candle.get('date', ''))
-                    all_dates.add(date_str)
-            
-            sorted_dates = sorted(list(all_dates))
-            
-            # Initialize portfolio state
-            cash = initial_capital
-            positions = {symbol: 0.0 for symbol in symbols}  # Amount of each asset held
-            equity_curve = [initial_capital]
-            trade_history = []
-            
-            # Backtest loop (weekly rebalancing)
-            for date_str in sorted_dates:
-                date_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                
-                # Get current prices for all symbols
-                current_prices = {}
-                for symbol in symbols:
-                    if symbol in historical_data:
-                        for candle in historical_data[symbol]:
-                            candle_date_str = candle.get('timestamp', candle.get('date', ''))
-                            if candle_date_str == date_str:
-                                current_prices[symbol] = candle.get('close', 0)
-                                break
-                
-                # Calculate current portfolio value
-                portfolio_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
-                
-                # Strategy-specific logic
-                if strategy == 'buy_and_hold':
-                    # Buy and hold: buy at start, hold until end
-                    if date_str == sorted_dates[0]:
-                        # Initial allocation: equal weight
-                        allocation_per_symbol = cash / len(symbols)
-                        for symbol in symbols:
-                            if symbol in current_prices and current_prices[symbol] > 0:
-                                shares = allocation_per_symbol / current_prices[symbol]
-                                positions[symbol] += shares
-                                cash -= shares * current_prices[symbol]
-                                
-                                trade_history.append({
-                                    'date': date_str,
-                                    'symbol': symbol,
-                                    'action': 'buy',
-                                    'shares': shares,
-                                    'price': current_prices[symbol],
-                                    'value': shares * current_prices[symbol]
-                                })
-                
-                elif strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
-                    # Get AI recommendations for this date
-                    if self.market_data_service:
-                        # Build current holdings dict
-                        current_holdings = {}
-                        for symbol in symbols:
-                            if symbol in current_prices and current_prices[symbol] > 0:
-                                value = positions[symbol] * current_prices[symbol]
-                                current_holdings[symbol] = value / portfolio_value if portfolio_value > 0 else 0
-                        
-                        # Build target allocation (equal weight for simplicity)
-                        target_allocation = {s: 1.0 / len(symbols) for s in symbols}
-                        
-                        # Get recommendations
-                        recommendations_result = self.recommend_rebalance(
-                            current_holdings,
-                            target_allocation,
-                            rebalance_threshold=0.05
-                        )
-                        
-                        if recommendations_result and 'recommendations' in recommendations_result:
-                            recommendations = recommendations_result['recommendations']
-                            
-                            # Filter recommendations based on strategy
-                            filtered_recommendations = []
-                            for rec in recommendations:
-                                signal_strength = rec.get('signal_strength', 0)
-                                
-                                if strategy == 'follow_ai':
-                                    if signal_strength > signal_threshold or signal_strength < -signal_threshold:
-                                        filtered_recommendations.append(rec)
-                                elif strategy == 'high_confidence':
-                                    if signal_strength > 50 or signal_strength < -50:
-                                        filtered_recommendations.append(rec)
-                                elif strategy == 'weighted_allocation':
-                                    filtered_recommendations.append(rec)
-                            
-                            # Execute trades
-                            for rec in filtered_recommendations:
-                                symbol = rec.get('symbol', rec.get('asset', ''))
-                                if symbol not in symbols or symbol not in current_prices:
-                                    continue
-                                
-                                action = rec.get('action', 'hold')
-                                price = current_prices[symbol]
-                                
-                                if action == 'buy' and cash > 0:
-                                    if strategy == 'weighted_allocation':
-                                        # Allocate proportionally to signal strength
-                                        signal = rec.get('signal_strength', 0)
-                                        allocation_pct = max(0, signal / 100.0) if signal > 0 else 0
-                                        trade_value = portfolio_value * allocation_pct
-                                    else:
-                                        # Allocate equal share per recommendation
-                                        trade_value = cash / max(1, len([r for r in filtered_recommendations if r.get('action') == 'buy']))
-                                    
-                                    trade_value = min(trade_value, cash)
-                                    shares = trade_value / price if price > 0 else 0
-                                    
-                                    if shares > 0:
-                                        positions[symbol] += shares
-                                        cash -= shares * price
-                                        
-                                        trade_history.append({
-                                            'date': date_str,
-                                            'symbol': symbol,
-                                            'action': 'buy',
-                                            'shares': shares,
-                                            'price': price,
-                                            'value': shares * price,
-                                            'signal_strength': signal_strength
-                                        })
-                                
-                                elif action == 'sell' and positions[symbol] > 0:
-                                    shares_to_sell = positions[symbol]  # Sell all
-                                    
-                                    if shares_to_sell > 0:
-                                        positions[symbol] = 0
-                                        cash += shares_to_sell * price
-                                        
-                                        trade_history.append({
-                                            'date': date_str,
-                                            'symbol': symbol,
-                                            'action': 'sell',
-                                            'shares': shares_to_sell,
-                                            'price': price,
-                                            'value': shares_to_sell * price,
-                                            'signal_strength': signal_strength
-                                        })
-                
-                # Record equity curve
-                current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
-                equity_curve.append(current_value)
-            
-            # Calculate final metrics
-            final_value = equity_curve[-1] if equity_curve else initial_capital
-            total_return = (final_value - initial_capital) / initial_capital if initial_capital > 0 else 0
-            
-            # Calculate weekly returns for Sharpe ratio
-            returns = []
-            for i in range(1, len(equity_curve)):
-                if equity_curve[i-1] > 0:
-                    weekly_return = (equity_curve[i] - equity_curve[i-1]) / equity_curve[i-1]
-                    returns.append(weekly_return)
-            
-            # Sharpe ratio (for weekly returns, no additional annualization needed)
-            if returns:
-                avg_return = np.mean(returns)
-                std_return = np.std(returns)
-                sharpe_ratio = (avg_return / std_return) if std_return > 0 else 0
-            else:
-                sharpe_ratio = 0.0
-            
-            # CAGR (using actual weekly periods, not calendar days)
-            num_periods = len(equity_curve) - 1  # Number of weekly periods
-            num_years = num_periods / 52.0  # Convert weeks to years
-            cagr = ((final_value / initial_capital) ** (1.0 / num_years) - 1) * 100 if num_years > 0 and final_value > 0 else 0
-            
-            # Max drawdown
-            peak = equity_curve[0]
-            max_drawdown = 0.0
-            for value in equity_curve:
-                if value > peak:
-                    peak = value
-                drawdown = (peak - value) / peak if peak > 0 else 0
-                if drawdown > max_drawdown:
-                    max_drawdown = drawdown
-            max_drawdown_pct = max_drawdown * 100
-            
-            # Win rate
-            winning_trades = 0
-            total_trades = 0
-            
-            # Match buy/sell pairs
-            for i, buy_trade in enumerate(trade_history):
-                if buy_trade.get('action') == 'buy':
-                    symbol = buy_trade.get('symbol')
-                    buy_price = buy_trade.get('price', 0)
-                    
-                    # Find corresponding sell
-                    for sell_trade in trade_history[i+1:]:
-                        if sell_trade.get('symbol') == symbol and sell_trade.get('action') == 'sell':
-                            sell_price = sell_trade.get('price', 0)
-                            if buy_price > 0:
-                                trade_return = (sell_price - buy_price) / buy_price
-                                total_trades += 1
-                                if trade_return > 0:
-                                    winning_trades += 1
-                            break
-            
-            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
-            
-            return {
-                'strategy': strategy,
-                'start_date': start_date,
-                'end_date': end_date,
-                'initial_capital': initial_capital,
-                'final_value': final_value,
-                'total_return': total_return * 100,
-                'total_return_usd': final_value - initial_capital,
-                'cagr': cagr,
-                'sharpe_ratio': sharpe_ratio,
-                'max_drawdown': max_drawdown_pct,
-                'win_rate': win_rate,
-                'total_trades': total_trades,
-                'winning_trades': winning_trades,
-                'equity_curve': [
-                    {'date': sorted_dates[i] if i < len(sorted_dates) else end_date, 'value': float(val)}
-                    for i, val in enumerate(equity_curve)
-                ],
-                'trade_history': trade_history,
-                'status': 'success'
-            }
-        
-        except Exception as e:
-            self.logger.error(f"Error in backtest_recommendations: {e}", exc_info=True)
-            return {
-                'strategy': strategy,
-                'status': 'error',
-                'error': str(e)
             }
