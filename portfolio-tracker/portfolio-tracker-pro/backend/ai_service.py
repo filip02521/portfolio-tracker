@@ -914,36 +914,40 @@ class AIService:
                                         signal_strength -= 5
                                         sell_score += 5
                                 
-                                # Moving Averages
-                                if 'ma50' in indicators:
-                                    ma50_signal = indicators['ma50'].get('signal', 'neutral')
-                                    if ma50_signal == 'buy':
-                                        signal_strength += 5
-                                        buy_score += 5
-                                    elif ma50_signal == 'sell':
-                                        signal_strength -= 5
-                                        sell_score += 5
-                                
-                                if 'ma200' in indicators:
-                                    ma200_signal = indicators['ma200'].get('signal', 'neutral')
-                                    if ma200_signal == 'buy':
-                                        signal_strength += 8
-                                        buy_score += 8
-                                    elif ma200_signal == 'sell':
-                                        signal_strength -= 8
-                                        sell_score += 8
-                                
-                                # Golden/Death Cross
+                                # Golden/Death Cross (check first to avoid double-counting with MA weights)
+                                golden_cross_active = False
                                 if 'ma_cross' in indicators:
                                     ma_cross = indicators['ma_cross']
                                     if ma_cross.get('golden_cross'):
                                         signal_strength += 10
                                         buy_score += 10
+                                        golden_cross_active = True
                                         strengths_list.append("Golden Cross pattern (MA50 > MA200)")
                                     elif ma_cross.get('death_cross'):
                                         signal_strength -= 10
                                         sell_score += 10
+                                        golden_cross_active = True
                                         concerns_list.append("Death Cross pattern (MA50 < MA200)")
+                                
+                                # Moving Averages (only add weights if Golden/Death Cross is not active)
+                                if not golden_cross_active:
+                                    if 'ma50' in indicators:
+                                        ma50_signal = indicators['ma50'].get('signal', 'neutral')
+                                        if ma50_signal == 'buy':
+                                            signal_strength += 5
+                                            buy_score += 5
+                                        elif ma50_signal == 'sell':
+                                            signal_strength -= 5
+                                            sell_score += 5
+                                    
+                                    if 'ma200' in indicators:
+                                        ma200_signal = indicators['ma200'].get('signal', 'neutral')
+                                        if ma200_signal == 'buy':
+                                            signal_strength += 8
+                                            buy_score += 8
+                                        elif ma200_signal == 'sell':
+                                            signal_strength -= 8
+                                            sell_score += 8
                                 
                                 # Bollinger Bands
                                 if 'bollinger_bands' in indicators:
