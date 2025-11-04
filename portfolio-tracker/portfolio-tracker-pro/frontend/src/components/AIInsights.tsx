@@ -71,7 +71,13 @@ const AIInsights: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setError('Authentication required. Please log in.');
+        setLoading(false);
+        return;
+      }
+      
       const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       // Ensure baseUrl doesn't end with /api to avoid double /api/api
       const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
@@ -86,6 +92,10 @@ const AIInsights: React.FC = () => {
       );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setError('Authentication failed. Please log in again.');
+          return;
+        }
         throw new Error(`Failed to fetch recommendations: ${response.statusText}`);
       }
 
