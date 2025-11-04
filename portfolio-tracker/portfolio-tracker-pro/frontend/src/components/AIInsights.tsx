@@ -248,6 +248,86 @@ const AIInsights: React.FC = () => {
         </Box>
       )}
 
+      {/* Performance Metrics Dashboard */}
+      {recommendations.length > 0 && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+            AI Performance Metrics
+          </Typography>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+              gap: 2,
+            }}
+          >
+            {/* Total Recommendations */}
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Total Recommendations
+                </Typography>
+                <Typography variant="h4" fontWeight={700}>
+                  {recommendations.length}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Active signals
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* High Confidence Count */}
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  High Confidence
+                </Typography>
+                <Typography variant="h4" fontWeight={700} color="success.main">
+                  {recommendations.filter(r => (r.confidence || 0) > 0.7).length}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {(recommendations.filter(r => (r.confidence || 0) > 0.7).length / recommendations.length * 100).toFixed(0)}% of total
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* Average Signal Strength */}
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Avg Signal Strength
+                </Typography>
+                <Typography variant="h4" fontWeight={700} color="primary.main">
+                  {recommendations.length > 0
+                    ? (recommendations.reduce((sum, r) => sum + Math.abs(r.signal_strength || 0), 0) / recommendations.length).toFixed(0)
+                    : '0'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Absolute average
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* Buy vs Sell Ratio */}
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Buy / Sell Ratio
+                </Typography>
+                <Typography variant="h4" fontWeight={700}>
+                  {recommendations.filter(r => r.action === 'buy').length} / {recommendations.filter(r => r.action === 'sell').length}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {recommendations.filter(r => r.action === 'buy').length > 0
+                    ? (recommendations.filter(r => r.action === 'buy').length / recommendations.length * 100).toFixed(0)
+                    : 0}% buys
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
+      )}
+
       {/* Controls */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Box sx={{ 

@@ -97,6 +97,24 @@ const SimplifiedRecommendationCard: React.FC<SimplifiedRecommendationCardProps> 
     return theme.palette.grey[500];
   };
   
+  // Indicator explanations for tooltips
+  const indicatorExplanations: Record<string, string> = {
+    'RSI': 'Relative Strength Index (0-100). <30 = oversold (buy signal), >70 = overbought (sell signal). Measures momentum.',
+    'MACD': 'Moving Average Convergence Divergence. Crossover indicates strong trend change. Bullish crossover = buy, bearish = sell.',
+    'Bollinger': 'Bollinger Bands position (0-100%). <20% = oversold (buy), >80% = overbought (sell). Shows volatility and price extremes.',
+    'MA Cross': 'Golden Cross (MA50 > MA200) = bullish, Death Cross (MA50 < MA200) = bearish. Long-term trend indicator.',
+    'Stochastic': 'Stochastic Oscillator (0-100). <20 = oversold, >80 = overbought. Measures momentum relative to price range.',
+    'Williams %R': 'Williams %R (-100 to 0). < -80 = oversold (buy), > -20 = overbought (sell). Similar to Stochastic.',
+    'MFI': 'Money Flow Index (0-100). <20 = oversold, >80 = overbought. RSI-like but includes volume data.',
+    'CCI': 'Commodity Channel Index. >150 = strong bullish, < -150 = strong bearish. Measures deviation from average price.',
+    'ADX': 'Average Directional Index. >25 = strong trend. Combined with DI+/- direction shows trend strength and direction.',
+    'VWAP': 'Volume Weighted Average Price. Price above VWAP = bullish, below = bearish. Important institutional price level.',
+    'CMF': 'Chaikin Money Flow. >0.1 = accumulation (buy), < -0.1 = distribution (sell). Measures money flow volume.',
+    'OBV': 'On-Balance Volume. Increasing trend = bullish, decreasing = bearish. Measures volume flow.',
+    'Support/Resistance': 'Price near support = potential buy, near resistance = potential sell. Historical price levels.',
+    'Volume Profile': 'Price below VAL (Value Area Low) = buy, above VAH (Value Area High) = sell. Shows high-volume price zones.',
+  };
+  
   const actionColor = recommendation.action === 'buy' ? 'success' : 'error';
   const priorityColor = 
     recommendation.priority === 'high' ? 'error' :
@@ -188,6 +206,49 @@ const SimplifiedRecommendationCard: React.FC<SimplifiedRecommendationCardProps> 
           
           {/* Quick Stats */}
           <Box sx={{ flex: 1 }}>
+            {/* Buy/Sell Scores Bar Chart */}
+            {(recommendation.buy_score !== undefined || recommendation.sell_score !== undefined) && (
+              <Tooltip title="Buy Score vs Sell Score comparison">
+                <Box sx={{ mb: 1.5, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Buy / Sell Scores
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'flex-end', height: 40 }}>
+                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          bgcolor: 'success.main',
+                          height: `${((recommendation.buy_score || 0) / 100) * 40}px`,
+                          borderRadius: '4px 4px 0 0',
+                          transition: 'height 0.3s ease',
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {Math.round(recommendation.buy_score || 0)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          bgcolor: 'error.main',
+                          height: `${((recommendation.sell_score || 0) / 100) * 40}px`,
+                          borderRadius: '4px 4px 0 0',
+                          transition: 'height 0.3s ease',
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {Math.round(recommendation.sell_score || 0)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Tooltip>
+            )}
+            
             <Tooltip title="Signal Strength: -100 (strong sell) to +100 (strong buy)">
               <Box sx={{ mb: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
@@ -268,46 +329,55 @@ const SimplifiedRecommendationCard: React.FC<SimplifiedRecommendationCardProps> 
             {recommendation.summary.key_indicators.slice(0, 5).map((ind, idx) => {
               const normalizedValue = normalizeIndicatorValue(ind);
               const signalColor = getSignalColor(ind.signal);
+              const explanation = indicatorExplanations[ind.name] || `${ind.name} indicator`;
               
               return (
-                <Box key={idx} sx={{ mb: 1.5 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                    <Typography variant="body2" fontWeight={500}>
-                      {ind.name}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography
-                        variant="body2"
-                        fontWeight={600}
-                        color={signalColor}
-                      >
-                        {ind.value.toFixed(2)}
+                <Tooltip 
+                  key={idx}
+                  title={explanation}
+                  arrow
+                  placement="top"
+                >
+                  <Box sx={{ mb: 1.5, cursor: 'help' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {ind.name}
                       </Typography>
-                      <Chip
-                        label={ind.signal}
-                        size="small"
-                        sx={{
-                          height: 18,
-                          fontSize: '0.65rem',
-                          bgcolor: signalColor,
-                          color: 'white',
-                        }}
-                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          color={signalColor}
+                        >
+                          {ind.value.toFixed(2)}
+                        </Typography>
+                        <Chip
+                          label={ind.signal}
+                          size="small"
+                          sx={{
+                            height: 18,
+                            fontSize: '0.65rem',
+                            bgcolor: signalColor,
+                            color: 'white',
+                          }}
+                        />
+                      </Box>
                     </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={normalizedValue}
+                      sx={{
+                        height: 8,
+                        borderRadius: 1,
+                        bgcolor: 'grey.200',
+                        '& .MuiLinearProgress-bar': {
+                          background: `linear-gradient(90deg, ${signalColor}22 0%, ${signalColor} 100%)`,
+                          borderRadius: 1,
+                        },
+                      }}
+                    />
                   </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={normalizedValue}
-                    sx={{
-                      height: 8,
-                      borderRadius: 1,
-                      bgcolor: 'grey.200',
-                      '& .MuiLinearProgress-bar': {
-                        bgcolor: signalColor,
-                      },
-                    }}
-                  />
-                </Box>
+                </Tooltip>
               );
             })}
           </Box>
