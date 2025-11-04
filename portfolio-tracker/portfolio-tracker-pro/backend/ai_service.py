@@ -545,62 +545,35 @@ class AIService:
     # ==================== HELPER ANALYSIS METHODS ====================
     
     def _calculate_volume_profile(self, df: pd.DataFrame, num_levels: int = 20) -> Dict:
-        """
-        Calculate Volume Profile (POC, VAH, VAL).
-        
-        Args:
-            df: DataFrame with OHLCV data
-            num_levels: Number of price levels for volume distribution
-        
-        Returns:
-            Dictionary with POC, VAH, VAL prices and current price position
-        """
+        """Calculate Volume Profile (POC, VAH, VAL)."""
         try:
             if df is None or len(df) < 5 or 'volume' not in df.columns:
                 return {}
-            
-            # Get price range
             min_price = df['low'].min()
             max_price = df['high'].max()
             if min_price >= max_price or min_price <= 0:
                 return {}
-            
-            # Create price levels
             price_levels = np.linspace(min_price, max_price, num_levels)
             volume_at_price = np.zeros(num_levels)
-            
-            # Distribute volume to price levels
             for idx, row in df.iterrows():
-                low = row['low']
-                high = row['high']
-                volume = row.get('volume', 0)
-                
+                low, high, volume = row['low'], row['high'], row.get('volume', 0)
                 if volume > 0 and high > low:
-                    # Distribute volume across price range of this candle
                     for i, level in enumerate(price_levels):
                         if low <= level <= high:
                             volume_at_price[i] += volume
-            
-            # Find POC (Point of Control) - level with maximum volume
             poc_idx = np.argmax(volume_at_price)
             poc_price = float(price_levels[poc_idx])
-            
-            # Calculate total volume
             total_volume = volume_at_price.sum()
             if total_volume == 0:
                 return {}
-            
-            # Find Value Area (70% of volume)
             sorted_indices = np.argsort(volume_at_price)[::-1]
             cumulative_volume = 0
             value_area_indices = []
-            
             for idx in sorted_indices:
                 cumulative_volume += volume_at_price[idx]
                 value_area_indices.append(idx)
                 if cumulative_volume >= total_volume * 0.70:
                     break
-            
             if value_area_indices:
                 value_area_prices = [price_levels[i] for i in value_area_indices]
                 vah_price = float(max(value_area_prices))
@@ -608,11 +581,8 @@ class AIService:
             else:
                 vah_price = poc_price
                 val_price = poc_price
-            
-            # Determine current price position
             current_price = float(df['close'].iloc[-1])
             current_price_position = 'neutral'
-            
             if current_price < val_price:
                 current_price_position = 'below_val'
             elif current_price > vah_price:
@@ -621,360 +591,169 @@ class AIService:
                 current_price_position = 'at_poc'
             else:
                 current_price_position = 'within_va'
-            
-            return {
-                'poc_price': poc_price,
-                'vah_price': vah_price,
-                'val_price': val_price,
-                'current_price_position': current_price_position,
-                'total_volume': float(total_volume)
-            }
+            return {'poc_price': poc_price, 'vah_price': vah_price, 'val_price': val_price, 'current_price_position': current_price_position, 'total_volume': float(total_volume)}
         except Exception as e:
             self.logger.debug(f"Error calculating volume profile: {e}")
             return {}
     
     def _detect_candlestick_patterns(self, df: pd.DataFrame) -> Dict:
-        """
-        Detect candlestick patterns (Doji, Hammer, Shooting Star, Engulfing).
-        
-        Args:
-            df: DataFrame with OHLCV data
-        
-        Returns:
-            Dictionary with detected patterns and signals
-        """
+        """Detect candlestick patterns (Doji, Hammer, Shooting Star, Engulfing)."""
         try:
             if df is None or len(df) < 2:
                 return {}
-            
             patterns = {}
-            
-            # Get last 2 candles for pattern detection
-            if len(df) < 2:
-                return {}
-            
             prev_candle = df.iloc[-2]
             curr_candle = df.iloc[-1]
-            
-            # Calculate body and wick sizes
             prev_body = abs(prev_candle['close'] - prev_candle['open'])
             curr_body = abs(curr_candle['close'] - curr_candle['open'])
             curr_range = curr_candle['high'] - curr_candle['low']
-            
             if curr_range == 0:
                 return {}
-            
-            # Doji (small body, long wicks)
             body_ratio = curr_body / curr_range if curr_range > 0 else 0
             if body_ratio < 0.1:
-                patterns['doji'] = {
-                    'signal': 'neutral',
-                    'weight': 0,
-                    'confidence': 0.7
-                }
-            
-            # Hammer (small body at top, long lower wick)
+                patterns['doji'] = {'signal': 'neutral', 'weight': 0, 'confidence': 0.7}
             lower_wick = curr_candle['low'] - min(curr_candle['open'], curr_candle['close'])
             upper_wick = curr_candle['high'] - max(curr_candle['open'], curr_candle['close'])
-            
             if body_ratio < 0.3 and lower_wick > 2 * curr_body and upper_wick < curr_body:
-                patterns['hammer'] = {
-                    'signal': 'buy',
-                    'weight': 8,
-                    'confidence': 0.7
-                }
-            
-            # Shooting Star (small body at bottom, long upper wick)
+                patterns['hammer'] = {'signal': 'buy', 'weight': 8, 'confidence': 0.7}
             if body_ratio < 0.3 and upper_wick > 2 * curr_body and lower_wick < curr_body:
-                patterns['shooting_star'] = {
-                    'signal': 'sell',
-                    'weight': 8,
-                    'confidence': 0.7
-                }
-            
-            # Engulfing patterns
+                patterns['shooting_star'] = {'signal': 'sell', 'weight': 8, 'confidence': 0.7}
             prev_is_bullish = prev_candle['close'] > prev_candle['open']
             curr_is_bullish = curr_candle['close'] > curr_candle['open']
-            
-            # Bullish Engulfing
-            if (not prev_is_bullish and curr_is_bullish and
-                curr_candle['open'] < prev_candle['close'] and
-                curr_candle['close'] > prev_candle['open']):
-                patterns['bullish_engulfing'] = {
-                    'signal': 'buy',
-                    'weight': 10,
-                    'confidence': 0.75
-                }
-            
-            # Bearish Engulfing
-            if (prev_is_bullish and not curr_is_bullish and
-                curr_candle['open'] > prev_candle['close'] and
-                curr_candle['close'] < prev_candle['open']):
-                patterns['bearish_engulfing'] = {
-                    'signal': 'sell',
-                    'weight': 10,
-                    'confidence': 0.75
-                }
-            
+            if (not prev_is_bullish and curr_is_bullish and curr_candle['open'] < prev_candle['close'] and curr_candle['close'] > prev_candle['open']):
+                patterns['bullish_engulfing'] = {'signal': 'buy', 'weight': 10, 'confidence': 0.75}
+            if (prev_is_bullish and not curr_is_bullish and curr_candle['open'] > prev_candle['close'] and curr_candle['close'] < prev_candle['open']):
+                patterns['bearish_engulfing'] = {'signal': 'sell', 'weight': 10, 'confidence': 0.75}
             return patterns
         except Exception as e:
             self.logger.debug(f"Error detecting candlestick patterns: {e}")
             return {}
     
     def _detect_chart_patterns(self, df: pd.DataFrame) -> Dict:
-        """
-        Detect chart patterns (Head & Shoulders, Triangles, Flags).
-        
-        Args:
-            df: DataFrame with OHLCV data
-        
-        Returns:
-            Dictionary with detected patterns and signals
-        """
+        """Detect chart patterns (Head & Shoulders, Triangles, Flags)."""
         try:
             if df is None or len(df) < 20:
                 return {}
-            
             patterns = {}
-            
-            # Simple swing high/low detection
             closes = df['close'].values
             highs = df['high'].values
             lows = df['low'].values
-            
-            # Find swing highs and lows (local maxima/minima)
             swing_highs = []
             swing_lows = []
             lookback = min(5, len(df) // 4)
-            
             for i in range(lookback, len(df) - lookback):
-                # Swing high
-                if all(highs[i] >= highs[i-j] for j in range(1, lookback+1)) and \
-                   all(highs[i] >= highs[i+j] for j in range(1, lookback+1)):
+                if all(highs[i] >= highs[i-j] for j in range(1, lookback+1)) and all(highs[i] >= highs[i+j] for j in range(1, lookback+1)):
                     swing_highs.append((i, highs[i]))
-                
-                # Swing low
-                if all(lows[i] <= lows[i-j] for j in range(1, lookback+1)) and \
-                   all(lows[i] <= lows[i+j] for j in range(1, lookback+1)):
+                if all(lows[i] <= lows[i-j] for j in range(1, lookback+1)) and all(lows[i] <= lows[i+j] for j in range(1, lookback+1)):
                     swing_lows.append((i, lows[i]))
-            
-            # Head & Shoulders (3 swing highs: left shoulder < head > right shoulder)
             if len(swing_highs) >= 3:
                 last_three = swing_highs[-3:]
-                if (last_three[0][1] < last_three[1][1] > last_three[2][1] and
-                    abs(last_three[0][1] - last_three[2][1]) / last_three[1][1] < 0.1):
-                    patterns['head_and_shoulders'] = {
-                        'signal': 'sell',
-                        'weight': 15,
-                        'confidence': 0.6
-                    }
-            
-            # Inverse Head & Shoulders (3 swing lows)
+                if (last_three[0][1] < last_three[1][1] > last_three[2][1] and abs(last_three[0][1] - last_three[2][1]) / last_three[1][1] < 0.1):
+                    patterns['head_and_shoulders'] = {'signal': 'sell', 'weight': 15, 'confidence': 0.6}
             if len(swing_lows) >= 3:
                 last_three = swing_lows[-3:]
-                if (last_three[0][1] > last_three[1][1] < last_three[2][1] and
-                    abs(last_three[0][1] - last_three[2][1]) / last_three[1][1] < 0.1):
-                    patterns['inverse_head_and_shoulders'] = {
-                        'signal': 'buy',
-                        'weight': 15,
-                        'confidence': 0.6
-                    }
-            
-            # Triangle detection (converging trendlines)
+                if (last_three[0][1] > last_three[1][1] < last_three[2][1] and abs(last_three[0][1] - last_three[2][1]) / last_three[1][1] < 0.1):
+                    patterns['inverse_head_and_shoulders'] = {'signal': 'buy', 'weight': 15, 'confidence': 0.6}
             if len(swing_highs) >= 2 and len(swing_lows) >= 2:
-                # Ascending triangle (horizontal resistance, rising support)
                 recent_highs = [h[1] for h in swing_highs[-3:]]
                 recent_lows = [l[1] for l in swing_lows[-3:]]
-                
                 if len(recent_highs) >= 2 and len(recent_lows) >= 2:
                     high_std = np.std(recent_highs)
                     low_trend = (recent_lows[-1] - recent_lows[0]) / max(recent_lows) if recent_lows else 0
-                    
                     if high_std / np.mean(recent_highs) < 0.02 and low_trend > 0.05:
-                        patterns['ascending_triangle'] = {
-                            'signal': 'buy',
-                            'weight': 10,
-                            'confidence': 0.65
-                        }
-                    
-                    # Descending triangle
+                        patterns['ascending_triangle'] = {'signal': 'buy', 'weight': 10, 'confidence': 0.65}
                     low_std = np.std(recent_lows)
                     high_trend = (recent_highs[-1] - recent_highs[0]) / max(recent_highs) if recent_highs else 0
-                    
                     if low_std / np.mean(recent_lows) < 0.02 and high_trend < -0.05:
-                        patterns['descending_triangle'] = {
-                            'signal': 'sell',
-                            'weight': 10,
-                            'confidence': 0.65
-                        }
-            
-            # Flag pattern (consolidation after strong move)
+                        patterns['descending_triangle'] = {'signal': 'sell', 'weight': 10, 'confidence': 0.65}
             if len(df) >= 15:
-                # Check for strong move followed by consolidation
                 first_half = closes[:len(closes)//2]
                 second_half = closes[len(closes)//2:]
-                
                 first_trend = (first_half[-1] - first_half[0]) / first_half[0] if first_half[0] > 0 else 0
                 second_volatility = np.std(second_half) / np.mean(second_half) if len(second_half) > 0 else 0
-                
                 if abs(first_trend) > 0.1 and second_volatility < 0.05:
                     if first_trend > 0:
-                        patterns['bull_flag'] = {
-                            'signal': 'buy',
-                            'weight': 12,
-                            'confidence': 0.6
-                        }
+                        patterns['bull_flag'] = {'signal': 'buy', 'weight': 12, 'confidence': 0.6}
                     else:
-                        patterns['bear_flag'] = {
-                            'signal': 'sell',
-                            'weight': 12,
-                            'confidence': 0.6
-                        }
-            
+                        patterns['bear_flag'] = {'signal': 'sell', 'weight': 12, 'confidence': 0.6}
             return patterns
         except Exception as e:
             self.logger.debug(f"Error detecting chart patterns: {e}")
             return {}
     
     def _detect_support_resistance(self, df: pd.DataFrame, threshold: float = 0.02) -> Dict:
-        """
-        Detect support and resistance levels.
-        
-        Args:
-            df: DataFrame with OHLCV data
-            threshold: Price threshold for near support/resistance (2% default)
-        
-        Returns:
-            Dictionary with support/resistance levels and current price position
-        """
+        """Detect support and resistance levels."""
         try:
             if df is None or len(df) < 10:
                 return {}
-            
-            # Find swing highs and lows
             highs = df['high'].values
             lows = df['low'].values
             closes = df['close'].values
             current_price = closes[-1]
-            
-            # Cluster swing highs and lows
             lookback = min(5, len(df) // 4)
             swing_highs = []
             swing_lows = []
-            
             for i in range(lookback, len(df) - lookback):
-                if all(highs[i] >= highs[i-j] for j in range(1, lookback+1)) and \
-                   all(highs[i] >= highs[i+j] for j in range(1, lookback+1)):
+                if all(highs[i] >= highs[i-j] for j in range(1, lookback+1)) and all(highs[i] >= highs[i+j] for j in range(1, lookback+1)):
                     swing_highs.append(highs[i])
-                
-                if all(lows[i] <= lows[i-j] for j in range(1, lookback+1)) and \
-                   all(lows[i] <= lows[i+j] for j in range(1, lookback+1)):
+                if all(lows[i] <= lows[i-j] for j in range(1, lookback+1)) and all(lows[i] <= lows[i+j] for j in range(1, lookback+1)):
                     swing_lows.append(lows[i])
-            
-            # Find nearest support and resistance
-            support_levels = sorted(swing_lows, reverse=True)[:3]  # Top 3 support levels
-            resistance_levels = sorted(swing_highs)[-3:]  # Top 3 resistance levels
-            
+            support_levels = sorted(swing_lows, reverse=True)[:3]
+            resistance_levels = sorted(swing_highs)[-3:]
             near_support = False
             near_resistance = False
-            
             if support_levels:
                 nearest_support = max([s for s in support_levels if s < current_price], default=None)
                 if nearest_support and abs(current_price - nearest_support) / current_price < threshold:
                     near_support = True
-            
             if resistance_levels:
                 nearest_resistance = min([r for r in resistance_levels if r > current_price], default=None)
                 if nearest_resistance and abs(nearest_resistance - current_price) / current_price < threshold:
                     near_resistance = True
-            
-            return {
-                'near_support': near_support,
-                'near_resistance': near_resistance,
-                'support_levels': [float(s) for s in support_levels] if support_levels else [],
-                'resistance_levels': [float(r) for r in resistance_levels] if resistance_levels else []
-            }
+            return {'near_support': near_support, 'near_resistance': near_resistance, 'support_levels': [float(s) for s in support_levels] if support_levels else [], 'resistance_levels': [float(r) for r in resistance_levels] if resistance_levels else []}
         except Exception as e:
             self.logger.debug(f"Error detecting support/resistance: {e}")
             return {}
     
     def _calculate_correlation_and_beta(self, df: pd.DataFrame, symbol: str, benchmark: str = 'BTC') -> Dict:
-        """
-        Calculate correlation and beta relative to benchmark, and determine outperformance.
-        
-        Args:
-            df: DataFrame with OHLCV data for the asset
-            symbol: Asset symbol
-            benchmark: Benchmark symbol (default: 'BTC')
-        
-        Returns:
-            Dictionary with correlation, beta, and outperformance indicators
-        """
+        """Calculate correlation and beta relative to benchmark."""
         try:
             if df is None or len(df) < 10 or not self.market_data_service:
                 return {}
-            
-            # Get benchmark data
             try:
-                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                    benchmark, 'crypto', '1d'
-                )
+                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 'crypto', '1d')
                 if not benchmark_data or len(benchmark_data) < 10:
                     return {}
             except:
                 return {}
-            
-            # Align data by dates
-            asset_dates = set(df.index) if hasattr(df.index, 'tolist') else set(range(len(df)))
-            
-            # Calculate returns
             asset_returns = df['close'].pct_change().dropna().values
             benchmark_returns = pd.Series([d.get('close', 0) for d in benchmark_data]).pct_change().dropna().values
-            
-            # Align lengths
             min_len = min(len(asset_returns), len(benchmark_returns))
             if min_len < 10:
                 return {}
-            
             asset_returns = asset_returns[-min_len:]
             benchmark_returns = benchmark_returns[-min_len:]
-            
-            # Calculate correlation
             if len(asset_returns) > 1 and len(benchmark_returns) > 1:
                 correlation = np.corrcoef(asset_returns, benchmark_returns)[0, 1]
                 if np.isnan(correlation):
                     correlation = 0.0
             else:
                 correlation = 0.0
-            
-            # Calculate beta (slope of regression)
             if len(benchmark_returns) > 1 and np.var(benchmark_returns) > 0:
                 beta = np.cov(asset_returns, benchmark_returns)[0, 1] / np.var(benchmark_returns)
                 if np.isnan(beta):
                     beta = 1.0
             else:
                 beta = 1.0
-            
-            # Calculate relative performance
             asset_total_return = (asset_returns + 1).prod() - 1
             benchmark_total_return = (benchmark_returns + 1).prod() - 1
-            
             outperforming = False
             underperforming = False
-            
-            if asset_total_return > benchmark_total_return * 1.1:  # 10% outperformance
+            if asset_total_return > benchmark_total_return * 1.1:
                 outperforming = True
-            elif asset_total_return < benchmark_total_return * 0.9:  # 10% underperformance
+            elif asset_total_return < benchmark_total_return * 0.9:
                 underperforming = True
-            
-            return {
-                'correlation': float(correlation),
-                'beta': float(beta),
-                'outperforming': outperforming,
-                'underperforming': underperforming,
-                'asset_return': float(asset_total_return),
-                'benchmark_return': float(benchmark_total_return)
-            }
+            return {'correlation': float(correlation), 'beta': float(beta), 'outperforming': outperforming, 'underperforming': underperforming, 'asset_return': float(asset_total_return), 'benchmark_return': float(benchmark_total_return)}
         except Exception as e:
             self.logger.debug(f"Error calculating correlation/beta: {e}")
             return {}
