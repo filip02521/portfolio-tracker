@@ -1048,7 +1048,129 @@ class ConfluenceStrategyService:
                     exit_signal = exit_analysis.get('exit_signal', 'hold')
                     exit_reason = exit_analysis.get('exit_reason')
                     
-                    # Handle partial exits
+                    # CRITICAL: Check TP/SL levels directly from price (more reliable than exit_analysis)
+                    # This ensures we catch TP/SL hits even if exit_analysis doesn't return correct signal
+                    
+                    # Check Take Profit 1 (R:R 1:2) - sell 50%
+                    if not position_tp1_sold and position_tp1 and current_price >= position_tp1:
+                        shares_to_sell = position_shares * 0.5
+                        sell_value = shares_to_sell * current_price
+                        cash += sell_value
+                        position_shares -= shares_to_sell
+                        position_tp1_sold = True
+                        
+                        trade_history.append({
+                            'date': candle_date_str,
+                            'action': 'sell_50%',
+                            'price': current_price,
+                            'shares': shares_to_sell,
+                            'value': sell_value,
+                            'reason': 'take_profit_1',
+                            'return_pct': ((current_price - position_entry_price) / position_entry_price) * 100
+                        })
+                        
+                        self.logger.info(
+                            f"✅ TAKE PROFIT 1 HIT: {symbol} @ ${current_price:.2f}, "
+                            f"TP1=${position_tp1:.2f}, sold 50%, return={((current_price - position_entry_price) / position_entry_price) * 100:.2f}%"
+                        )
+                        continue  # Skip other exit checks for this iteration
+                    
+                    # Check Take Profit 2 (R:R 1:3) - sell additional 25%
+                    elif position_tp1_sold and not position_tp2_sold and position_tp2 and current_price >= position_tp2:
+                        shares_to_sell = position_shares * 0.5  # 50% of remaining = 25% of original
+                        sell_value = shares_to_sell * current_price
+                        cash += sell_value
+                        position_shares -= shares_to_sell
+                        position_tp2_sold = True
+                        
+                        trade_history.append({
+                            'date': candle_date_str,
+                            'action': 'sell_25%',
+                            'price': current_price,
+                            'shares': shares_to_sell,
+                            'value': sell_value,
+                            'reason': 'take_profit_2',
+                            'return_pct': ((current_price - position_entry_price) / position_entry_price) * 100
+                        })
+                        
+                        self.logger.info(
+                            f"✅ TAKE PROFIT 2 HIT: {symbol} @ ${current_price:.2f}, "
+                            f"TP2=${position_tp2:.2f}, sold 25%, return={((current_price - position_entry_price) / position_entry_price) * 100:.2f}%"
+                        )
+                        continue  # Skip other exit checks for this iteration
+                    
+                    # Check Stop Loss directly
+                    if position_stop_loss and position_stop_loss > 0 and current_price <= position_stop_loss:
+                        sell_value = position_shares * current_price
+                        cash += sell_value
+                        return_pct = ((current_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
+                        
+                        trade_history.append({
+                            'date': candle_date_str,
+                            'action': 'sell',
+                            'price': current_price,
+                            'shares': position_shares,
+                            'value': sell_value,
+                            'reason': 'stop_loss',
+                            'return_pct': return_pct
+                        })
+                        
+                        self.logger.info(
+                            f"🛑 STOP LOSS HIT: {symbol} @ ${current_price:.2f}, "
+                            f"SL=${position_stop_loss:.2f}, return={return_pct:.2f}%"
+                        )
+                        
+                        position_shares = 0
+                        position_entry_price = None
+                        position_entry_date = None
+                        position_stop_loss = 0.0
+                        position_tp1 = None
+                        position_tp2 = None
+                        position_tp1_sold = False
+                        position_tp2_sold = False
+                        position_high_price = None
+                        continue  # Skip trailing stop check
+                    
+                    # Update trailing stop based on highest price
+                    if position_high_price and position_high_price > position_entry_price:
+                        # Trailing stop: 7% below highest price (only if in profit)
+                        current_return = ((position_high_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
+                        if current_return > 1.0:  # Only if in >1% profit
+                            trailing_stop_price = position_high_price * 0.93  # 7% below high
+                            
+                            # Check trailing stop
+                            if current_price <= trailing_stop_price:
+                                sell_value = position_shares * current_price
+                                cash += sell_value
+                                return_pct = ((current_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
+                                
+                                trade_history.append({
+                                    'date': candle_date_str,
+                                    'action': 'sell',
+                                    'price': current_price,
+                                    'shares': position_shares,
+                                    'value': sell_value,
+                                    'reason': 'trailing_stop',
+                                    'return_pct': return_pct
+                                })
+                                
+                                self.logger.info(
+                                    f"📉 TRAILING STOP HIT: {symbol} @ ${current_price:.2f}, "
+                                    f"trailing=${trailing_stop_price:.2f}, high=${position_high_price:.2f}, return={return_pct:.2f}%"
+                                )
+                                
+                                position_shares = 0
+                                position_entry_price = None
+                                position_entry_date = None
+                                position_stop_loss = 0.0
+                                position_tp1 = None
+                                position_tp2 = None
+                                position_tp1_sold = False
+                                position_tp2_sold = False
+                                position_high_price = None
+                                continue
+                    
+                    # Handle exit signals from exit_analysis (fallback)
                     if exit_signal == 'sell_50%' and not position_tp1_sold:
                         shares_to_sell = position_shares * 0.5
                         sell_value = shares_to_sell * current_price
@@ -1210,38 +1332,66 @@ class ConfluenceStrategyService:
                     max_drawdown = drawdown
             
             # Win rate and profit factor
+            # Group trades by entry/exit pairs
             winning_trades = 0
             losing_trades = 0
             total_profit = 0.0
             total_loss = 0.0
             
-            i = 0
-            while i < len(trade_history):
-                if trade_history[i]['action'] == 'buy':
-                    buy_trade = trade_history[i]
-                    sell_trades = []
-                    j = i + 1
-                    remaining_shares = buy_trade['shares']
+            # Track open positions
+            open_positions = {}  # {entry_idx: {shares: float, entry_value: float, entry_price: float}}
+            
+            for i, trade in enumerate(trade_history):
+                if trade['action'] == 'buy':
+                    # Open new position
+                    entry_idx = i
+                    open_positions[entry_idx] = {
+                        'shares': trade['shares'],
+                        'entry_value': trade['value'],
+                        'entry_price': trade['price'],
+                        'entry_date': trade['date']
+                    }
+                elif trade['action'] in ['sell', 'sell_50%', 'sell_25%']:
+                    # Close positions (FIFO)
+                    shares_to_close = trade['shares']
+                    sell_price = trade['price']
+                    sell_value = trade['value']
                     
-                    while j < len(trade_history) and remaining_shares > 0:
-                        if trade_history[j]['action'] in ['sell', 'sell_50%', 'sell_25%']:
-                            sell_shares = trade_history[j]['shares']
-                            sell_trades.append(trade_history[j])
-                            remaining_shares -= sell_shares
-                        j += 1
-                    
-                    if sell_trades:
-                        total_sell_value = sum(t['value'] for t in sell_trades)
-                        pnl = total_sell_value - buy_trade['value']
+                    # Find matching buy positions
+                    for entry_idx in sorted(open_positions.keys()):
+                        if shares_to_close <= 0:
+                            break
+                        
+                        pos = open_positions[entry_idx]
+                        if pos['shares'] <= 0:
+                            continue
+                        
+                        # Calculate how many shares to close from this position
+                        shares_from_this_pos = min(shares_to_close, pos['shares'])
+                        entry_value_portion = (shares_from_this_pos / pos['shares']) * pos['entry_value']
+                        
+                        # Calculate P&L
+                        sell_value_portion = (shares_from_this_pos / trade['shares']) * sell_value if trade['shares'] > 0 else 0
+                        pnl = sell_value_portion - entry_value_portion
                         
                         if pnl > 0:
                             winning_trades += 1
                             total_profit += pnl
-                        else:
+                        elif pnl < 0:
                             losing_trades += 1
                             total_loss += abs(pnl)
-                
-                i += 1
+                        # If pnl == 0, it's a breakeven trade (don't count as win or loss)
+                        
+                        # Update position
+                        pos['shares'] -= shares_from_this_pos
+                        shares_to_close -= shares_from_this_pos
+                        
+                        # Remove position if fully closed
+                        if pos['shares'] <= 0:
+                            del open_positions[entry_idx]
+            
+            # Handle any remaining open positions (closed at end of backtest)
+            # These are already counted in final_value, so we don't double-count them
             
             total_trades = winning_trades + losing_trades
             win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
