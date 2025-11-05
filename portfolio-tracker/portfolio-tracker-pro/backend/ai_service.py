@@ -119,7 +119,7 @@ class AIService:
                 try:
                     self.newsapi_client = NewsApiClient(api_key=newsapi_key)
                     self.logger.info("NewsAPI client initialized")
-                except Exception as e:
+            except Exception as e:
                     self.logger.warning(f"Could not initialize NewsAPI: {e}")
                     self.newsapi_client = None
             else:
@@ -425,8 +425,8 @@ class AIService:
                     'breakout': 'bullish' if current_price > donchian_high else 'bearish' if current_price < donchian_low else None,
                     'signal': 'buy' if current_price > donchian_high else 'sell' if current_price < donchian_low else 'neutral'
                 }
-            except Exception as e:
-                self.logger.debug(f"Donchian Channels calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"Donchian Channels calculation failed: {e}")
             
             # 13. Ichimoku Cloud
             if TA_AVAILABLE:
@@ -482,7 +482,7 @@ class AIService:
                             'trend': trend,
                             'signal': 'buy' if trend == 'increasing' else 'sell' if trend == 'decreasing' else 'neutral'
             }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"OBV calculation failed: {e}")
             
             # 15. A/D Line (Accumulation/Distribution)
@@ -500,7 +500,7 @@ class AIService:
                             'trend': trend,
                             'signal': 'buy' if trend == 'accumulating' else 'sell' if trend == 'distributing' else 'neutral'
             }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"A/D Line calculation failed: {e}")
             
             # 16. VWAP (Volume Weighted Average Price)
@@ -512,7 +512,7 @@ class AIService:
                     'position': float(vwap_position),
                     'signal': 'buy' if current_price > vwap else 'sell'
                 }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"VWAP calculation failed: {e}")
             
             # 17. CMF (Chaikin Money Flow)
@@ -2106,7 +2106,7 @@ class AIService:
                             returns = df['close'].pct_change().dropna()
                             if len(returns) >= 30:
                                 returns_data[symbol] = returns.values
-                except Exception as e:
+            except Exception as e:
                                 self.logger.debug(f"Error getting returns for {symbol}: {e}")
             
             if len(returns_data) < 2:
