@@ -119,7 +119,7 @@ class AIService:
                 try:
                     self.newsapi_client = NewsApiClient(api_key=newsapi_key)
                     self.logger.info("NewsAPI client initialized")
-            except Exception as e:
+                except Exception as e:
                     self.logger.warning(f"Could not initialize NewsAPI: {e}")
                     self.newsapi_client = None
             else:
