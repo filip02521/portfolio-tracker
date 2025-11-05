@@ -933,7 +933,7 @@ class ConfluenceStrategyService:
             position_shares = 0.0
             position_entry_price = None
             position_entry_date = None
-            position_stop_loss = None
+            position_stop_loss = 0.0  # Initialize to 0.0 instead of None
             position_tp1 = None
             position_tp2 = None
             position_tp1_sold = False
@@ -1086,7 +1086,13 @@ class ConfluenceStrategyService:
                     # Check stop loss and trailing stop
                     trailing_stop = exit_analysis.get('trailing_stop')
                     
-                    if current_price <= position_stop_loss:
+                    # Ensure stop loss is valid (should be set, but double-check)
+                    if position_stop_loss is None or position_stop_loss <= 0:
+                        # Fallback to 5% stop loss if not set
+                        position_stop_loss = position_entry_price * 0.95 if position_entry_price else current_price * 0.95
+                    
+                    # Only check stop loss if we have a valid position
+                    if position_stop_loss and position_stop_loss > 0 and current_price <= position_stop_loss:
                         sell_value = position_shares * current_price
                         cash += sell_value
                         
@@ -1103,7 +1109,7 @@ class ConfluenceStrategyService:
                         position_shares = 0
                         position_entry_price = None
                         position_entry_date = None
-                        position_stop_loss = None
+                        position_stop_loss = 0.0
                         position_tp1 = None
                         position_tp2 = None
                         position_tp1_sold = False
@@ -1127,7 +1133,7 @@ class ConfluenceStrategyService:
                         position_shares = 0
                         position_entry_price = None
                         position_entry_date = None
-                        position_stop_loss = None
+                        position_stop_loss = 0.0
                         position_tp1 = None
                         position_tp2 = None
                         position_tp1_sold = False
@@ -1146,6 +1152,8 @@ class ConfluenceStrategyService:
                 sell_value = position_shares * final_price
                 cash += sell_value
                 
+                return_pct = ((final_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
+                
                 trade_history.append({
                     'date': final_date,
                     'action': 'sell',
@@ -1153,8 +1161,13 @@ class ConfluenceStrategyService:
                     'shares': position_shares,
                     'value': sell_value,
                     'reason': 'end_of_backtest',
-                    'return_pct': ((final_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
+                    'return_pct': return_pct
                 })
+                
+                self.logger.info(
+                    f"🔚 CLOSING POSITION at end: {symbol} @ ${final_price:.2f}, "
+                    f"shares={position_shares:.4f}, return={return_pct:.2f}%"
+                )
                 
                 equity_curve[-1] = cash
             
