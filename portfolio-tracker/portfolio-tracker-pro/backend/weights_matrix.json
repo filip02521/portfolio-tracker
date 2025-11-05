@@ -1,0 +1,475 @@
+{
+  "metadata": {
+    "description": "Macierz wag wszystkich wskaźników technicznych używanych w systemie AI recommendations",
+    "version": "1.0",
+    "last_updated": "2024-11-05",
+    "total_indicators": 31,
+    "max_signal_strength": 100,
+    "min_signal_strength": -100
+  },
+  "indicators": {
+    "momentum_oscillatory": {
+      "rsi": {
+        "name": "RSI (Relative Strength Index)",
+        "weight_buy": 15,
+        "weight_sell": -15,
+        "signal_buy": "RSI < 30 (oversold)",
+        "signal_sell": "RSI > 70 (overbought)",
+        "value_range": "0-100",
+        "justification": "Standardowy wskaźnik momentum, jeden z najważniejszych w analizie technicznej",
+        "category": "momentum",
+        "priority": "high"
+      },
+      "stochastic": {
+        "name": "Stochastic Oscillator",
+        "weight_buy": 8,
+        "weight_sell": -8,
+        "weight_crossover_buy": 6,
+        "weight_crossover_sell": -6,
+        "signal_buy": "%K < 20 (oversold) lub %K > %D (bullish crossover)",
+        "signal_sell": "%K > 80 (overbought) lub %K < %D (bearish crossover)",
+        "value_range": "0-100",
+        "justification": "Wskaźnik momentum podobny do RSI, ale z dodatkowym sygnałem crossover",
+        "category": "momentum",
+        "priority": "medium"
+      },
+      "williams_r": {
+        "name": "Williams %R",
+        "weight_buy": 4,
+        "weight_sell": -4,
+        "signal_buy": "%R < -80 (oversold)",
+        "signal_sell": "%R > -20 (overbought)",
+        "value_range": "-100 to 0",
+        "justification": "Redundantne ze Stochastic, używane jako potwierdzenie. Zredukowane z ±6 do ±4",
+        "category": "momentum",
+        "priority": "low",
+        "note": "Zredukowane z ±6 do ±4 aby uniknąć podwójnego liczenia"
+      },
+      "mfi": {
+        "name": "Money Flow Index",
+        "weight_buy": 7,
+        "weight_sell": -7,
+        "signal_buy": "MFI < 20 (oversold)",
+        "signal_sell": "MFI > 80 (overbought)",
+        "value_range": "0-100",
+        "justification": "Uwzględnia volume, bardziej wartościowy niż RSI",
+        "category": "momentum_volume",
+        "priority": "medium"
+      },
+      "cci": {
+        "name": "CCI (Commodity Channel Index)",
+        "weight_buy_strong": 8,
+        "weight_sell_strong": -8,
+        "weight_buy_moderate": 4,
+        "weight_sell_moderate": -4,
+        "signal_buy_strong": "CCI > 150 (strong bullish)",
+        "signal_sell_strong": "CCI < -150 (strong bearish)",
+        "signal_buy_moderate": "CCI > 100 (bullish)",
+        "signal_sell_moderate": "CCI < -100 (bearish)",
+        "value_range": "-300 to +300",
+        "justification": "Zwiększone progi (±150) zmniejszają false signals. Dodatkowy próg ±100 z mniejszą wagą",
+        "category": "momentum",
+        "priority": "medium",
+        "note": "Progi zwiększone z ±100 na ±150 dla silniejszych sygnałów"
+      }
+    },
+    "trend": {
+      "macd": {
+        "name": "MACD (Moving Average Convergence Divergence)",
+        "weight_crossover_buy": 20,
+        "weight_crossover_sell": -20,
+        "weight_trend_buy": 5,
+        "weight_trend_sell": -5,
+        "signal_crossover_buy": "MACD line crosses above Signal line (bullish crossover)",
+        "signal_crossover_sell": "MACD line crosses below Signal line (bearish crossover)",
+        "signal_trend_buy": "MACD > Signal (tylko gdy brak crossover)",
+        "signal_trend_sell": "MACD < Signal (tylko gdy brak crossover)",
+        "justification": "Crossover jest najbardziej wiarygodny. Trend dodawany tylko gdy brak crossover (eliminacja podwójnego liczenia)",
+        "category": "trend",
+        "priority": "very_high",
+        "note": "Najwyższa waga dla crossover. Trend nie dodawany gdy crossover aktywny"
+      },
+      "ma50": {
+        "name": "Moving Average 50",
+        "weight_buy": 5,
+        "weight_sell": -5,
+        "signal_buy": "Price > MA50",
+        "signal_sell": "Price < MA50",
+        "justification": "Krótkoterminowa średnia krocząca. Waga dodawana tylko gdy brak Golden/Death Cross",
+        "category": "trend",
+        "priority": "medium",
+        "note": "Nie dodawane gdy Golden/Death Cross aktywny"
+      },
+      "ma200": {
+        "name": "Moving Average 200",
+        "weight_buy": 8,
+        "weight_sell": -8,
+        "signal_buy": "Price > MA200",
+        "signal_sell": "Price < MA200",
+        "justification": "Długoterminowa średnia krocząca, ważniejsza niż MA50. Waga dodawana tylko gdy brak Golden/Death Cross",
+        "category": "trend",
+        "priority": "high",
+        "note": "Nie dodawane gdy Golden/Death Cross aktywny"
+      },
+      "golden_death_cross": {
+        "name": "Golden/Death Cross",
+        "weight_golden_cross": 10,
+        "weight_death_cross": -10,
+        "signal_buy": "MA50 > MA200 (Golden Cross)",
+        "signal_sell": "MA50 < MA200 (Death Cross)",
+        "justification": "Ważny sygnał długoterminowy. Gdy aktywny, wyklucza indywidualne wagi MA50/MA200",
+        "category": "trend",
+        "priority": "high",
+        "note": "Gdy aktywny, wyklucza wagi MA50 i MA200"
+      },
+      "adx": {
+        "name": "ADX (Average Directional Index)",
+        "weight_buy": 8,
+        "weight_sell": -8,
+        "signal_buy": "ADX > 25 (silny trend) + direction bullish",
+        "signal_sell": "ADX > 25 (silny trend) + direction bearish",
+        "value_range": "0-100",
+        "justification": "Mierzy siłę trendu, nie tylko kierunek. Waga dodawana tylko gdy ADX > 25",
+        "category": "trend",
+        "priority": "medium"
+      },
+      "parabolic_sar": {
+        "name": "Parabolic SAR",
+        "weight_buy": 5,
+        "weight_sell": -5,
+        "signal_buy": "SAR poniżej ceny (uptrend)",
+        "signal_sell": "SAR powyżej ceny (downtrend)",
+        "justification": "Wskaźnik trendu i potencjalnych punktów odwrócenia",
+        "category": "trend",
+        "priority": "low"
+      }
+    },
+    "volatility": {
+      "atr": {
+        "name": "ATR (Average True Range)",
+        "weight_signal": 0,
+        "confidence_adjustment": true,
+        "volatility_high_factor": 0.6,
+        "volatility_medium_factor": 0.8,
+        "volatility_low_factor": 1.0,
+        "threshold_high": 5.0,
+        "threshold_medium": 3.0,
+        "justification": "Wysoka volatility = niepewność, nie kierunek. Używane tylko do confidence adjustment, nie do signal_strength",
+        "category": "volatility",
+        "priority": "confidence_only",
+        "note": "Przeniesione z scoringu kierunkowego do confidence adjustment"
+      },
+      "bollinger_bands": {
+        "name": "Bollinger Bands",
+        "weight_buy": 12,
+        "weight_sell": -12,
+        "signal_buy": "Position < 20% (oversold)",
+        "signal_sell": "Position > 80% (overbought)",
+        "value_range": "0-100%",
+        "justification": "Kombinuje volatility i momentum, wysoka waga",
+        "category": "volatility",
+        "priority": "high"
+      },
+      "donchian_channels": {
+        "name": "Donchian Channels",
+        "weight_buy": 10,
+        "weight_sell": -10,
+        "signal_buy": "Breakout powyżej górnego kanału",
+        "signal_sell": "Breakout poniżej dolnego kanału",
+        "justification": "Wykrywa breakouty, ważne dla trend-following",
+        "category": "volatility",
+        "priority": "medium"
+      }
+    },
+    "volume": {
+      "obv": {
+        "name": "OBV (On Balance Volume)",
+        "weight_buy": 5,
+        "weight_sell": -5,
+        "signal_buy": "OBV trend wzrastający",
+        "signal_sell": "OBV trend malejący",
+        "justification": "Potwierdza trendy cenowe przez volume",
+        "category": "volume",
+        "priority": "medium"
+      },
+      "ad_line": {
+        "name": "A/D Line (Accumulation/Distribution)",
+        "weight_buy": 5,
+        "weight_sell": -5,
+        "signal_buy": "A/D trend wzrastający",
+        "signal_sell": "A/D trend malejący",
+        "justification": "Podobny do OBV, różna metodologia",
+        "category": "volume",
+        "priority": "medium"
+      },
+      "vwap": {
+        "name": "VWAP (Volume Weighted Average Price)",
+        "weight_buy": 6,
+        "weight_sell": -6,
+        "signal_buy": "Price > VWAP (bullish)",
+        "signal_sell": "Price < VWAP (bearish)",
+        "justification": "Ważny poziom wsparcia/oporu uwzględniający volume",
+        "category": "volume",
+        "priority": "medium"
+      },
+      "cmf": {
+        "name": "Chaikin Money Flow",
+        "weight_buy": 7,
+        "weight_sell": -7,
+        "signal_buy": "CMF > 0.1 (accumulation)",
+        "signal_sell": "CMF < -0.1 (distribution)",
+        "value_range": "-1 to +1",
+        "justification": "Kombinuje price i volume, wyższa waga niż OBV",
+        "category": "volume",
+        "priority": "medium"
+      },
+      "volume_roc": {
+        "name": "Volume Rate of Change",
+        "weight_buy": 4,
+        "weight_sell": -4,
+        "signal_buy": "Volume ROC > 20% (wzrost volume)",
+        "signal_sell": "Volume ROC < -20% (spadek volume)",
+        "justification": "Wykrywa nietypowe zmiany volume",
+        "category": "volume",
+        "priority": "low"
+      }
+    },
+    "momentum": {
+      "momentum_7d": {
+        "name": "7-day Momentum",
+        "weight_buy": 5,
+        "weight_sell": -5,
+        "signal_buy": "Momentum > 5%",
+        "signal_sell": "Momentum < -5%",
+        "justification": "Krótkoterminowy momentum",
+        "category": "momentum",
+        "priority": "medium"
+      },
+      "momentum_30d": {
+        "name": "30-day Momentum",
+        "weight_buy": 3,
+        "weight_sell": -3,
+        "signal_buy": "Momentum > 10%",
+        "signal_sell": "Momentum < -10%",
+        "justification": "Długoterminowy momentum, niższa waga (mniej częste sygnały)",
+        "category": "momentum",
+        "priority": "low"
+      }
+    },
+    "patterns": {
+      "head_and_shoulders": {
+        "name": "Head & Shoulders",
+        "weight_buy": 0,
+        "weight_sell": -15,
+        "weight_weekly": -15,
+        "weight_monthly": -20,
+        "signal": "Bearish reversal pattern",
+        "justification": "Silny sygnał odwrócenia trendu",
+        "category": "chart_pattern",
+        "priority": "high"
+      },
+      "inverse_head_and_shoulders": {
+        "name": "Inverse Head & Shoulders",
+        "weight_buy": 15,
+        "weight_sell": 0,
+        "weight_weekly": 15,
+        "weight_monthly": 20,
+        "signal": "Bullish reversal pattern",
+        "justification": "Silny sygnał odwrócenia trendu",
+        "category": "chart_pattern",
+        "priority": "high"
+      },
+      "ascending_triangle": {
+        "name": "Ascending Triangle",
+        "weight_buy": 10,
+        "weight_sell": 0,
+        "weight_weekly": 10,
+        "weight_monthly": 15,
+        "signal": "Bullish continuation pattern",
+        "justification": "Wzorzec kontynuacji trendu",
+        "category": "chart_pattern",
+        "priority": "medium"
+      },
+      "descending_triangle": {
+        "name": "Descending Triangle",
+        "weight_buy": 0,
+        "weight_sell": -10,
+        "weight_weekly": -10,
+        "weight_monthly": -15,
+        "signal": "Bearish continuation pattern",
+        "justification": "Wzorzec kontynuacji trendu",
+        "category": "chart_pattern",
+        "priority": "medium"
+      },
+      "bull_flag": {
+        "name": "Bull Flag",
+        "weight_buy": 12,
+        "weight_sell": 0,
+        "weight_weekly": 12,
+        "weight_monthly": 18,
+        "signal": "Bullish continuation pattern",
+        "justification": "Wzorzec kontynuacji trendu",
+        "category": "chart_pattern",
+        "priority": "medium"
+      },
+      "bear_flag": {
+        "name": "Bear Flag",
+        "weight_buy": 0,
+        "weight_sell": -12,
+        "weight_weekly": -12,
+        "weight_monthly": -18,
+        "signal": "Bearish continuation pattern",
+        "justification": "Wzorzec kontynuacji trendu",
+        "category": "chart_pattern",
+        "priority": "medium"
+      },
+      "candlestick_patterns": {
+        "name": "Candlestick Patterns",
+        "weight_buy": 10,
+        "weight_sell": -10,
+        "patterns": ["doji", "hammer", "shooting_star", "bullish_engulfing", "bearish_engulfing"],
+        "justification": "Krótkoterminowe sygnały odwrócenia",
+        "category": "candlestick_pattern",
+        "priority": "medium"
+      }
+    },
+    "volume_profile": {
+      "poc": {
+        "name": "Point of Control (POC)",
+        "weight_buy": 5,
+        "weight_sell": -5,
+        "signal": "Cena przy POC (poziom z najwyższym volume)",
+        "justification": "Ważny poziom akumulacji/dystrybucji",
+        "category": "volume_profile",
+        "priority": "low"
+      },
+      "vah_val": {
+        "name": "Value Area (VAH/VAL)",
+        "weight_buy": 8,
+        "weight_sell": -8,
+        "signal_buy": "Price < VAL (oversold)",
+        "signal_sell": "Price > VAH (overbought)",
+        "justification": "Ważny poziom wsparcia/oporu w kontekście volume",
+        "category": "volume_profile",
+        "priority": "medium"
+      }
+    },
+    "support_resistance": {
+      "support_resistance": {
+        "name": "Support/Resistance Levels",
+        "weight_buy": 8,
+        "weight_sell": -8,
+        "signal_buy": "Price near support level",
+        "signal_sell": "Price near resistance level",
+        "justification": "Kluczowe poziomy psychologiczne",
+        "category": "support_resistance",
+        "priority": "medium"
+      }
+    },
+    "correlation": {
+      "correlation_beta": {
+        "name": "Correlation/Beta",
+        "weight_buy": 3,
+        "weight_sell": -3,
+        "signal_buy": "Outperforming benchmark",
+        "signal_sell": "Underperforming benchmark",
+        "benchmark_crypto": "BTC",
+        "benchmark_stocks": "S&P 500",
+        "justification": "Relatywna siła, niska waga (wspierające)",
+        "category": "correlation",
+        "priority": "low"
+      }
+    }
+  },
+  "quality_multiplier": {
+    "base": 1.0,
+    "bonus_consensus": 0.2,
+    "threshold_consensus": 0.8,
+    "bonus_timeframe_alignment": 0.3,
+    "bonus_key_patterns": 0.2,
+    "justification": "Multiplier zwiększa siłę sygnału gdy wskaźniki są zgodne lub występują kluczowe wzorce"
+  },
+  "confidence_weights": {
+    "base_conf": {
+      "weight": 0.3,
+      "description": "Base confidence from signal_strength magnitude",
+      "formula": "abs(signal_strength) / 100.0"
+    },
+    "consensus_conf": {
+      "weight": 0.4,
+      "description": "Indicator consensus ratio",
+      "formula": "max(bullish_count, bearish_count) / total_indicators",
+      "justification": "Najważniejszy - im więcej wskaźników zgodnych, tym wyższa pewność"
+    },
+    "alignment_conf": {
+      "weight": 0.2,
+      "description": "Timeframe alignment (daily vs weekly)",
+      "formula": "1.0 if same_direction else 0.5",
+      "justification": "Wsparcie z różnych timeframe'ów zwiększa pewność"
+    },
+    "volatility_factor": {
+      "weight": 0.1,
+      "description": "Volatility adjustment (multiplier)",
+      "formula": "0.6 if >5%, 0.8 if >3%, 1.0 otherwise",
+      "justification": "Wysoka volatility zmniejsza pewność"
+    },
+    "bonuses": {
+      "timeframe_alignment": 0.1,
+      "key_patterns": 0.1,
+      "description": "Additional bonuses for strong alignment and key patterns"
+    },
+    "minimum_guarantees": {
+      "signal_70": 0.70,
+      "signal_50": 0.50,
+      "signal_30": 0.30,
+      "description": "Minimum confidence guarantees for strong signals"
+    }
+  },
+  "composite_score_weights": {
+    "signal_strength": {
+      "weight": 0.30,
+      "description": "Signal strength magnitude component",
+      "formula": "(abs(signal_strength) / 100) * 30"
+    },
+    "confidence": {
+      "weight": 0.25,
+      "description": "Confidence component",
+      "formula": "(confidence * 100) * 0.25"
+    },
+    "buy_sell_score": {
+      "weight": 0.20,
+      "description": "Buy/Sell score component",
+      "formula": "(buy_score or sell_score) * 0.20"
+    },
+    "risk_adjustment": {
+      "weight": 0.15,
+      "description": "Risk adjustment based on confidence",
+      "formula": "15 if confidence > 0.7, 5 if confidence < 0.4, 10 otherwise"
+    },
+    "allocation_drift": {
+      "weight": 0.10,
+      "description": "Allocation drift component",
+      "formula": "min(100, abs(allocation_drift) * 500) * 0.10"
+    }
+  },
+  "signal_thresholds": {
+    "medium_priority_buy": 20,
+    "high_priority_buy": 50,
+    "very_high_priority_buy": 70,
+    "medium_priority_sell": -20,
+    "high_priority_sell": -50,
+    "very_high_priority_sell": -70,
+    "description": "Progi signal_strength określające priorytet rekomendacji"
+  },
+  "notes": {
+    "double_counting_prevention": [
+      "MACD: Trend nie dodawany gdy crossover aktywny",
+      "Moving Averages: Indywidualne wagi nie dodawane gdy Golden/Death Cross aktywny",
+      "Williams %R: Zredukowane z ±6 do ±4 (redundantne ze Stochastic)"
+    ],
+    "atr_usage": "ATR używane tylko do confidence adjustment, nie do signal_strength",
+    "cci_thresholds": "CCI progi zwiększone z ±100 na ±150 dla silniejszych sygnałów",
+    "quality_multiplier": "Multiplier zwiększa siłę sygnału gdy wskaźniki są zgodne (>80% consensus)"
+  }
+}
+

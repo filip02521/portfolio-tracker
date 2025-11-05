@@ -2508,28 +2508,88 @@ class AIService:
                     max_drawdown = drawdown
             max_drawdown_pct = max_drawdown * 100
             
-            # Win rate
+            # Win rate, Profit Factor, Average Return per Trade
             winning_trades = 0
+            losing_trades = 0
             total_trades = 0
+            total_profit = 0.0
+            total_loss = 0.0
+            trade_returns = []
             
-            # Match buy/sell pairs
-            for i, buy_trade in enumerate(trade_history):
-                if buy_trade.get('action') == 'buy':
-                    symbol = buy_trade.get('symbol')
-                    buy_price = buy_trade.get('price', 0)
-                    
-                    # Find corresponding sell
-                    for sell_trade in trade_history[i+1:]:
-                        if sell_trade.get('symbol') == symbol and sell_trade.get('action') == 'sell':
-                            sell_price = sell_trade.get('price', 0)
+            # Track open positions (FIFO)
+            open_positions = {}  # {symbol: [(shares, buy_price, buy_date), ...]}
+            
+            # Process trades chronologically
+            for trade in trade_history:
+                symbol = trade.get('symbol')
+                action = trade.get('action')
+                price = trade.get('price', 0)
+                shares = trade.get('shares', 0)
+                date = trade.get('date', '')
+                
+                if action == 'buy' and shares > 0 and price > 0:
+                    # Add to open positions
+                    if symbol not in open_positions:
+                        open_positions[symbol] = []
+                    open_positions[symbol].append((shares, price, date))
+                
+                elif action == 'sell' and shares > 0 and price > 0:
+                    # Match with open positions (FIFO)
+                    if symbol in open_positions and open_positions[symbol]:
+                        shares_to_sell = shares
+                        while shares_to_sell > 0 and open_positions[symbol]:
+                            buy_shares, buy_price, buy_date = open_positions[symbol][0]
+                            
+                            if buy_shares <= shares_to_sell:
+                                # Close entire position
+                                shares_sold = buy_shares
+                                open_positions[symbol].pop(0)
+                                shares_to_sell -= shares_sold
+                            else:
+                                # Partial close
+                                shares_sold = shares_to_sell
+                                open_positions[symbol][0] = (buy_shares - shares_sold, buy_price, buy_date)
+                                shares_to_sell = 0
+                            
+                            # Calculate trade return
                             if buy_price > 0:
-                                trade_return = (sell_price - buy_price) / buy_price
+                                trade_return = (price - buy_price) / buy_price
+                                trade_profit = (price - buy_price) * shares_sold
+                                trade_returns.append(trade_return)
                                 total_trades += 1
+                                
                                 if trade_return > 0:
                                     winning_trades += 1
-                            break
+                                    total_profit += trade_profit
+                                else:
+                                    losing_trades += 1
+                                    total_loss += abs(trade_profit)
             
+            # Close remaining positions at final price (mark-to-market)
+            for symbol, positions in open_positions.items():
+                if symbol in current_prices and positions:
+                    final_price = current_prices[symbol]
+                    for shares, buy_price, buy_date in positions:
+                        if buy_price > 0:
+                            trade_return = (final_price - buy_price) / buy_price
+                            trade_profit = (final_price - buy_price) * shares
+                            trade_returns.append(trade_return)
+                            total_trades += 1
+                            
+                            if trade_return > 0:
+                                winning_trades += 1
+                                total_profit += trade_profit
+                            else:
+                                losing_trades += 1
+                                total_loss += abs(trade_profit)
+            
+            # Calculate metrics
             win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+            profit_factor = (total_profit / total_loss) if total_loss > 0 else (float('inf') if total_profit > 0 else 0.0)
+            avg_return_per_trade = (np.mean(trade_returns) * 100) if trade_returns else 0.0
+            
+            # Calmar Ratio: CAGR / Max Drawdown (as percentage)
+            calmar_ratio = (cagr / max_drawdown_pct) if max_drawdown_pct > 0 else 0.0
             
             return {
                 'strategy': strategy,
@@ -2541,10 +2601,16 @@ class AIService:
                 'total_return_usd': final_value - initial_capital,
                 'cagr': cagr,
                 'sharpe_ratio': sharpe_ratio,
+                'calmar_ratio': calmar_ratio,
                 'max_drawdown': max_drawdown_pct,
                 'win_rate': win_rate,
+                'profit_factor': profit_factor,
+                'avg_return_per_trade': avg_return_per_trade,
                 'total_trades': total_trades,
                 'winning_trades': winning_trades,
+                'losing_trades': losing_trades,
+                'total_profit': total_profit,
+                'total_loss': total_loss,
                 'equity_curve': [
                     {'date': sorted_dates[i] if i < len(sorted_dates) else end_date, 'value': float(val)}
                     for i, val in enumerate(equity_curve)
