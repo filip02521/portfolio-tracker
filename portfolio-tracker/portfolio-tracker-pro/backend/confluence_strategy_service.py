@@ -999,6 +999,7 @@ class ConfluenceStrategyService:
             position_tp1_sold = False
             position_tp2_sold = False
             position_high_price = None
+            rsi_history = []  # NEW: Track RSI history for reversal detection
             
             equity_curve = [initial_capital]
             trade_history = []
@@ -1110,6 +1111,14 @@ class ConfluenceStrategyService:
                                     'take_profit_1': position_tp1,
                                     'take_profit_2': position_tp2
                                 })
+                            else:
+                                self.logger.warning(
+                                    f"Position not opened: insufficient cash (need ${position_value:.2f}, have ${cash:.2f}) or invalid SL"
+                                )
+                                equity_curve.append(cash)
+                        else:
+                            self.logger.warning(f"Invalid risk calculation for {symbol}: risk_amount={risk_amount}, stop_loss={stop_loss}")
+                            equity_curve.append(cash)
                 
                 # If position exists, check for exit signals
                 else:
