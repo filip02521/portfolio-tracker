@@ -194,8 +194,8 @@ class AIService:
                             'status': 'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral',
                             'signal': 'buy' if rsi < 30 else 'sell' if rsi > 70 else 'neutral'
                         }
-                except Exception as e:
-                    self.logger.debug(f"RSI calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"RSI calculation failed: {e}")
             else:
                 # Manual RSI calculation
                 try:
@@ -230,7 +230,7 @@ class AIService:
                             'status': 'oversold' if stoch_k < 20 else 'overbought' if stoch_k > 80 else 'neutral',
                             'signal': 'buy' if stoch_k < 20 else 'sell' if stoch_k > 80 else ('buy' if stoch_k > stoch_d else 'sell' if stoch_k < stoch_d else 'neutral')
                         }
-                except Exception as e:
+            except Exception as e:
                                         self.logger.debug(f"Stochastic calculation failed: {e}")
             
             # 3. Williams %R
@@ -244,8 +244,8 @@ class AIService:
                             'status': 'oversold' if willr_val < -80 else 'overbought' if willr_val > -20 else 'neutral',
                             'signal': 'buy' if willr_val < -80 else 'sell' if willr_val > -20 else 'neutral'
                         }
-                except Exception as e:
-                    self.logger.debug(f"Williams %R calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"Williams %R calculation failed: {e}")
             
             # 4. Money Flow Index (MFI)
             if TA_AVAILABLE:
@@ -258,8 +258,8 @@ class AIService:
                             'status': 'oversold' if mfi_val < 20 else 'overbought' if mfi_val > 80 else 'neutral',
                             'signal': 'buy' if mfi_val < 20 else 'sell' if mfi_val > 80 else 'neutral'
                         }
-                except Exception as e:
-                    self.logger.debug(f"MFI calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"MFI calculation failed: {e}")
             
             # 5. CCI (Commodity Channel Index)
             if TA_AVAILABLE:
@@ -272,8 +272,8 @@ class AIService:
                             'status': 'strong_bullish' if cci_val > 150 else 'strong_bearish' if cci_val < -150 else ('bullish' if cci_val > 100 else 'bearish' if cci_val < -100 else 'neutral'),
                             'signal': 'buy' if cci_val > 150 else 'sell' if cci_val < -150 else ('buy' if cci_val > 100 else 'sell' if cci_val < -100 else 'neutral')
                         }
-                except Exception as e:
-                    self.logger.debug(f"CCI calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"CCI calculation failed: {e}")
             
             # ========== TREND INDICATORS ==========
             
@@ -303,8 +303,8 @@ class AIService:
                             'trend': 'bullish' if macd_line > signal_line else 'bearish',
                             'crossover': crossover
                         }
-                except Exception as e:
-                    self.logger.debug(f"MACD calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"MACD calculation failed: {e}")
             
             # 7. Moving Averages (MA50, MA200)
             if TA_AVAILABLE:
@@ -336,7 +336,7 @@ class AIService:
                             'death_cross': ma50 < ma200,
                             'signal': 'buy' if ma50 > ma200 else 'sell'
                         }
-                except Exception as e:
+            except Exception as e:
                                     self.logger.debug(f"Moving Averages calculation failed: {e}")
                                     self.logger.debug(f"Moving Averages calculation failed: {e}")
             
@@ -355,7 +355,7 @@ class AIService:
                             'direction': 'bullish' if adx_pos > adx_neg else 'bearish',
                             'signal': 'buy' if adx > 25 and adx_pos > adx_neg else 'sell' if adx > 25 and adx_neg > adx_pos else 'neutral'
                         }
-                except Exception as e:
+            except Exception as e:
                                         self.logger.debug(f"ADX calculation failed: {e}")
             
             # 9. Parabolic SAR
@@ -369,8 +369,8 @@ class AIService:
                             'position': 'below' if current_price > psar_val else 'above',
                             'signal': 'buy' if current_price > psar_val else 'sell'
                         }
-                except Exception as e:
-                    self.logger.debug(f"Parabolic SAR calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"Parabolic SAR calculation failed: {e}")
             
             # ========== VOLATILITY INDICATORS ==========
             
@@ -386,7 +386,7 @@ class AIService:
                             'percent': float(atr_percent),
                             'volatility': 'high' if atr_percent > 3 else 'medium' if atr_percent > 1.5 else 'low'
                         }
-                except Exception as e:
+            except Exception as e:
                                         self.logger.debug(f"ATR calculation failed: {e}")
             
             # 11. Bollinger Bands
@@ -401,7 +401,7 @@ class AIService:
                         # Calculate position as percentage between bands
                         if bb_upper != bb_lower:
                             position = ((current_price - bb_lower) / (bb_upper - bb_lower)) * 100
-                        else:
+            else:
                             position = 50.0
                         
                         indicators['bollinger_bands'] = {
@@ -425,8 +425,8 @@ class AIService:
                     'breakout': 'bullish' if current_price > donchian_high else 'bearish' if current_price < donchian_low else None,
                     'signal': 'buy' if current_price > donchian_high else 'sell' if current_price < donchian_low else 'neutral'
                 }
-                except Exception as e:
-                    self.logger.debug(f"Donchian Channels calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"Donchian Channels calculation failed: {e}")
             
             # 13. Ichimoku Cloud
             if TA_AVAILABLE:
@@ -462,7 +462,7 @@ class AIService:
                             'position': 'above' if above_cloud else 'below' if below_cloud else 'in_cloud',
                             'signal': signal
                         }
-                except Exception as e:
+        except Exception as e:
                     self.logger.debug(f"Ichimoku Cloud calculation failed: {e}")
             
             # ========== VOLUME INDICATORS ==========
@@ -482,7 +482,7 @@ class AIService:
                             'trend': trend,
                             'signal': 'buy' if trend == 'increasing' else 'sell' if trend == 'decreasing' else 'neutral'
             }
-                except Exception as e:
+        except Exception as e:
                     self.logger.debug(f"OBV calculation failed: {e}")
             
             # 15. A/D Line (Accumulation/Distribution)
@@ -500,7 +500,7 @@ class AIService:
                             'trend': trend,
                             'signal': 'buy' if trend == 'accumulating' else 'sell' if trend == 'distributing' else 'neutral'
             }
-                except Exception as e:
+        except Exception as e:
                     self.logger.debug(f"A/D Line calculation failed: {e}")
             
             # 16. VWAP (Volume Weighted Average Price)
@@ -512,8 +512,8 @@ class AIService:
                     'position': float(vwap_position),
                     'signal': 'buy' if current_price > vwap else 'sell'
                 }
-                except Exception as e:
-                    self.logger.debug(f"VWAP calculation failed: {e}")
+        except Exception as e:
+                self.logger.debug(f"VWAP calculation failed: {e}")
             
             # 17. CMF (Chaikin Money Flow)
             if TA_AVAILABLE:
@@ -526,7 +526,7 @@ class AIService:
                             'status': 'accumulation' if cmf > 0.1 else 'distribution' if cmf < -0.1 else 'neutral',
                             'signal': 'buy' if cmf > 0.1 else 'sell' if cmf < -0.1 else 'neutral'
                         }
-                except Exception as e:
+            except Exception as e:
                                     self.logger.debug(f"CMF calculation failed: {e}")
             
             # 18. Volume ROC (Rate of Change)
@@ -538,7 +538,7 @@ class AIService:
                         'signal': 'buy' if volume_roc > 20 else 'sell' if volume_roc < -20 else 'neutral'
                     }
                 except Exception as e:
-                                self.logger.debug(f"Volume ROC calculation failed: {e}")
+                self.logger.debug(f"Volume ROC calculation failed: {e}")
             
             # ========== MOMENTUM INDICATORS ==========
             
@@ -696,7 +696,7 @@ class AIService:
                 if abs(first_trend) > 0.1 and second_volatility < 0.05:
                     if first_trend > 0:
                         patterns['bull_flag'] = {'signal': 'buy', 'weight': 12, 'confidence': 0.6}
-                else:
+                    else:
                         patterns['bear_flag'] = {'signal': 'sell', 'weight': 12, 'confidence': 0.6}
             return patterns
         except Exception as e:
@@ -746,7 +746,7 @@ class AIService:
                 benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 30)
                 if not benchmark_data or len(benchmark_data) < 10:
                     return {}
-                except:
+            except Exception:
                 return {}
             asset_returns = df['close'].pct_change().dropna().values
             benchmark_returns = pd.Series([d.get('close', 0) for d in benchmark_data]).pct_change().dropna().values
@@ -765,7 +765,7 @@ class AIService:
                 beta = np.cov(asset_returns, benchmark_returns)[0, 1] / np.var(benchmark_returns)
                 if np.isnan(beta):
                     beta = 1.0
-                        else:
+            else:
                 beta = 1.0
             asset_total_return = (asset_returns + 1).prod() - 1
             benchmark_total_return = (benchmark_returns + 1).prod() - 1
@@ -886,7 +886,7 @@ class AIService:
                             },
                             "metrics": {}
                         })
-                    processed_symbols.add(symbol)
+                        processed_symbols.add(symbol)
                         continue
                     
                 # For non-stablecoins, perform comprehensive technical analysis
@@ -1012,7 +1012,7 @@ class AIService:
                                 signal_strength -= 8
                                             sell_score += 8
                                             bearish_count += 1
-                            else:
+                                        else:
                                             neutral_count += 1
                                 
                                 # Bollinger Bands
@@ -1038,11 +1038,11 @@ class AIService:
                                     stoch_k = stoch.get('k', 50)
                                     stoch_d = stoch.get('d', 50)
                                     if stoch_k < 20:
-                                    signal_strength += 8
+                                        signal_strength += 8
                                         buy_score += 8
                                         bullish_count += 1
                                     elif stoch_k > 80:
-                                signal_strength -= 8
+                                        signal_strength -= 8
                                         sell_score += 8
                                         bearish_count += 1
                                     elif stoch_k > stoch_d:
@@ -1187,7 +1187,7 @@ class AIService:
                                         confidence_adjustment = -0.2
                                     elif volatility_pct > 3:
                                         confidence_adjustment = -0.1
-                            else:
+                                    else:
                                         confidence_adjustment = 0
                                 else:
                                     confidence_adjustment = 0
@@ -1367,7 +1367,7 @@ class AIService:
                                 elif abs_daily > 20 or abs_weekly > 20:
                                     # Strong signal on one timeframe = średnioterminowe
                                     timeframe_info = "średnioterminowe"
-                            else:
+                                else:
                                     # Weak signals or no clear trend = krótkoterminowe
                                     timeframe_info = "krótkoterminowe"
                                 
@@ -1534,7 +1534,7 @@ class AIService:
                                 processed_symbols.add(symbol)
                                 continue
                     
-                            except Exception as e:
+                    except Exception as e:
                         self.logger.warning(f"Error processing {symbol}: {e}")
                         diagnostic_info[symbol] = str(e)
                 
@@ -1677,7 +1677,7 @@ class AIService:
                     }
                 
                 except Exception as e:
-                                        self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
+                    self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
                     return self._mock_predict_price(symbol, asset_type, days_ahead)
                                     else:
                 return self._mock_predict_price(symbol, asset_type, days_ahead)
@@ -1771,7 +1771,7 @@ class AIService:
                         elif 'negative' in label.lower():
                             sentiments.append('negative')
                             scores.append(-score)
-                                        else:
+                        else:
                             sentiments.append('neutral')
                             scores.append(0.0)
                     
@@ -1785,7 +1785,7 @@ class AIService:
                             sentiment = 'positive'
                         elif avg_score < -0.1:
                             sentiment = 'negative'
-                                else:
+                        else:
                             sentiment = 'neutral'
                         
                         confidence = min(0.95, abs(avg_score) * 2 + 0.5)
@@ -1809,9 +1809,9 @@ class AIService:
                             'confidence': 0.5,
                             'model_used': 'fallback',
                             'status': 'no_results'
-                                }
-                                
-                            except Exception as e:
+                        }
+                
+                except Exception as e:
                     self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
                     return {
                         'symbol': symbol,
@@ -2106,7 +2106,7 @@ class AIService:
                             returns = df['close'].pct_change().dropna()
                             if len(returns) >= 30:
                                 returns_data[symbol] = returns.values
-            except Exception as e:
+                except Exception as e:
                                 self.logger.debug(f"Error getting returns for {symbol}: {e}")
             
             if len(returns_data) < 2:
