@@ -919,6 +919,17 @@ class AIService:
                             indicators = self._calculate_technical_indicators(df, symbol)
                             
                             if indicators is not None and len(indicators) > 0:
+                                # Log why signal might be 0 (for debugging)
+                                if len(indicators) == 0:
+                                    self.logger.debug(f"{symbol}: No indicators calculated (insufficient data)")
+                            else:
+                                # Log when indicators are empty
+                                if not historical_data or len(historical_data) < 50:
+                                    self.logger.debug(f"{symbol}: Insufficient historical data ({len(historical_data) if historical_data else 0} points, need 50)")
+                                elif indicators is None or len(indicators) == 0:
+                                    self.logger.debug(f"{symbol}: Indicators calculation returned empty (data format issue?)")
+                            
+                            if indicators is not None and len(indicators) > 0:
                                 model_used = "comprehensive_technical_analysis"
                                 
                                 # Debug: Log indicators for troubleshooting
