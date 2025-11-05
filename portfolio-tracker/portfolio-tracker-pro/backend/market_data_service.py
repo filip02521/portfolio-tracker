@@ -10,6 +10,9 @@ import time
 import os
 import datetime as dt
 from prometheus_client import Counter
+
+logger = get_logger(__name__)
+
 try:
     import redis  # Optional
 except Exception:
@@ -21,8 +24,6 @@ try:
 except ImportError:
     YFINANCE_AVAILABLE = False
     logger.warning("yfinance not available - Yahoo Finance fallback disabled")
-
-logger = get_logger(__name__)
 
 market_provider_requests = Counter(
     'market_provider_requests_total',
