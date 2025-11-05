@@ -21,6 +21,24 @@ pip install yfinance==0.2.33
 
 **Ważne**: Backend musi używać venv Python, nie system Python!
 
+#### Opcja A: macOS LaunchAgent (ZALECANE - automatyczny start)
+
+```bash
+cd portfolio-tracker-pro/backend
+./backend_service.sh start
+```
+
+Zobacz: [LAUNCH_AGENT_SETUP.md](LAUNCH_AGENT_SETUP.md) dla szczegółów.
+
+#### Opcja B: Skrypt startowy (jednorazowy start)
+
+```bash
+cd portfolio-tracker-pro/backend
+./start_backend.sh
+```
+
+#### Opcja C: Ręcznie z venv
+
 ```bash
 # Sprawdź czy backend używa venv
 ps aux | grep uvicorn
@@ -42,7 +60,10 @@ Po restarcie backend powinien:
 
 - ✅ yfinance zainstalowane w venv
 - ✅ Yahoo Finance fallback zaimplementowany
+- ✅ macOS LaunchAgent dostępny (automatyczny start z venv)
 - ⏳ **Wymaga restartu backend servera** (używa venv Python)
+
+**Zalecane**: Użyj LaunchAgent (Opcja A) dla automatycznego startu przy zalogowaniu.
 
 ## Test
 

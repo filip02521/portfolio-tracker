@@ -53,28 +53,44 @@ grep "yfinance not available" portfolio-tracker-pro/backend/backend.log
 # Powinno być puste (brak tego komunikatu)
 ```
 
-## Alternatywa: Skrypt Startowy
+## Opcje Rozwiązania
 
-Możesz stworzyć skrypt startowy `start_backend.sh`:
+### Opcja A: macOS LaunchAgent (ZALECANE)
+
+Automatyczny start przy zalogowaniu, automatyczny restart przy crashu:
 
 ```bash
-#!/bin/bash
-cd "$(dirname "$0")"
-source venv/bin/activate
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd portfolio-tracker-pro/backend
+./backend_service.sh start
 ```
 
-Uruchom:
+Zobacz: [LAUNCH_AGENT_SETUP.md](LAUNCH_AGENT_SETUP.md) dla pełnej dokumentacji.
+
+### Opcja B: Skrypt Startowy
+
+Jednorazowy start (wymaga ręcznego uruchomienia):
+
 ```bash
-chmod +x portfolio-tracker-pro/backend/start_backend.sh
-./portfolio-tracker-pro/backend/start_backend.sh
+cd portfolio-tracker-pro/backend
+./start_backend.sh
+```
+
+### Opcja C: Ręcznie
+
+```bash
+cd portfolio-tracker-pro/backend
+source venv/bin/activate
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ## Status
 
 - ✅ yfinance zainstalowane w venv
 - ✅ Yahoo Finance fallback zaimplementowany
+- ✅ macOS LaunchAgent dostępny (automatyczny start z venv)
 - ⏳ **Wymaga restartu backend z venv**
+
+**Zalecane**: Użyj LaunchAgent (Opcja A) dla automatycznego startu przy zalogowaniu.
 
 Po restarcie z venv, stocks powinny mieć signal > 0!
 
