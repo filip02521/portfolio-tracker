@@ -194,7 +194,7 @@ class AIService:
                             'status': 'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral',
                             'signal': 'buy' if rsi < 30 else 'sell' if rsi > 70 else 'neutral'
                         }
-                except Exception as e:
+            except Exception as e:
                     self.logger.debug(f"RSI calculation failed: {e}")
             else:
                 # Manual RSI calculation
@@ -230,7 +230,7 @@ class AIService:
                             'status': 'oversold' if stoch_k < 20 else 'overbought' if stoch_k > 80 else 'neutral',
                             'signal': 'buy' if stoch_k < 20 else 'sell' if stoch_k > 80 else ('buy' if stoch_k > stoch_d else 'sell' if stoch_k < stoch_d else 'neutral')
                         }
-                except Exception as e:
+        except Exception as e:
                     self.logger.debug(f"Stochastic calculation failed: {e}")
             
             # 3. Williams %R
@@ -244,7 +244,7 @@ class AIService:
                             'status': 'oversold' if willr_val < -80 else 'overbought' if willr_val > -20 else 'neutral',
                             'signal': 'buy' if willr_val < -80 else 'sell' if willr_val > -20 else 'neutral'
                         }
-                except Exception as e:
+        except Exception as e:
                     self.logger.debug(f"Williams %R calculation failed: {e}")
             
             # 4. Money Flow Index (MFI)
@@ -258,7 +258,7 @@ class AIService:
                             'status': 'oversold' if mfi_val < 20 else 'overbought' if mfi_val > 80 else 'neutral',
                             'signal': 'buy' if mfi_val < 20 else 'sell' if mfi_val > 80 else 'neutral'
                         }
-                except Exception as e:
+        except Exception as e:
                     self.logger.debug(f"MFI calculation failed: {e}")
             
             # 5. CCI (Commodity Channel Index)
@@ -426,7 +426,7 @@ class AIService:
                     'signal': 'buy' if current_price > donchian_high else 'sell' if current_price < donchian_low else 'neutral'
                 }
                 except Exception as e:
-                    self.logger.debug(f"Donchian Channels calculation failed: {e}")
+                self.logger.debug(f"Donchian Channels calculation failed: {e}")
             
             # 13. Ichimoku Cloud
             if TA_AVAILABLE:
@@ -462,7 +462,7 @@ class AIService:
                             'position': 'above' if above_cloud else 'below' if below_cloud else 'in_cloud',
                             'signal': signal
                         }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"Ichimoku Cloud calculation failed: {e}")
             
             # ========== VOLUME INDICATORS ==========
@@ -482,7 +482,7 @@ class AIService:
                             'trend': trend,
                             'signal': 'buy' if trend == 'increasing' else 'sell' if trend == 'decreasing' else 'neutral'
             }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"OBV calculation failed: {e}")
             
             # 15. A/D Line (Accumulation/Distribution)
@@ -500,7 +500,7 @@ class AIService:
                             'trend': trend,
                             'signal': 'buy' if trend == 'accumulating' else 'sell' if trend == 'distributing' else 'neutral'
             }
-        except Exception as e:
+            except Exception as e:
                     self.logger.debug(f"A/D Line calculation failed: {e}")
             
             # 16. VWAP (Volume Weighted Average Price)
@@ -512,7 +512,7 @@ class AIService:
                     'position': float(vwap_position),
                     'signal': 'buy' if current_price > vwap else 'sell'
                 }
-        except Exception as e:
+            except Exception as e:
             self.logger.debug(f"VWAP calculation failed: {e}")
             
             # 17. CMF (Chaikin Money Flow)
@@ -560,7 +560,7 @@ class AIService:
             # Save to cache
             self._save_to_cache(self._technical_indicators_cache, cache_key, indicators)
             
-        except Exception as e:
+                except Exception as e:
             self.logger.error(f"Error calculating technical indicators: {e}", exc_info=True)
         
         return indicators
@@ -615,7 +615,7 @@ class AIService:
             else:
                 current_price_position = 'within_va'
             return {'poc_price': poc_price, 'vah_price': vah_price, 'val_price': val_price, 'current_price_position': current_price_position, 'total_volume': float(total_volume)}
-        except Exception as e:
+                except Exception as e:
             self.logger.debug(f"Error calculating volume profile: {e}")
             return {}
     
@@ -746,7 +746,7 @@ class AIService:
                 benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 30)
                 if not benchmark_data or len(benchmark_data) < 10:
                     return {}
-            except Exception:
+        except Exception:
                 return {}
             asset_returns = df['close'].pct_change().dropna().values
             benchmark_returns = pd.Series([d.get('close', 0) for d in benchmark_data]).pct_change().dropna().values
@@ -1676,7 +1676,7 @@ class AIService:
                         'current_price': float(current_price)
                     }
                 
-                except Exception as e:
+        except Exception as e:
                     self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
                     return self._mock_predict_price(symbol, asset_type, days_ahead)
                                     else:
@@ -1713,7 +1713,7 @@ class AIService:
             
             return headlines[:max_articles]
         
-        except Exception as e:
+                except Exception as e:
             self.logger.warning(f"Error fetching news for {symbol}: {e}")
             return self._get_mock_news_headlines(symbol)
 
@@ -1811,7 +1811,7 @@ class AIService:
                             'status': 'no_results'
                         }
                 
-                except Exception as e:
+        except Exception as e:
                     self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
                     return {
                         'symbol': symbol,
@@ -1851,7 +1851,7 @@ class AIService:
                     'total_articles': len(headlines)
                 }
         
-                        except Exception as e:
+                except Exception as e:
                             self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
             return {
                 'symbol': symbol,
@@ -1957,7 +1957,7 @@ class AIService:
                                             'message': f'{symbol} has {volume_ratio:.1f}x average volume drop'
                                         })
                     
-                    except Exception as e:
+        except Exception as e:
                         self.logger.debug(f"Error detecting anomalies for {symbol}: {e}")
             
             # 2. Allocation drift anomalies
@@ -2013,7 +2013,7 @@ class AIService:
                                                     'pair': f'{sym1}-{sym2}',
                                                     'correlation': float(corr)
                                                 })
-                            except Exception:
+                except Exception:
                                 continue
                     
                     # Check for unexpected low correlations (would need historical baseline)
@@ -2054,7 +2054,7 @@ class AIService:
                 'warning_count': warning_count
             }
         
-        except Exception as e:
+                except Exception as e:
             self.logger.error(f"Error in detect_anomalies: {e}", exc_info=True)
         return {
                 'anomalies': [],
@@ -2106,7 +2106,7 @@ class AIService:
                             returns = df['close'].pct_change().dropna()
                             if len(returns) >= 30:
                                 returns_data[symbol] = returns.values
-                except Exception as e:
+        except Exception as e:
                                 self.logger.debug(f"Error getting returns for {symbol}: {e}")
             
             if len(returns_data) < 2:
@@ -2243,7 +2243,7 @@ class AIService:
                     'current_holdings': current_holdings
                 }
         
-        except Exception as e:
+            except Exception as e:
             self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
         return {
                 'suggested_allocation': current_holdings,
@@ -2316,7 +2316,7 @@ class AIService:
                         
                         if filtered_data:
                             historical_data[symbol] = sorted(filtered_data, key=lambda x: x.get('timestamp', x.get('date', '')))
-                except Exception as e:
+        except Exception as e:
                     self.logger.warning(f"Error getting data for {symbol}: {e}")
             
             if not historical_data:
