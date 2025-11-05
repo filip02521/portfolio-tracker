@@ -1132,7 +1132,7 @@ class ConfluenceStrategyService:
                         continue  # Skip trailing stop check
                     
                     # Update trailing stop based on highest price
-                    if position_high_price and position_high_price > position_entry_price:
+                    if position_high_price is not None and position_entry_price is not None and position_high_price > position_entry_price:
                         # Trailing stop: 7% below highest price (only if in profit)
                         current_return = ((position_high_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
                         if current_return > 1.0:  # Only if in >1% profit
