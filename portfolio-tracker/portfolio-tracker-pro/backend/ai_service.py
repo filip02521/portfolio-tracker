@@ -2364,7 +2364,7 @@ class AIService:
                     if date_str == sorted_dates[0]:
                         # Initial allocation: equal weight
                         allocation_per_symbol = cash / len(symbols)
-                for symbol in symbols:
+                        for symbol in symbols:
                             if symbol in current_prices and current_prices[symbol] > 0:
                                 shares = allocation_per_symbol / current_prices[symbol]
                                 positions[symbol] += shares
@@ -2454,20 +2454,20 @@ class AIService:
                     
                                 elif action == 'sell' and positions[symbol] > 0:
                                     shares_to_sell = positions[symbol]  # Sell all
-                        
-                        if shares_to_sell > 0:
+                                    
+                                    if shares_to_sell > 0:
                                         positions[symbol] = 0
                                         cash += shares_to_sell * price
-                            
+                                        
                                         trade_history.append({
                                             'date': date_str,
-                                'symbol': symbol,
-                                'action': 'sell',
-                                'shares': shares_to_sell,
+                                            'symbol': symbol,
+                                            'action': 'sell',
+                                            'shares': shares_to_sell,
                                             'price': price,
                                             'value': shares_to_sell * price,
-                                'signal_strength': signal_strength
-                            })
+                                            'signal_strength': signal_strength
+                                        })
             
             # Record equity curve
             current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
