@@ -996,20 +996,24 @@ class ConfluenceStrategyService:
                             risk_per_trade=risk_per_trade
                         )
                         
-                        stop_loss = exit_analysis.get('stop_loss', entry_price * 0.95)
+                        stop_loss = exit_analysis.get('stop_loss')
+                        if stop_loss is None or stop_loss <= 0:
+                            # Fallback to 5% stop loss if not set
+                            stop_loss = entry_price * 0.95
+                        
                         risk_amount = entry_price - stop_loss
                         
-                        if risk_amount > 0:
+                        if risk_amount > 0 and stop_loss > 0:
                             max_risk = cash * risk_per_trade
                             position_shares = max_risk / risk_amount
                             position_value = position_shares * entry_price
                             
-                            if position_value <= cash:
+                            if position_value <= cash and stop_loss > 0:
                                 position_entry_price = entry_price
                                 position_entry_date = candle_date_str
-                                position_stop_loss = stop_loss
-                                position_tp1 = exit_analysis.get('take_profit_1', entry_price * 1.10)
-                                position_tp2 = exit_analysis.get('take_profit_2', entry_price * 1.15)
+                                position_stop_loss = stop_loss  # Already validated above
+                                position_tp1 = exit_analysis.get('take_profit_1') if exit_analysis.get('take_profit_1') else entry_price * 1.10
+                                position_tp2 = exit_analysis.get('take_profit_2') if exit_analysis.get('take_profit_2') else entry_price * 1.15
                                 position_tp1_sold = False
                                 position_tp2_sold = False
                                 position_high_price = entry_price
