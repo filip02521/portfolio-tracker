@@ -107,8 +107,8 @@ class AIService:
                                                    model="ProsusAI/finbert",
                                                    device=-1)  # CPU
                 self.logger.info("FinBERT sentiment pipeline initialized")
-                except Exception as e:
-                    self.logger.warning(f"Could not initialize FinBERT: {e}")
+            except Exception as e:
+                self.logger.warning(f"Could not initialize FinBERT: {e}")
                 self.sentiment_pipeline = None
         
         # Initialize NewsAPI client
@@ -119,8 +119,8 @@ class AIService:
                 try:
                     self.newsapi_client = NewsApiClient(api_key=newsapi_key)
                     self.logger.info("NewsAPI client initialized")
-                except Exception as e:
-                    self.logger.warning(f"Could not initialize NewsAPI: {e}")
+            except Exception as e:
+                self.logger.warning(f"Could not initialize NewsAPI: {e}")
                     self.newsapi_client = None
             else:
                 self.logger.info("NEWSAPI_KEY not set, using mock news data")
@@ -425,8 +425,8 @@ class AIService:
                     'breakout': 'bullish' if current_price > donchian_high else 'bearish' if current_price < donchian_low else None,
                     'signal': 'buy' if current_price > donchian_high else 'sell' if current_price < donchian_low else 'neutral'
                 }
-                except Exception as e:
-                                    self.logger.debug(f"Donchian Channels calculation failed: {e}")
+            except Exception as e:
+                                self.logger.debug(f"Donchian Channels calculation failed: {e}")
             
             # 13. Ichimoku Cloud
             if TA_AVAILABLE:
@@ -537,8 +537,8 @@ class AIService:
                         'value': float(volume_roc),
                         'signal': 'buy' if volume_roc > 20 else 'sell' if volume_roc < -20 else 'neutral'
                     }
-                except Exception as e:
-                                    self.logger.debug(f"Volume ROC calculation failed: {e}")
+            except Exception as e:
+                                self.logger.debug(f"Volume ROC calculation failed: {e}")
             
             # ========== MOMENTUM INDICATORS ==========
             
