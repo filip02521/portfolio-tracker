@@ -1029,7 +1029,7 @@ class AIService:
                                         sell_score += 12
                                         bearish_count += 1
                                         key_indicators_list.append({"name": "Bollinger", "value": bb.get('position', 50), "signal": "sell", "weight": "high"})
-                            else:
+                                    else:
                                         neutral_count += 1
                                 
                                 # Stochastic
