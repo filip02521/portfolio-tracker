@@ -195,7 +195,7 @@ class AIService:
                             'signal': 'buy' if rsi < 30 else 'sell' if rsi > 70 else 'neutral'
                         }
                 except Exception as e:
-                self.logger.debug(f"RSI calculation failed: {e}")
+                    self.logger.debug(f"RSI calculation failed: {e}")
             else:
                 # Manual RSI calculation
                 try:
