@@ -68,7 +68,7 @@ class ConfluenceStrategyService:
             Dict with pin bar detection results
         """
         try:
-            if df is None or len(df) < 2:
+            if not PANDAS_AVAILABLE or df is None or len(df) < 2:
                 return {}
             
             patterns = {}
@@ -134,7 +134,7 @@ class ConfluenceStrategyService:
             Dict with market structure analysis
         """
         try:
-            if df is None or len(df) < 20:
+            if not PANDAS_AVAILABLE or df is None or len(df) < 20:
                 return {}
             
             highs = df['high'].values
@@ -205,7 +205,7 @@ class ConfluenceStrategyService:
             Dict with EMA analysis results
         """
         try:
-            if df is None or len(df) < 200:
+            if not PANDAS_AVAILABLE or df is None or len(df) < 200:
                 return {}
             
             close = df['close'].values
@@ -299,7 +299,7 @@ class ConfluenceStrategyService:
             Dict with volume analysis results
         """
         try:
-            if df is None or len(df) < 20:
+            if not PANDAS_AVAILABLE or df is None or len(df) < 20:
                 return {}
             
             if 'volume' not in df.columns:
