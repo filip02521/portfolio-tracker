@@ -36,39 +36,77 @@ function check_plist_exists() {
 function start_service() {
     check_plist_exists
     
-    # Check if already loaded
-    if launchctl list | grep -q "$SERVICE_NAME"; then
+    # Check if already loaded (using bootstrap domain)
+    if launchctl list | grep -q "$SERVICE_NAME" || launchctl print "gui/$(id -u)/$SERVICE_NAME" >/dev/null 2>&1; then
         print_warning "Service is already running"
         return
     fi
     
-    # Load the service
-    launchctl load "$PLIST_FILE" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        print_status "Service started successfully"
-        echo "Service will start automatically on login"
+    # Use bootstrap for newer macOS (10.13+), fallback to load for older versions
+    if launchctl bootstrap --help >/dev/null 2>&1; then
+        # Newer macOS: use bootstrap
+        launchctl bootstrap "gui/$(id -u)" "$PLIST_FILE" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            print_status "Service started successfully (bootstrap)"
+            echo "Service will start automatically on login"
+        else
+            print_error "Failed to start service (bootstrap)"
+            echo "Trying to check if service is already running..."
+            launchctl list | grep "$SERVICE_NAME" || echo "Service not found in list"
+            exit 1
+        fi
     else
-        print_error "Failed to start service"
-        exit 1
+        # Older macOS: use load
+        launchctl load "$PLIST_FILE" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            print_status "Service started successfully (load)"
+            echo "Service will start automatically on login"
+        else
+            print_error "Failed to start service (load)"
+            exit 1
+        fi
     fi
 }
 
 function stop_service() {
     check_plist_exists
     
-    # Check if loaded
-    if ! launchctl list | grep -q "$SERVICE_NAME"; then
+    # Check if loaded (using bootstrap domain)
+    local is_running=false
+    if launchctl list | grep -q "$SERVICE_NAME" || launchctl print "gui/$(id -u)/$SERVICE_NAME" >/dev/null 2>&1; then
+        is_running=true
+    fi
+    
+    if [ "$is_running" = false ]; then
         print_warning "Service is not running"
         return
     fi
     
-    # Unload the service
-    launchctl unload "$PLIST_FILE" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        print_status "Service stopped successfully"
+    # Use bootout for newer macOS (10.13+), fallback to unload for older versions
+    if launchctl bootout --help >/dev/null 2>&1; then
+        # Newer macOS: use bootout
+        launchctl bootout "gui/$(id -u)/$SERVICE_NAME" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            print_status "Service stopped successfully (bootout)"
+        else
+            # Fallback: try to unload the plist file
+            launchctl unload "$PLIST_FILE" 2>/dev/null
+            if [ $? -eq 0 ]; then
+                print_status "Service stopped successfully (unload fallback)"
+            else
+                print_error "Failed to stop service"
+                exit 1
+            fi
+        fi
     else
-        print_error "Failed to stop service"
-        exit 1
+        # Older macOS: use unload
+        launchctl unload "$PLIST_FILE" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            print_status "Service stopped successfully (unload)"
+        else
+            print_error "Failed to stop service"
+            exit 1
+        fi
     fi
 }
 
@@ -85,11 +123,24 @@ function status_service() {
     echo "Service Status:"
     echo "==============="
     
+    # Check if running (try both methods)
+    local is_running=false
     if launchctl list | grep -q "$SERVICE_NAME"; then
+        is_running=true
+    elif launchctl print "gui/$(id -u)/$SERVICE_NAME" >/dev/null 2>&1; then
+        is_running=true
+    fi
+    
+    if [ "$is_running" = true ]; then
         print_status "Service is RUNNING"
         echo ""
         echo "Service details:"
-        launchctl list "$SERVICE_NAME" 2>/dev/null | grep -v "com.apple"
+        # Try to get service info
+        if launchctl print "gui/$(id -u)/$SERVICE_NAME" >/dev/null 2>&1; then
+            launchctl print "gui/$(id -u)/$SERVICE_NAME" 2>/dev/null | head -20
+        else
+            launchctl list "$SERVICE_NAME" 2>/dev/null | grep -v "com.apple" || echo "Service running but details not available"
+        fi
     else
         print_warning "Service is NOT RUNNING"
     fi

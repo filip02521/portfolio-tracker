@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.portfolio-tracker.backend</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/Filip/portfolio-tracker/portfolio-tracker-pro/backend/venv/bin/python</string>
+        <string>-m</string>
+        <string>uvicorn</string>
+        <string>main:app</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>8000</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/Filip/portfolio-tracker/portfolio-tracker-pro/backend</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/Filip/portfolio-tracker/portfolio-tracker-pro/backend/backend.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/Filip/portfolio-tracker/portfolio-tracker-pro/backend/backend.error.log</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/Filip/portfolio-tracker/portfolio-tracker-pro/backend/venv/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>/Users/Filip/portfolio-tracker/portfolio-tracker-pro/backend</string>
+    </dict>
+    
+    <key>ProcessType</key>
+    <string>Background</string>
+    
+    <key>Nice</key>
+    <integer>0</integer>
+</dict>
+</plist>
+

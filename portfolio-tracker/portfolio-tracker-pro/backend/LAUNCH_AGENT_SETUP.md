@@ -26,7 +26,12 @@ cd portfolio-tracker-pro/backend
 ./backend_service.sh start
 ```
 
-Lub ręcznie:
+Lub ręcznie (macOS 10.13+):
+```bash
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.portfolio-tracker.backend.plist
+```
+
+Dla starszych wersji macOS (< 10.13):
 ```bash
 launchctl load ~/Library/LaunchAgents/com.portfolio-tracker.backend.plist
 ```
@@ -73,6 +78,22 @@ cd portfolio-tracker-pro/backend
 
 ### Ręczne Zarządzanie (launchctl)
 
+**macOS 10.13+ (Zalecane):**
+```bash
+# Start service
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.portfolio-tracker.backend.plist
+
+# Stop service
+launchctl bootout "gui/$(id -u)/com.portfolio-tracker.backend"
+
+# Sprawdź status
+launchctl print "gui/$(id -u)/com.portfolio-tracker.backend"
+
+# Lista wszystkich service
+launchctl list | grep com.portfolio-tracker.backend
+```
+
+**Starsze macOS (< 10.13):**
 ```bash
 # Start service
 launchctl load ~/Library/LaunchAgents/com.portfolio-tracker.backend.plist
