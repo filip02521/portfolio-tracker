@@ -57,7 +57,7 @@ class ConfluenceStrategyService:
             'timestamp': datetime.now().timestamp()
         }
     
-    def _detect_pin_bar(self, df: pd.DataFrame) -> Dict:
+    def _detect_pin_bar(self, df) -> Dict:
         """
         Detect Pin Bar patterns (bullish/bearish)
         
@@ -205,7 +205,11 @@ class ConfluenceStrategyService:
             Dict with EMA analysis results
         """
         try:
-            if not PANDAS_AVAILABLE or df is None or len(df) < 200:
+            if not PANDAS_AVAILABLE or df is None:
+                return {}
+            
+            # Reduce minimum requirement - work with available data
+            if len(df) < 50:
                 return {}
             
             close = df['close'].values
@@ -216,18 +220,32 @@ class ConfluenceStrategyService:
                 self.logger.warning("ta library not available for EMA calculation")
                 return {}
             
-            ema10_series = ta.trend.EMAIndicator(pd.Series(close), window=10).ema_indicator()
-            ema20_series = ta.trend.EMAIndicator(pd.Series(close), window=20).ema_indicator()
-            ema50_series = ta.trend.EMAIndicator(pd.Series(close), window=50).ema_indicator()
-            ema200_series = ta.trend.EMAIndicator(pd.Series(close), window=200).ema_indicator()
+            # Adjust EMA windows based on available data
+            max_period = len(df)
+            ema10_period = min(10, max_period // 5) if max_period < 50 else 10
+            ema20_period = min(20, max_period // 3) if max_period < 60 else 20
+            ema50_period = min(50, max_period // 2) if max_period < 100 else 50
+            ema200_period = min(200, max_period - 10) if max_period < 210 else 200
             
-            ema10 = ema10_series.iloc[-1] if not pd.isna(ema10_series.iloc[-1]) else None
-            ema20 = ema20_series.iloc[-1] if not pd.isna(ema20_series.iloc[-1]) else None
-            ema50 = ema50_series.iloc[-1] if not pd.isna(ema50_series.iloc[-1]) else None
-            ema200 = ema200_series.iloc[-1] if not pd.isna(ema200_series.iloc[-1]) else None
+            ema10_series = ta.trend.EMAIndicator(pd.Series(close), window=ema10_period).ema_indicator()
+            ema20_series = ta.trend.EMAIndicator(pd.Series(close), window=ema20_period).ema_indicator()
+            ema50_series = ta.trend.EMAIndicator(pd.Series(close), window=ema50_period).ema_indicator() if ema50_period >= 50 else None
+            ema200_series = ta.trend.EMAIndicator(pd.Series(close), window=ema200_period).ema_indicator() if ema200_period >= 200 else None
             
-            if ema10 is None or ema20 is None or ema50 is None or ema200 is None:
+            ema10 = ema10_series.iloc[-1] if ema10_series is not None and not pd.isna(ema10_series.iloc[-1]) else None
+            ema20 = ema20_series.iloc[-1] if ema20_series is not None and not pd.isna(ema20_series.iloc[-1]) else None
+            ema50 = ema50_series.iloc[-1] if ema50_series is not None and not pd.isna(ema50_series.iloc[-1]) else None
+            ema200 = ema200_series.iloc[-1] if ema200_series is not None and not pd.isna(ema200_series.iloc[-1]) else None
+            
+            # Allow partial EMA data - at least need EMA10 and EMA20
+            if ema10 is None or ema20 is None:
                 return {}
+            
+            # If EMA50 or EMA200 are missing, use EMA20/EMA50 as fallback
+            if ema50 is None:
+                ema50 = ema20
+            if ema200 is None:
+                ema200 = ema50
             
             # Golden Cross: EMA 50 > EMA 200
             golden_cross = ema50 > ema200
@@ -414,25 +432,29 @@ class ConfluenceStrategyService:
         try:
             # Get historical data
             # Map interval to prediction_horizon for market_data_service
+            # Need more data for EMA 200 calculation (200 candles)
             interval_map = {
-                '1h': 7,   # 7 days for hourly data
-                '4h': 30,  # 30 days for 4h data
-                '1d': 90   # 90 days for daily data
+                '1h': 30,   # 30 days for hourly data (~720 candles)
+                '4h': 120,  # 120 days for 4h data (~720 candles)
+                '1w': 240,  # 240 days for weekly data (~240 candles)
+                '1d': 300   # 300 days for daily data (~300 candles)
             }
-            prediction_horizon = interval_map.get(interval, 30)
+            prediction_horizon = interval_map.get(interval, 120)
             
             historical_data, data_interval = self.market_data_service.get_symbol_history_with_interval(
                 symbol, prediction_horizon
             )
             
-            if not historical_data or len(historical_data) < 200:
+            # Reduce minimum data requirement - EMA 200 needs 200 candles, but we can work with less
+            min_required = 50 if interval == '1d' else 100
+            if not historical_data or len(historical_data) < min_required:
                 return {
                     'entry_signal': 'hold',
                     'confidence': 0.0,
                     'confluence_score': 0,
                     'entry_price': 0.0,
                     'entry_reasons': [],
-                    'error': 'Insufficient historical data'
+                    'error': f'Insufficient historical data ({len(historical_data) if historical_data else 0} candles, need {min_required})'
                 }
             
             # Convert to DataFrame
@@ -633,11 +655,12 @@ class ConfluenceStrategyService:
         try:
             # Get historical data for ATR and EMA calculation
             interval_map = {
-                '1h': 7,
-                '4h': 30,
-                '1d': 90
+                '1h': 30,
+                '4h': 120,
+                '1w': 240,
+                '1d': 300
             }
-            prediction_horizon = interval_map.get(interval, 30)
+            prediction_horizon = interval_map.get(interval, 120)
             
             historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
                 symbol, prediction_horizon
@@ -860,11 +883,12 @@ class ConfluenceStrategyService:
             
             # Get historical data
             interval_map = {
-                '1h': 7,
-                '4h': 30,
-                '1d': 90
+                '1h': 30,
+                '4h': 120,
+                '1w': 240,
+                '1d': 300
             }
-            prediction_horizon = interval_map.get(interval, 30)
+            prediction_horizon = interval_map.get(interval, 120)
             
             historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
                 symbol, prediction_horizon
@@ -924,7 +948,9 @@ class ConfluenceStrategyService:
                 if position_shares == 0:
                     # Get data up to current candle for analysis
                     data_up_to_current = filtered_data[:i+1]
-                    if len(data_up_to_current) < 200:
+                    # Reduce minimum requirement - we can work with less data
+                    min_required_for_analysis = 50 if interval == '1d' else 100
+                    if len(data_up_to_current) < min_required_for_analysis:
                         equity_curve.append(cash)
                         continue
                     
@@ -1252,6 +1278,11 @@ class ConfluenceStrategyService:
             entry_signal = 'hold'
             if confluence_score >= min_confluence_score and confidence >= min_confidence:
                 entry_signal = 'buy'
+                self.logger.debug(
+                    f"Backtest entry signal: {symbol}, "
+                    f"confluence={confluence_score}, confidence={confidence:.2f}, "
+                    f"thresholds: min_conf={min_confluence_score}, min_conf={min_confidence}"
+                )
             
             entry_price = float(df['close'].iloc[-1]) if 'close' in df.columns else 0.0
             
