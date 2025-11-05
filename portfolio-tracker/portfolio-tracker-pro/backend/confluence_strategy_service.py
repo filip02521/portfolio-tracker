@@ -262,6 +262,8 @@ class ConfluenceStrategyService:
             # Support test: price pulls back to EMA 50 in uptrend
             # Check if price was above EMA 50 recently and now is near EMA 50
             support_test = False
+            ema_pullback_and_bounce = False  # NEW: EMA 10/20 cofa się do EMA 50 i odbija
+            
             if golden_cross and price_above_ema200:
                 # Check if price is within 2% of EMA 50
                 if abs(current_price - ema50) / ema50 < 0.02:
@@ -270,6 +272,37 @@ class ConfluenceStrategyService:
                     recent_above_ema50 = sum([p > ema50 for p in recent_prices]) >= 3
                     if recent_above_ema50:
                         support_test = True
+                
+                # NEW: Check if EMA 10/20 cofa się do EMA 50 i odbija w górę
+                # This is a more precise condition from the report
+                if len(close) >= 10:
+                    # Get EMA values for last 5-10 candles to see if they pulled back
+                    try:
+                        ema10_history = ema10_series.iloc[-10:].values
+                        ema20_history = ema20_series.iloc[-10:].values
+                        
+                        # Check if EMA 10/20 were above EMA 50 in the past (5-10 candles ago)
+                        # and now are closer to or below EMA 50 (recent candles)
+                        if len(ema10_history) >= 5 and len(ema20_history) >= 5:
+                            # Past: EMA 10/20 were above EMA 50
+                            past_ema10_above = ema10_history[-5] > ema50
+                            past_ema20_above = ema20_history[-5] > ema50
+                            
+                            # Recent: EMA 10/20 are closer to EMA 50 (within 3% or below)
+                            recent_ema10_near = abs(ema10 - ema50) / ema50 < 0.03 or ema10 <= ema50
+                            recent_ema20_near = abs(ema20 - ema50) / ema50 < 0.03 or ema20 <= ema50
+                            
+                            # Price bounced up (last candle is higher than previous)
+                            price_bounced = len(close) >= 2 and close[-1] > close[-2]
+                            
+                            # All conditions met: EMA 10/20 pulled back to EMA 50 and price bounced
+                            if (past_ema10_above or past_ema20_above) and \
+                               (recent_ema10_near or recent_ema20_near) and \
+                               price_bounced:
+                                ema_pullback_and_bounce = True
+                    except Exception as e:
+                        self.logger.debug(f"Error checking EMA pullback: {e}")
+                        pass
             
             # Trend strength: how many EMAs are aligned
             trend_strength = 0.0
@@ -296,6 +329,7 @@ class ConfluenceStrategyService:
                 'golden_cross': golden_cross,
                 'death_cross': death_cross,
                 'support_test': support_test,
+                'ema_pullback_and_bounce': ema_pullback_and_bounce,  # NEW
                 'price_above_ema10': price_above_ema10,
                 'price_above_ema20': price_above_ema20,
                 'price_above_ema50': price_above_ema50,
@@ -503,9 +537,15 @@ class ConfluenceStrategyService:
                     confluence_conditions.append("❌ No uptrend (EMA 50 < EMA 200)")
             
             # Condition 2: Pullback to EMA 50 in uptrend OR price above EMA 50/200
+            # NEW: Also check EMA 10/20 pullback and bounce (from report)
             condition2_met = False
             if ema_analysis:
-                if ema_analysis.get('support_test', False):
+                if ema_analysis.get('ema_pullback_and_bounce', False):
+                    # NEW: EMA 10/20 cofa się do EMA 50 i odbija (precise requirement from report)
+                    condition2_met = True
+                    confluence_conditions.append("✅ EMA 10/20 pulled back to EMA 50 and bounced")
+                    confluence_score += 1
+                elif ema_analysis.get('support_test', False):
                     condition2_met = True
                     confluence_conditions.append("✅ Pullback to EMA 50 support in uptrend")
                     confluence_score += 1
@@ -1105,6 +1145,9 @@ class ConfluenceStrategyService:
                         cash += sell_value
                         return_pct = ((current_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
                         
+                        # Determine if this was initial SL or BE
+                        sl_type = "BE (Break Even)" if position_stop_loss >= position_entry_price else "Initial SL"
+                        
                         trade_history.append({
                             'date': candle_date_str,
                             'action': 'sell',
@@ -1112,18 +1155,20 @@ class ConfluenceStrategyService:
                             'shares': position_shares,
                             'value': sell_value,
                             'reason': 'stop_loss',
-                            'return_pct': return_pct
+                            'return_pct': return_pct,
+                            'sl_type': sl_type
                         })
                         
                         self.logger.info(
-                            f"🛑 STOP LOSS HIT: {symbol} @ ${current_price:.2f}, "
-                            f"SL=${position_stop_loss:.2f}, return={return_pct:.2f}%"
+                            f"🛑 STOP LOSS HIT ({sl_type}): {symbol} @ ${current_price:.2f}, "
+                            f"SL=${position_stop_loss:.2f}, entry=${position_entry_price:.2f}, return={return_pct:.2f}%"
                         )
                         
                         position_shares = 0
                         position_entry_price = None
                         position_entry_date = None
                         position_stop_loss = 0.0
+                        position_initial_sl = None
                         position_tp1 = None
                         position_tp2 = None
                         position_tp1_sold = False
@@ -1232,6 +1277,7 @@ class ConfluenceStrategyService:
                         position_entry_price = None
                         position_entry_date = None
                         position_stop_loss = 0.0
+                        position_initial_sl = None
                         position_tp1 = None
                         position_tp2 = None
                         position_tp1_sold = False
@@ -1256,6 +1302,7 @@ class ConfluenceStrategyService:
                         position_entry_price = None
                         position_entry_date = None
                         position_stop_loss = 0.0
+                        position_initial_sl = None
                         position_tp1 = None
                         position_tp2 = None
                         position_tp1_sold = False
