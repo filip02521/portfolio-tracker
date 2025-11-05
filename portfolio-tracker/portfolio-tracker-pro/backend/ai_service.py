@@ -461,7 +461,7 @@ class AIService:
                             'position': 'above' if above_cloud else 'below' if below_cloud else 'in_cloud',
                             'signal': signal
                         }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"Ichimoku Cloud calculation failed: {e}")
             
             # ========== VOLUME INDICATORS ==========
@@ -553,8 +553,8 @@ class AIService:
                         'short_term': 'bullish' if momentum_7d > 5 else 'bearish' if momentum_7d < -5 else 'neutral',
                         'long_term': 'bullish' if momentum_30d > 10 else 'bearish' if momentum_30d < -10 else 'neutral'
                     }
-            except Exception as e:
-                self.logger.debug(f"Momentum calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"Momentum calculation failed: {e}")
             
             # Save to cache
             self._save_to_cache(self._technical_indicators_cache, cache_key, indicators)
