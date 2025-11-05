@@ -2430,7 +2430,7 @@ class AIService:
                                         signal = rec.get('signal_strength', 0)
                                         allocation_pct = max(0, signal / 100.0) if signal > 0 else 0
                                         trade_value = portfolio_value * allocation_pct
-                        else:
+                                    else:
                                         # Allocate equal share per recommendation
                                         trade_value = cash / max(1, len([r for r in filtered_recommendations if r.get('action') == 'buy']))
                                     
@@ -2468,9 +2468,9 @@ class AIService:
                                 'signal_strength': signal_strength
                             })
             
-                # Record equity curve
-                current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
-                equity_curve.append(current_value)
+            # Record equity curve
+            current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
+            equity_curve.append(current_value)
             
             # Calculate final metrics
             final_value = equity_curve[-1] if equity_curve else initial_capital
@@ -2488,7 +2488,8 @@ class AIService:
                 avg_return = np.mean(returns)
                 std_return = np.std(returns)
                 sharpe_ratio = (avg_return / std_return) if std_return > 0 else 0
-                                else:                sharpe_ratio = 0.0
+            else:
+                sharpe_ratio = 0.0
             
             # CAGR (using actual weekly periods, not calendar days)
             num_periods = len(equity_curve) - 1  # Number of weekly periods
@@ -2499,11 +2500,11 @@ class AIService:
             peak = equity_curve[0]
             max_drawdown = 0.0
             for value in equity_curve:
-                    if value > peak:
-                        peak = value
+                if value > peak:
+                    peak = value
                 drawdown = (peak - value) / peak if peak > 0 else 0
-                    if drawdown > max_drawdown:
-                        max_drawdown = drawdown
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
             max_drawdown_pct = max_drawdown * 100
             
             # Win rate
