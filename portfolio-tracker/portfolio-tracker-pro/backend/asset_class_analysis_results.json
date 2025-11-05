@@ -1,0 +1,342 @@
+{
+  "crypto": {
+    "avg_total_return": 11.651714260716338,
+    "avg_sharpe_ratio": 0.0,
+    "avg_win_rate": 50.0,
+    "avg_profit_factor": 0.0,
+    "avg_max_drawdown": 0.0,
+    "avg_calmar_ratio": 0.0,
+    "best_by_return": {
+      "strategy": "buy_and_hold",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 23.30342852143267,
+      "sharpe": 0,
+      "win_rate": 100.0
+    },
+    "best_by_sharpe": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "best_by_win_rate": {
+      "strategy": "buy_and_hold",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 23.30342852143267,
+      "sharpe": 0,
+      "win_rate": 100.0
+    },
+    "strategy_stats": {
+      "follow_ai": {
+        "count": 3,
+        "total_return": 0.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 0.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      },
+      "buy_and_hold": {
+        "count": 3,
+        "total_return": 69.91028556429802,
+        "sharpe_ratio": 0.0,
+        "win_rate": 300.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 23.303428521432675,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 100.0,
+        "avg_profit_factor": 0.0
+      }
+    },
+    "threshold_stats": {
+      "10": {
+        "count": 2,
+        "total_return": 23.30342852143267,
+        "sharpe_ratio": 0.0,
+        "win_rate": 100.0,
+        "avg_total_return": 11.651714260716336,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 50.0
+      },
+      "20": {
+        "count": 2,
+        "total_return": 23.30342852143267,
+        "sharpe_ratio": 0.0,
+        "win_rate": 100.0,
+        "avg_total_return": 11.651714260716336,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 50.0
+      },
+      "30": {
+        "count": 2,
+        "total_return": 23.30342852143267,
+        "sharpe_ratio": 0.0,
+        "win_rate": 100.0,
+        "avg_total_return": 11.651714260716336,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 50.0
+      }
+    }
+  },
+  "stocks": {
+    "avg_total_return": 4.699580296001768,
+    "avg_sharpe_ratio": 0.0,
+    "avg_win_rate": 50.0,
+    "avg_profit_factor": 0.0,
+    "avg_max_drawdown": 0.0,
+    "avg_calmar_ratio": 0.0,
+    "best_by_return": {
+      "strategy": "buy_and_hold",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 9.399160592003536,
+      "sharpe": 0,
+      "win_rate": 100.0
+    },
+    "best_by_sharpe": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0
+    },
+    "best_by_win_rate": {
+      "strategy": "buy_and_hold",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 9.399160592003536,
+      "sharpe": 0,
+      "win_rate": 100.0
+    },
+    "strategy_stats": {
+      "follow_ai": {
+        "count": 3,
+        "total_return": 0.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 0.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      },
+      "buy_and_hold": {
+        "count": 3,
+        "total_return": 28.19748177601061,
+        "sharpe_ratio": 0.0,
+        "win_rate": 300.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 9.399160592003536,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 100.0,
+        "avg_profit_factor": 0.0
+      }
+    },
+    "threshold_stats": {
+      "10": {
+        "count": 2,
+        "total_return": 9.399160592003536,
+        "sharpe_ratio": 0.0,
+        "win_rate": 100.0,
+        "avg_total_return": 4.699580296001768,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 50.0
+      },
+      "20": {
+        "count": 2,
+        "total_return": 9.399160592003536,
+        "sharpe_ratio": 0.0,
+        "win_rate": 100.0,
+        "avg_total_return": 4.699580296001768,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 50.0
+      },
+      "30": {
+        "count": 2,
+        "total_return": 9.399160592003536,
+        "sharpe_ratio": 0.0,
+        "win_rate": 100.0,
+        "avg_total_return": 4.699580296001768,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 50.0
+      }
+    }
+  },
+  "mixed": {
+    "avg_total_return": -12.5,
+    "avg_sharpe_ratio": 0.0,
+    "avg_win_rate": 0.0,
+    "avg_profit_factor": 0.0,
+    "avg_max_drawdown": 12.5,
+    "avg_calmar_ratio": -1.9999993628881365,
+    "best_by_return": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "best_by_sharpe": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "best_by_win_rate": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "strategy_stats": {
+      "follow_ai": {
+        "count": 3,
+        "total_return": 0.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 0.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      },
+      "buy_and_hold": {
+        "count": 3,
+        "total_return": -75.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": -25.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      }
+    },
+    "threshold_stats": {
+      "10": {
+        "count": 2,
+        "total_return": -25.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -12.5,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      },
+      "20": {
+        "count": 2,
+        "total_return": -25.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -12.5,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      },
+      "30": {
+        "count": 2,
+        "total_return": -25.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -12.5,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      }
+    }
+  },
+  "market_conditions": {
+    "avg_total_return": -12.5,
+    "avg_sharpe_ratio": 0.0,
+    "avg_win_rate": 0.0,
+    "avg_profit_factor": 0.0,
+    "avg_max_drawdown": 12.5,
+    "avg_calmar_ratio": -1.9999993628881365,
+    "best_by_return": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "best_by_sharpe": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "best_by_win_rate": {
+      "strategy": "follow_ai",
+      "period": "6 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "strategy_stats": {
+      "follow_ai": {
+        "count": 3,
+        "total_return": 0.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 0.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      },
+      "buy_and_hold": {
+        "count": 3,
+        "total_return": -75.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": -25.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      }
+    },
+    "threshold_stats": {
+      "10": {
+        "count": 2,
+        "total_return": -25.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -12.5,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      },
+      "20": {
+        "count": 2,
+        "total_return": -25.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -12.5,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      },
+      "30": {
+        "count": 2,
+        "total_return": -25.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -12.5,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      }
+    }
+  }
+}

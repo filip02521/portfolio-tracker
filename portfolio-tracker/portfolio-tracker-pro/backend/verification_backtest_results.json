@@ -1,0 +1,1324 @@
+{
+  "summary": {
+    "avg_total_return": -16.666666666666668,
+    "avg_sharpe_ratio": 0.0,
+    "avg_win_rate": 0.0,
+    "avg_profit_factor": 0.0,
+    "avg_max_drawdown": 16.666666666666668,
+    "avg_calmar_ratio": -0.6666666666666664,
+    "best_by_return": {
+      "strategy": "follow_ai",
+      "period": "3 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "best_by_sharpe": {
+      "strategy": "follow_ai",
+      "period": "3 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "best_by_win_rate": {
+      "strategy": "follow_ai",
+      "period": "3 months",
+      "threshold": 10,
+      "return": 0.0,
+      "sharpe": 0,
+      "win_rate": 0.0
+    },
+    "strategy_stats": {
+      "follow_ai": {
+        "count": 8,
+        "total_return": 0.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 0.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      },
+      "high_confidence": {
+        "count": 8,
+        "total_return": 0.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": 0.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      },
+      "buy_and_hold": {
+        "count": 8,
+        "total_return": -400.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "avg_total_return": -50.0,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0,
+        "avg_profit_factor": 0.0
+      }
+    },
+    "threshold_stats": {
+      "10": {
+        "count": 6,
+        "total_return": -100.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -16.666666666666668,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      },
+      "20": {
+        "count": 6,
+        "total_return": -100.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -16.666666666666668,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      },
+      "30": {
+        "count": 6,
+        "total_return": -100.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -16.666666666666668,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      },
+      "50": {
+        "count": 6,
+        "total_return": -100.0,
+        "sharpe_ratio": 0.0,
+        "win_rate": 0.0,
+        "avg_total_return": -16.666666666666668,
+        "avg_sharpe_ratio": 0.0,
+        "avg_win_rate": 0.0
+      }
+    }
+  },
+  "detailed_results": [
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 1,
+      "winning_trades": 0,
+      "losing_trades": 1,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-11-03",
+          "symbol": "ETH",
+          "action": "buy",
+          "shares": 0.8532612498229484,
+          "price": 3906.58,
+          "value": 3333.3333333333335,
+          "signal_strength": 17.0
+        }
+      ],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 10,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 10,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-08-10",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 10.794939332440952,
+          "price": 231.59,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-08-10",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 4.806121075802142,
+          "price": 520.17,
+          "value": 2500.0000000000005
+        }
+      ],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 10,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 20,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 20,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-08-10",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 10.794939332440952,
+          "price": 231.59,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-08-10",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 4.806121075802142,
+          "price": 520.17,
+          "value": 2500.0000000000005
+        }
+      ],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 20,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 30,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 30,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-08-10",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 10.794939332440952,
+          "price": 231.59,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-08-10",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 4.806121075802142,
+          "price": 520.17,
+          "value": 2500.0000000000005
+        }
+      ],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 30,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 50,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 50,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-08-07T20:35:19.465579",
+      "end_date": "2025-11-05T20:35:19.465599",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-08-10",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-08-11",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-08-10",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 10.794939332440952,
+          "price": 231.59,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-08-10",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 4.806121075802142,
+          "price": 520.17,
+          "value": 2500.0000000000005
+        }
+      ],
+      "status": "success",
+      "period_name": "3 months",
+      "period_start": "2025-08-07T20:35:19.465579",
+      "period_end": "2025-11-05T20:35:19.465599",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 50,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 1,
+      "winning_trades": 0,
+      "losing_trades": 1,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-11-03",
+          "symbol": "ETH",
+          "action": "buy",
+          "shares": 0.8532612498229484,
+          "price": 3906.58,
+          "value": 3333.3333333333335,
+          "signal_strength": 17.0
+        }
+      ],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 10,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 10,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-05-11",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 11.833759348669886,
+          "price": 211.26,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-05-11",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 5.50333502102274,
+          "price": 454.27,
+          "value": 2500.0
+        }
+      ],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 10,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 20,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 20,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-05-11",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 11.833759348669886,
+          "price": 211.26,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-05-11",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 5.50333502102274,
+          "price": 454.27,
+          "value": 2500.0
+        }
+      ],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 20,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 30,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 30,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-05-11",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 11.833759348669886,
+          "price": 211.26,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-05-11",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 5.50333502102274,
+          "price": 454.27,
+          "value": 2500.0
+        }
+      ],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 30,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "follow_ai",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 50,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "high_confidence",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 10000.0,
+      "total_return": 0.0,
+      "total_return_usd": 0.0,
+      "cagr": 0.0,
+      "sharpe_ratio": 0,
+      "calmar_ratio": 0.0,
+      "max_drawdown": 0.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 10000.0
+        }
+      ],
+      "trade_history": [],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 50,
+      "confidence_threshold": null
+    },
+    {
+      "strategy": "buy_and_hold",
+      "start_date": "2025-05-09T20:35:19.465601",
+      "end_date": "2025-11-05T20:35:19.465604",
+      "initial_capital": 10000.0,
+      "final_value": 5000.0,
+      "total_return": -50.0,
+      "total_return_usd": -5000.0,
+      "cagr": -99.99999999999997,
+      "sharpe_ratio": 0,
+      "calmar_ratio": -1.9999999999999993,
+      "max_drawdown": 50.0,
+      "win_rate": 0,
+      "profit_factor": 0.0,
+      "avg_return_per_trade": 0.0,
+      "total_trades": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "total_profit": 0.0,
+      "total_loss": 0.0,
+      "equity_curve": [
+        {
+          "date": "2025-05-11",
+          "value": 10000.0
+        },
+        {
+          "date": "2025-05-12",
+          "value": 5000.0
+        }
+      ],
+      "trade_history": [
+        {
+          "date": "2025-05-11",
+          "symbol": "AAPL",
+          "action": "buy",
+          "shares": 11.833759348669886,
+          "price": 211.26,
+          "value": 2500.0
+        },
+        {
+          "date": "2025-05-11",
+          "symbol": "MSFT",
+          "action": "buy",
+          "shares": 5.50333502102274,
+          "price": 454.27,
+          "value": 2500.0
+        }
+      ],
+      "status": "success",
+      "period_name": "6 months",
+      "period_start": "2025-05-09T20:35:19.465601",
+      "period_end": "2025-11-05T20:35:19.465604",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "AAPL",
+        "MSFT"
+      ],
+      "signal_threshold": 50,
+      "confidence_threshold": null
+    }
+  ],
+  "total_tests": 96,
+  "successful_tests": 24,
+  "failed_tests": 0
+}

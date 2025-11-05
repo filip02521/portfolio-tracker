@@ -1,0 +1,50 @@
+============================================================
+RAPORT WERYFIKACJI AI RECOMMENDATIONS
+============================================================
+Data wygenerowania: 2025-11-05 20:35:43
+
+PODSUMOWANIE
+------------------------------------------------------------
+Średni Total Return: -16.67%
+Średni Sharpe Ratio: 0.00
+Średni Win Rate: 0.00%
+Średni Profit Factor: 0.00
+Średni Max Drawdown: 16.67%
+Średni Calmar Ratio: -0.67
+
+NAJLEPSZE WYNIKI
+------------------------------------------------------------
+Najlepszy Total Return:
+  Strategia: follow_ai
+  Okres: 3 months
+  Threshold: 10
+  Return: 0.00%
+  Sharpe: 0.00
+  Win Rate: 0.00%
+
+Najlepszy Sharpe Ratio:
+  Strategia: follow_ai
+  Okres: 3 months
+  Threshold: 10
+  Return: 0.00%
+  Sharpe: 0.00
+  Win Rate: 0.00%
+
+ANALIZA KLAS AKTYWÓW
+------------------------------------------------------------
+CRYPTO:
+  Total Return: 11.65%
+  Sharpe Ratio: 0.00
+  Win Rate: 50.00%
+
+STOCKS:
+  Total Return: 4.70%
+  Sharpe Ratio: 0.00
+  Win Rate: 50.00%
+
+MIXED:
+  Total Return: -12.50%
+  Sharpe Ratio: 0.00
+  Win Rate: 0.00%
+
+============================================================
