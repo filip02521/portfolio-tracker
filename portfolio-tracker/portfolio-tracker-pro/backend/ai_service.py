@@ -230,7 +230,7 @@ class AIService:
                             'status': 'oversold' if stoch_k < 20 else 'overbought' if stoch_k > 80 else 'neutral',
                             'signal': 'buy' if stoch_k < 20 else 'sell' if stoch_k > 80 else ('buy' if stoch_k > stoch_d else 'sell' if stoch_k < stoch_d else 'neutral')
                         }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"Stochastic calculation failed: {e}")
             
             # 3. Williams %R
@@ -244,7 +244,7 @@ class AIService:
                             'status': 'oversold' if willr_val < -80 else 'overbought' if willr_val > -20 else 'neutral',
                             'signal': 'buy' if willr_val < -80 else 'sell' if willr_val > -20 else 'neutral'
                         }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"Williams %R calculation failed: {e}")
             
             # 4. Money Flow Index (MFI)
@@ -258,7 +258,7 @@ class AIService:
                             'status': 'oversold' if mfi_val < 20 else 'overbought' if mfi_val > 80 else 'neutral',
                             'signal': 'buy' if mfi_val < 20 else 'sell' if mfi_val > 80 else 'neutral'
                         }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"MFI calculation failed: {e}")
             
             # 5. CCI (Commodity Channel Index)
@@ -425,7 +425,7 @@ class AIService:
                     'breakout': 'bullish' if current_price > donchian_high else 'bearish' if current_price < donchian_low else None,
                     'signal': 'buy' if current_price > donchian_high else 'sell' if current_price < donchian_low else 'neutral'
                 }
-                except Exception as e:
+            except Exception as e:
                 self.logger.debug(f"Donchian Channels calculation failed: {e}")
             
             # 13. Ichimoku Cloud
@@ -500,7 +500,7 @@ class AIService:
                             'trend': trend,
                             'signal': 'buy' if trend == 'accumulating' else 'sell' if trend == 'distributing' else 'neutral'
             }
-            except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"A/D Line calculation failed: {e}")
             
             # 16. VWAP (Volume Weighted Average Price)
@@ -513,7 +513,7 @@ class AIService:
                     'signal': 'buy' if current_price > vwap else 'sell'
                 }
             except Exception as e:
-            self.logger.debug(f"VWAP calculation failed: {e}")
+                self.logger.debug(f"VWAP calculation failed: {e}")
             
             # 17. CMF (Chaikin Money Flow)
             if TA_AVAILABLE:
@@ -537,7 +537,7 @@ class AIService:
                         'value': float(volume_roc),
                         'signal': 'buy' if volume_roc > 20 else 'sell' if volume_roc < -20 else 'neutral'
                     }
-                except Exception as e:
+            except Exception as e:
                     self.logger.debug(f"Volume ROC calculation failed: {e}")
             
             # ========== MOMENTUM INDICATORS ==========
@@ -554,13 +554,13 @@ class AIService:
                         'short_term': 'bullish' if momentum_7d > 5 else 'bearish' if momentum_7d < -5 else 'neutral',
                         'long_term': 'bullish' if momentum_30d > 10 else 'bearish' if momentum_30d < -10 else 'neutral'
                     }
-                except Exception as e:
+            except Exception as e:
                     self.logger.debug(f"Momentum calculation failed: {e}")
             
             # Save to cache
             self._save_to_cache(self._technical_indicators_cache, cache_key, indicators)
             
-                except Exception as e:
+        except Exception as e:
             self.logger.error(f"Error calculating technical indicators: {e}", exc_info=True)
         
         return indicators
@@ -615,7 +615,7 @@ class AIService:
             else:
                 current_price_position = 'within_va'
             return {'poc_price': poc_price, 'vah_price': vah_price, 'val_price': val_price, 'current_price_position': current_price_position, 'total_volume': float(total_volume)}
-                except Exception as e:
+        except Exception as e:
             self.logger.debug(f"Error calculating volume profile: {e}")
             return {}
     
@@ -746,7 +746,7 @@ class AIService:
                 benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 30)
                 if not benchmark_data or len(benchmark_data) < 10:
                     return {}
-        except Exception:
+            except Exception:
                 return {}
             asset_returns = df['close'].pct_change().dropna().values
             benchmark_returns = pd.Series([d.get('close', 0) for d in benchmark_data]).pct_change().dropna().values
@@ -862,8 +862,8 @@ class AIService:
                         priority = "medium" if abs(allocation_drift) >= 0.10 else "low"
                         reason = f"Allocation drift: {allocation_drift*100:.1f}% from target"
                         
-                            recommendations.append({
-                                "asset": symbol,
+                        recommendations.append({
+                            "asset": symbol,
                             "symbol": symbol,
                             "action": action,
                             "priority": priority,
@@ -929,13 +929,13 @@ class AIService:
                                 if 'rsi' in indicators:
                                     rsi_val = indicators['rsi'].get('value', 50)
                                     if rsi_val < 30:
-                                signal_strength += 15
+                                        signal_strength += 15
                                         buy_score += 15
                                         bullish_count += 1
                                         key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "buy", "weight": "high"})
                                         strengths_list.append("RSI indicates oversold condition")
                                     elif rsi_val > 70:
-                                signal_strength -= 15
+                                        signal_strength -= 15
                                         sell_score += 15
                                         bearish_count += 1
                                         key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "sell", "weight": "high"})
@@ -950,23 +950,23 @@ class AIService:
                                     macd_trend = macd_data.get('trend')
                                     
                                     if macd_crossover == 'bullish':
-                                    signal_strength += 20
+                                        signal_strength += 20
                                         buy_score += 20
                                         bullish_count += 1
                                         key_indicators_list.append({"name": "MACD", "value": macd_data.get('histogram', 0), "signal": "buy", "weight": "very_high"})
                                         strengths_list.append("MACD bullish crossover detected")
                                     elif macd_crossover == 'bearish':
-                                    signal_strength -= 20
+                                        signal_strength -= 20
                                         sell_score += 20
                                         bearish_count += 1
                                         key_indicators_list.append({"name": "MACD", "value": macd_data.get('histogram', 0), "signal": "sell", "weight": "very_high"})
                                         concerns_list.append("MACD bearish crossover detected")
                                     elif macd_trend == 'bullish' and not macd_crossover:
-                                    signal_strength += 5
+                                        signal_strength += 5
                                         buy_score += 5
                                         bullish_count += 1
                                     elif macd_trend == 'bearish' and not macd_crossover:
-                                    signal_strength -= 5
+                                        signal_strength -= 5
                                         sell_score += 5
                                         bearish_count += 1
                                     else:
@@ -992,11 +992,11 @@ class AIService:
                                     if 'ma50' in indicators:
                                         ma50_signal = indicators['ma50'].get('signal', 'neutral')
                                         if ma50_signal == 'buy':
-                                signal_strength += 5
+                                            signal_strength += 5
                                             buy_score += 5
                                             bullish_count += 1
                                         elif ma50_signal == 'sell':
-                                signal_strength -= 5
+                                            signal_strength -= 5
                                             sell_score += 5
                                             bearish_count += 1
                                         else:
@@ -1005,11 +1005,11 @@ class AIService:
                                     if 'ma200' in indicators:
                                         ma200_signal = indicators['ma200'].get('signal', 'neutral')
                                         if ma200_signal == 'buy':
-                                signal_strength += 8
+                                            signal_strength += 8
                                             buy_score += 8
                                             bullish_count += 1
                                         elif ma200_signal == 'sell':
-                                signal_strength -= 8
+                                            signal_strength -= 8
                                             sell_score += 8
                                             bearish_count += 1
                                         else:
@@ -1090,7 +1090,7 @@ class AIService:
                                 if 'cci' in indicators:
                                     cci_val = indicators['cci'].get('value', 0)
                                     if cci_val > 150:
-                                    signal_strength += 8
+                                        signal_strength += 8
                                         buy_score += 8
                                         bullish_count += 1
                                     elif cci_val < -150:
@@ -1116,7 +1116,7 @@ class AIService:
                                         buy_score += 8
                                         bullish_count += 1
                                     elif adx.get('strength') == 'strong' and adx.get('direction') == 'bearish':
-                                    signal_strength -= 8
+                                        signal_strength -= 8
                                         sell_score += 8
                                         bearish_count += 1
                                     else:
@@ -1168,11 +1168,11 @@ class AIService:
                                 if 'momentum' in indicators:
                                     momentum = indicators['momentum']
                                     if momentum.get('short_term') == 'bullish':
-                                signal_strength += 5
+                                        signal_strength += 5
                                         buy_score += 5
                                         bullish_count += 1
                                     elif momentum.get('short_term') == 'bearish':
-                                signal_strength -= 5
+                                        signal_strength -= 5
                                         sell_score += 5
                                         bearish_count += 1
                                     else:
@@ -1263,11 +1263,11 @@ class AIService:
                                 correlation_beta = self._calculate_correlation_and_beta(df, symbol, 'BTC')
                                 if correlation_beta:
                                     if correlation_beta.get('outperforming'):
-                                signal_strength += 3
+                                        signal_strength += 3
                                         buy_score += 3
                                         bullish_count += 1
                                     elif correlation_beta.get('underperforming'):
-                                signal_strength -= 3
+                                        signal_strength -= 3
                                         sell_score += 3
                                         bearish_count += 1
                                     else:
@@ -1676,7 +1676,7 @@ class AIService:
                         'current_price': float(current_price)
                     }
                 
-        except Exception as e:
+                except Exception as e:
                     self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
                     return self._mock_predict_price(symbol, asset_type, days_ahead)
                                     else:
@@ -1713,7 +1713,7 @@ class AIService:
             
             return headlines[:max_articles]
         
-                except Exception as e:
+        except Exception as e:
             self.logger.warning(f"Error fetching news for {symbol}: {e}")
             return self._get_mock_news_headlines(symbol)
 
@@ -1811,7 +1811,7 @@ class AIService:
                             'status': 'no_results'
                         }
                 
-        except Exception as e:
+                except Exception as e:
                     self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
                     return {
                         'symbol': symbol,
@@ -1851,7 +1851,7 @@ class AIService:
                     'total_articles': len(headlines)
                 }
         
-                except Exception as e:
+        except Exception as e:
                             self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
             return {
                 'symbol': symbol,
@@ -1957,7 +1957,7 @@ class AIService:
                                             'message': f'{symbol} has {volume_ratio:.1f}x average volume drop'
                                         })
                     
-        except Exception as e:
+                    except Exception as e:
                         self.logger.debug(f"Error detecting anomalies for {symbol}: {e}")
             
             # 2. Allocation drift anomalies
@@ -2013,7 +2013,7 @@ class AIService:
                                                     'pair': f'{sym1}-{sym2}',
                                                     'correlation': float(corr)
                                                 })
-                except Exception:
+                            except Exception:
                                 continue
                     
                     # Check for unexpected low correlations (would need historical baseline)
@@ -2054,7 +2054,7 @@ class AIService:
                 'warning_count': warning_count
             }
         
-                except Exception as e:
+        except Exception as e:
             self.logger.error(f"Error in detect_anomalies: {e}", exc_info=True)
         return {
                 'anomalies': [],
@@ -2106,7 +2106,7 @@ class AIService:
                             returns = df['close'].pct_change().dropna()
                             if len(returns) >= 30:
                                 returns_data[symbol] = returns.values
-        except Exception as e:
+                except Exception as e:
                                 self.logger.debug(f"Error getting returns for {symbol}: {e}")
             
             if len(returns_data) < 2:
@@ -2134,7 +2134,7 @@ class AIService:
                 valid_symbols.append(symbol)
             
             if len(returns_list) < 2:
-            return {
+                return {
                     'suggested_allocation': current_holdings,
                     'optimization_method': 'none',
                     'status': 'insufficient_data'
@@ -2244,7 +2244,7 @@ class AIService:
                 }
         
             except Exception as e:
-            self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
+                self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
         return {
                 'suggested_allocation': current_holdings,
                 'optimization_method': 'none',
@@ -2316,7 +2316,7 @@ class AIService:
                         
                         if filtered_data:
                             historical_data[symbol] = sorted(filtered_data, key=lambda x: x.get('timestamp', x.get('date', '')))
-        except Exception as e:
+                except Exception as e:
                     self.logger.warning(f"Error getting data for {symbol}: {e}")
             
             if not historical_data:
