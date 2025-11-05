@@ -33,6 +33,17 @@ import {
   Cancel,
   Warning,
 } from '@mui/icons-material';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Label,
+} from 'recharts';
 
 interface ConfluenceEntrySignal {
   entry_signal: 'buy' | 'sell' | 'hold';
@@ -696,6 +707,50 @@ const ConfluenceStrategyDashboard: React.FC = () => {
                     </CardContent>
                   </Card>
                 </Grid>
+                
+                {backtestResult.equity_curve && backtestResult.equity_curve.length > 0 && (
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>Equity Curve</Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <LineChart data={backtestResult.equity_curve}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="date" 
+                              tick={{ fontSize: 12 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                            />
+                            <YAxis 
+                              tick={{ fontSize: 12 }}
+                              tickFormatter={(value) => `$${value.toFixed(0)}`}
+                            />
+                            <Tooltip 
+                              formatter={(value: number) => `$${value.toFixed(2)}`}
+                              labelFormatter={(label) => `Date: ${label}`}
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="value" 
+                              stroke="#2563eb" 
+                              strokeWidth={2}
+                              dot={false}
+                              name="Portfolio Value"
+                            />
+                            <ReferenceLine 
+                              y={backtestResult.initial_capital} 
+                              stroke="#666" 
+                              strokeDasharray="3 3"
+                              label="Initial Capital"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
                 
                 {backtestResult.trade_history && backtestResult.trade_history.length > 0 && (
                   <Grid item xs={12}>
