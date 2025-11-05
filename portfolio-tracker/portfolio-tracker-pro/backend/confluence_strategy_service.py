@@ -695,6 +695,13 @@ class ConfluenceStrategyService:
                     self.logger.debug(f"ATR calculation failed: {e}")
             
             # Calculate Stop Loss: entry_price - (2 * ATR) for long position
+            if entry_price is None or entry_price <= 0:
+                return {
+                    'exit_signal': 'hold',
+                    'exit_reason': 'invalid_entry_price',
+                    'error': 'Invalid entry price'
+                }
+            
             if atr_value is not None and atr_value > 0:
                 stop_loss = entry_price - (2 * atr_value)
             else:
@@ -958,7 +965,23 @@ class ConfluenceStrategyService:
                     temp_df = pd.DataFrame(data_up_to_current)
                     entry_analysis = self._analyze_entry_for_backtest(temp_df, symbol, min_confluence_score, min_confidence)
                     
+                    # Log signal generation for debugging
+                    if i % 50 == 0 or entry_analysis.get('confluence_score', 0) >= 3:
+                        self.logger.debug(
+                            f"Backtest {symbol} [{i}/{len(filtered_data)}]: "
+                            f"signal={entry_analysis.get('entry_signal')}, "
+                            f"confluence={entry_analysis.get('confluence_score')}/6, "
+                            f"confidence={entry_analysis.get('confidence', 0):.2f}, "
+                            f"thresholds: min_conf={min_confluence_score}, min_conf={min_confidence}"
+                        )
+                    
                     if entry_analysis.get('entry_signal') == 'buy':
+                        self.logger.info(
+                            f"✅ ENTRY SIGNAL for {symbol} at candle {i}: "
+                            f"price=${current_price:.2f}, "
+                            f"confluence={entry_analysis.get('confluence_score')}, "
+                            f"confidence={entry_analysis.get('confidence', 0):.2f}"
+                        )
                         entry_price = entry_analysis.get('entry_price', current_price)
                         
                         # Calculate position size based on risk
@@ -1279,10 +1302,24 @@ class ConfluenceStrategyService:
             if confluence_score >= min_confluence_score and confidence >= min_confidence:
                 entry_signal = 'buy'
                 self.logger.debug(
-                    f"Backtest entry signal: {symbol}, "
-                    f"confluence={confluence_score}, confidence={confidence:.2f}, "
-                    f"thresholds: min_conf={min_confluence_score}, min_conf={min_confidence}"
+                    f"✅ Backtest BUY signal: {symbol}, "
+                    f"confluence={confluence_score}/{min_confluence_score}, "
+                    f"confidence={confidence:.2f}/{min_confidence}, "
+                    f"EMA: golden_cross={ema_analysis.get('golden_cross') if ema_analysis else False}, "
+                    f"RSI_ok={indicators.get('rsi', {}).get('value') if indicators and 'rsi' in indicators else 'N/A'}"
                 )
+            else:
+                # Log why signal was rejected
+                if confluence_score < min_confluence_score:
+                    self.logger.debug(
+                        f"❌ Signal rejected: {symbol}, "
+                        f"confluence={confluence_score} < {min_confluence_score}"
+                    )
+                elif confidence < min_confidence:
+                    self.logger.debug(
+                        f"❌ Signal rejected: {symbol}, "
+                        f"confidence={confidence:.2f} < {min_confidence}"
+                    )
             
             entry_price = float(df['close'].iloc[-1]) if 'close' in df.columns else 0.0
             
