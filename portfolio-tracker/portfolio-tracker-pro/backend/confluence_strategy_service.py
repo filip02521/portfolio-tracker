@@ -1054,6 +1054,11 @@ class ConfluenceStrategyService:
                         )
                         entry_price = entry_analysis.get('entry_price', current_price)
                         
+                        if entry_price <= 0:
+                            self.logger.warning(f"Invalid entry_price for {symbol}: {entry_price}, skipping")
+                            equity_curve.append(cash)
+                            continue
+                        
                         # Calculate position size based on risk
                         exit_analysis = self.analyze_exit_signals(
                             symbol=symbol,
@@ -1066,17 +1071,34 @@ class ConfluenceStrategyService:
                             risk_per_trade=risk_per_trade
                         )
                         
+                        if exit_analysis.get('error'):
+                            self.logger.warning(f"Error calculating exit signals for {symbol}: {exit_analysis.get('error')}, skipping entry")
+                            equity_curve.append(cash)
+                            continue
+                        
                         stop_loss = exit_analysis.get('stop_loss')
                         if stop_loss is None or stop_loss <= 0:
                             # Fallback to 5% stop loss if not set
                             stop_loss = entry_price * 0.95
+                            self.logger.debug(f"Using fallback stop loss: {stop_loss:.2f} (5% below entry)")
                         
                         risk_amount = entry_price - stop_loss
+                        
+                        if risk_amount <= 0:
+                            self.logger.warning(f"Invalid risk_amount for {symbol}: {risk_amount} (entry=${entry_price:.2f}, SL=${stop_loss:.2f}), skipping")
+                            equity_curve.append(cash)
+                            continue
                         
                         if risk_amount > 0 and stop_loss > 0:
                             max_risk = cash * risk_per_trade
                             position_shares = max_risk / risk_amount
                             position_value = position_shares * entry_price
+                            
+                            self.logger.debug(
+                                f"Position calculation: cash=${cash:.2f}, max_risk=${max_risk:.2f}, "
+                                f"risk_amount=${risk_amount:.2f}, shares={position_shares:.4f}, "
+                                f"position_value=${position_value:.2f}"
+                            )
                             
                             if position_value <= cash and stop_loss > 0:
                                 position_entry_price = entry_price
