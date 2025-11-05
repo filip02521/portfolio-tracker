@@ -194,8 +194,8 @@ class AIService:
                             'status': 'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral',
                             'signal': 'buy' if rsi < 30 else 'sell' if rsi > 70 else 'neutral'
                         }
-            except Exception as e:
-                self.logger.debug(f"RSI calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"RSI calculation failed: {e}")
             else:
                 # Manual RSI calculation
                 try:
@@ -230,7 +230,7 @@ class AIService:
                             'status': 'oversold' if stoch_k < 20 else 'overbought' if stoch_k > 80 else 'neutral',
                             'signal': 'buy' if stoch_k < 20 else 'sell' if stoch_k > 80 else ('buy' if stoch_k > stoch_d else 'sell' if stoch_k < stoch_d else 'neutral')
                         }
-            except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"Stochastic calculation failed: {e}")
             
             # 3. Williams %R
@@ -244,8 +244,8 @@ class AIService:
                             'status': 'oversold' if willr_val < -80 else 'overbought' if willr_val > -20 else 'neutral',
                             'signal': 'buy' if willr_val < -80 else 'sell' if willr_val > -20 else 'neutral'
                         }
-            except Exception as e:
-                self.logger.debug(f"Williams %R calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"Williams %R calculation failed: {e}")
             
             # 4. Money Flow Index (MFI)
             if TA_AVAILABLE:
@@ -258,8 +258,8 @@ class AIService:
                             'status': 'oversold' if mfi_val < 20 else 'overbought' if mfi_val > 80 else 'neutral',
                             'signal': 'buy' if mfi_val < 20 else 'sell' if mfi_val > 80 else 'neutral'
                         }
-            except Exception as e:
-                self.logger.debug(f"MFI calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"MFI calculation failed: {e}")
             
             # 5. CCI (Commodity Channel Index)
             if TA_AVAILABLE:
@@ -272,8 +272,8 @@ class AIService:
                             'status': 'strong_bullish' if cci_val > 150 else 'strong_bearish' if cci_val < -150 else ('bullish' if cci_val > 100 else 'bearish' if cci_val < -100 else 'neutral'),
                             'signal': 'buy' if cci_val > 150 else 'sell' if cci_val < -150 else ('buy' if cci_val > 100 else 'sell' if cci_val < -100 else 'neutral')
                         }
-            except Exception as e:
-                self.logger.debug(f"CCI calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"CCI calculation failed: {e}")
             
             # ========== TREND INDICATORS ==========
             
@@ -368,8 +368,8 @@ class AIService:
                             'position': 'below' if current_price > psar_val else 'above',
                             'signal': 'buy' if current_price > psar_val else 'sell'
                         }
-            except Exception as e:
-                self.logger.debug(f"Parabolic SAR calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"Parabolic SAR calculation failed: {e}")
             
             # ========== VOLATILITY INDICATORS ==========
             
@@ -525,8 +525,8 @@ class AIService:
                             'status': 'accumulation' if cmf > 0.1 else 'distribution' if cmf < -0.1 else 'neutral',
                             'signal': 'buy' if cmf > 0.1 else 'sell' if cmf < -0.1 else 'neutral'
                         }
-            except Exception as e:
-                self.logger.debug(f"CMF calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"CMF calculation failed: {e}")
             
             # 18. Volume ROC (Rate of Change)
             try:
