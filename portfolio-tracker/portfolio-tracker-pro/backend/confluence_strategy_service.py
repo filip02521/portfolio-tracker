@@ -1052,7 +1052,7 @@ class ConfluenceStrategyService:
                     # This ensures we catch TP/SL hits even if exit_analysis doesn't return correct signal
                     
                     # Check Take Profit 1 (R:R 1:2) - sell 50%
-                    if not position_tp1_sold and position_tp1 and current_price >= position_tp1:
+                    if not position_tp1_sold and position_tp1 is not None and position_tp1 > 0 and current_price >= position_tp1:
                         shares_to_sell = position_shares * 0.5
                         sell_value = shares_to_sell * current_price
                         cash += sell_value
@@ -1076,7 +1076,7 @@ class ConfluenceStrategyService:
                         continue  # Skip other exit checks for this iteration
                     
                     # Check Take Profit 2 (R:R 1:3) - sell additional 25%
-                    elif position_tp1_sold and not position_tp2_sold and position_tp2 and current_price >= position_tp2:
+                    elif position_tp1_sold and not position_tp2_sold and position_tp2 is not None and position_tp2 > 0 and current_price >= position_tp2:
                         shares_to_sell = position_shares * 0.5  # 50% of remaining = 25% of original
                         sell_value = shares_to_sell * current_price
                         cash += sell_value
