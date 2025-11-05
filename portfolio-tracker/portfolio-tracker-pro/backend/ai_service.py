@@ -303,8 +303,8 @@ class AIService:
                             'trend': 'bullish' if macd_line > signal_line else 'bearish',
                             'crossover': crossover
                         }
-            except Exception as e:
-                self.logger.debug(f"MACD calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"MACD calculation failed: {e}")
             
             # 7. Moving Averages (MA50, MA200)
             if TA_AVAILABLE:
