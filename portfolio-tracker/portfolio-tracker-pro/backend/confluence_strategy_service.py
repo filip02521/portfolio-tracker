@@ -1107,6 +1107,22 @@ class ConfluenceStrategyService:
                     if position_high_price is None or current_price > position_high_price:
                         position_high_price = current_price
                     
+                    # NEW: Move SL to BE (Break Even) when R:R 1:1 is reached (from report)
+                    if position_entry_price and position_initial_sl:
+                        risk_amount_initial = position_entry_price - position_initial_sl
+                        if risk_amount_initial > 0:
+                            current_return_pct = ((current_price - position_entry_price) / position_entry_price) * 100
+                            rr_1_1_pct = (risk_amount_initial / position_entry_price) * 100
+                            
+                            # If we've reached R:R 1:1 (profit = initial risk), move SL to BE
+                            if current_return_pct >= rr_1_1_pct and position_stop_loss < position_entry_price:
+                                position_stop_loss = position_entry_price
+                                self.logger.info(
+                                    f"🔒 SL MOVED TO BE: {symbol} @ ${current_price:.2f}, "
+                                    f"return={current_return_pct:.2f}% (R:R 1:1 reached, threshold={rr_1_1_pct:.2f}%), "
+                                    f"SL moved from ${position_initial_sl:.2f} to ${position_entry_price:.2f} (BE)"
+                                )
+                    
                     exit_analysis = self.analyze_exit_signals(
                         symbol=symbol,
                         entry_price=position_entry_price,
