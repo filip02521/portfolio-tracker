@@ -194,8 +194,8 @@ class AIService:
                             'status': 'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral',
                             'signal': 'buy' if rsi < 30 else 'sell' if rsi > 70 else 'neutral'
                         }
-                except Exception as e:
-                    self.logger.debug(f"RSI calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"RSI calculation failed: {e}")
             else:
                 # Manual RSI calculation
                 try:
@@ -526,8 +526,8 @@ class AIService:
                             'status': 'accumulation' if cmf > 0.1 else 'distribution' if cmf < -0.1 else 'neutral',
                             'signal': 'buy' if cmf > 0.1 else 'sell' if cmf < -0.1 else 'neutral'
                         }
-                except Exception as e:
-                                        self.logger.debug(f"CMF calculation failed: {e}")
+            except Exception as e:
+                                    self.logger.debug(f"CMF calculation failed: {e}")
             
             # 18. Volume ROC (Rate of Change)
             try:
@@ -537,7 +537,7 @@ class AIService:
                         'value': float(volume_roc),
                         'signal': 'buy' if volume_roc > 20 else 'sell' if volume_roc < -20 else 'neutral'
                     }
-            except Exception as e:
+                except Exception as e:
                                 self.logger.debug(f"Volume ROC calculation failed: {e}")
             
             # ========== MOMENTUM INDICATORS ==========
@@ -554,8 +554,8 @@ class AIService:
                         'short_term': 'bullish' if momentum_7d > 5 else 'bearish' if momentum_7d < -5 else 'neutral',
                         'long_term': 'bullish' if momentum_30d > 10 else 'bearish' if momentum_30d < -10 else 'neutral'
                     }
-                except Exception as e:
-                    self.logger.debug(f"Momentum calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"Momentum calculation failed: {e}")
             
             # Save to cache
             self._save_to_cache(self._technical_indicators_cache, cache_key, indicators)
@@ -2106,8 +2106,8 @@ class AIService:
                             returns = df['close'].pct_change().dropna()
                             if len(returns) >= 30:
                                 returns_data[symbol] = returns.values
-                except Exception as e:
-                                    self.logger.debug(f"Error getting returns for {symbol}: {e}")
+            except Exception as e:
+                                self.logger.debug(f"Error getting returns for {symbol}: {e}")
             
             if len(returns_data) < 2:
                 # Fallback: simple equal-weight or risk-based allocation
@@ -2316,8 +2316,8 @@ class AIService:
                         
                         if filtered_data:
                             historical_data[symbol] = sorted(filtered_data, key=lambda x: x.get('timestamp', x.get('date', '')))
-                except Exception as e:
-                    self.logger.warning(f"Error getting data for {symbol}: {e}")
+            except Exception as e:
+                self.logger.warning(f"Error getting data for {symbol}: {e}")
             
             if not historical_data:
                 return {
