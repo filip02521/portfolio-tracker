@@ -1649,7 +1649,8 @@ class ConfluenceStrategyService:
                 'entry_signal': entry_signal,
                 'confidence': confidence,
                 'confluence_score': confluence_score,
-                'entry_price': entry_price
+                'entry_price': entry_price,
+                'indicators': indicators  # NEW: Include indicators for RSI tracking
             }
         except Exception as e:
             self.logger.debug(f"Error in _analyze_entry_for_backtest: {e}")
