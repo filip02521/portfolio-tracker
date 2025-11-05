@@ -1100,7 +1100,8 @@ class ConfluenceStrategyService:
                                 f"position_value=${position_value:.2f}"
                             )
                             
-                            if position_value <= cash and stop_loss > 0:
+                            # Allow small floating point differences (0.01 tolerance)
+                            if position_value <= cash + 0.01 and stop_loss > 0 and position_shares > 0:
                                 position_entry_price = entry_price
                                 position_entry_date = candle_date_str
                                 position_stop_loss = stop_loss  # Already validated above
@@ -1428,6 +1429,10 @@ class ConfluenceStrategyService:
                 
                 return_pct = ((final_price - position_entry_price) / position_entry_price) * 100 if position_entry_price else 0
                 
+                # Calculate entry value for this position
+                entry_value = position_shares * position_entry_price if position_entry_price else 0
+                pnl = sell_value - entry_value
+                
                 trade_history.append({
                     'date': final_date,
                     'action': 'sell',
@@ -1435,12 +1440,16 @@ class ConfluenceStrategyService:
                     'shares': position_shares,
                     'value': sell_value,
                     'reason': 'end_of_backtest',
-                    'return_pct': return_pct
+                    'return_pct': return_pct,
+                    'entry_price': position_entry_price,
+                    'entry_value': entry_value,
+                    'pnl': pnl
                 })
                 
                 self.logger.info(
                     f"🔚 CLOSING POSITION at end: {symbol} @ ${final_price:.2f}, "
-                    f"shares={position_shares:.4f}, return={return_pct:.2f}%"
+                    f"shares={position_shares:.4f}, entry=${position_entry_price:.2f}, "
+                    f"return={return_pct:.2f}%, P&L=${pnl:.2f}"
                 )
                 
                 equity_curve[-1] = cash
@@ -1543,9 +1552,27 @@ class ConfluenceStrategyService:
                             del open_positions[entry_idx]
             
             # Handle any remaining open positions (closed at end of backtest)
-            # These are already counted in final_value, so we don't double-count them
+            # Count them as trades too
+            for entry_idx in open_positions.keys():
+                pos = open_positions[entry_idx]
+                if pos['shares'] > 0:
+                    # Position was closed at end of backtest (already in final_value)
+                    # Count it as a trade for statistics
+                    # We can't calculate exact P&L without knowing the final price,
+                    # but we can see if it was profitable based on final_value vs initial
+                    # For now, we'll count it separately
+                    pass  # Final value already accounts for this, just need to count as trade
             
             total_trades = winning_trades + losing_trades
+            # Count positions closed at end of backtest as trades
+            if position_shares > 0 and position_entry_price:
+                # There was an open position at end - count it
+                total_trades += 1
+                final_return_pct = ((final_value - initial_capital) / initial_capital) * 100 if initial_capital > 0 else 0
+                if final_return_pct > 0:
+                    winning_trades += 1
+                elif final_return_pct < 0:
+                    losing_trades += 1
             win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
             profit_factor = (total_profit / total_loss) if total_loss > 0 else (total_profit if total_profit > 0 else 0)
             
