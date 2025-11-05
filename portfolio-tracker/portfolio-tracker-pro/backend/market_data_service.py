@@ -733,14 +733,30 @@ class MarketDataService:
                     }
                     
                     # Use history() method for historical data
-                    if interval == '1h':
-                        hist = ticker.history(start=start_date, end=end_date, interval='1h')
-                    elif interval == '1d':
-                        hist = ticker.history(start=start_date, end=end_date, interval='1d')
-                    elif interval == '1w':
-                        hist = ticker.history(start=start_date, end=end_date, interval='1wk')
-                    else:
-                        hist = ticker.history(start=start_date, end=end_date, interval='1d')
+                    # Try period first (more reliable), then fallback to start/end dates
+                    try:
+                        if interval == '1h':
+                            hist = ticker.history(period='1mo', interval='1h')
+                        elif interval == '1d':
+                            hist = ticker.history(period='6mo', interval='1d')
+                        elif interval == '1w':
+                            hist = ticker.history(period='2y', interval='1wk')
+                        else:
+                            hist = ticker.history(period='6mo', interval='1d')
+                    except Exception:
+                        # Fallback to start/end dates if period fails
+                        try:
+                            if interval == '1h':
+                                hist = ticker.history(start=start_date, end=end_date, interval='1h')
+                            elif interval == '1d':
+                                hist = ticker.history(start=start_date, end=end_date, interval='1d')
+                            elif interval == '1w':
+                                hist = ticker.history(start=start_date, end=end_date, interval='1wk')
+                            else:
+                                hist = ticker.history(start=start_date, end=end_date, interval='1d')
+                        except Exception as e2:
+                            logger.debug(f"Yahoo Finance history() failed for {symbol}: {e2}")
+                            hist = pd.DataFrame()
                     
                     if not hist.empty:
                         series = []
