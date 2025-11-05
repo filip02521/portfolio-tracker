@@ -354,8 +354,8 @@ class AIService:
                             'direction': 'bullish' if adx_pos > adx_neg else 'bearish',
                             'signal': 'buy' if adx > 25 and adx_pos > adx_neg else 'sell' if adx > 25 and adx_neg > adx_pos else 'neutral'
                         }
-            except Exception as e:
-                self.logger.debug(f"ADX calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"ADX calculation failed: {e}")
             
             # 9. Parabolic SAR
             if TA_AVAILABLE:
@@ -385,8 +385,8 @@ class AIService:
                             'percent': float(atr_percent),
                             'volatility': 'high' if atr_percent > 3 else 'medium' if atr_percent > 1.5 else 'low'
                         }
-            except Exception as e:
-                self.logger.debug(f"ATR calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"ATR calculation failed: {e}")
             
             # 11. Bollinger Bands
             if TA_AVAILABLE:
