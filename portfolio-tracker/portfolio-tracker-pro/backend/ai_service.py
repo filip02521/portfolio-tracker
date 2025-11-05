@@ -336,7 +336,8 @@ class AIService:
                             'death_cross': ma50 < ma200,
                             'signal': 'buy' if ma50 > ma200 else 'sell'
                         }
-            except Exception as e:
+                except Exception as e:
+                                    self.logger.debug(f"Moving Averages calculation failed: {e}")
                                     self.logger.debug(f"Moving Averages calculation failed: {e}")
             
             # 8. ADX (Average Directional Index)
