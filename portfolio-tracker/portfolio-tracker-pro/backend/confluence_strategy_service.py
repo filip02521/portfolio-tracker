@@ -1132,6 +1132,17 @@ class ConfluenceStrategyService:
                                     f"SL moved from ${position_initial_sl:.2f} to ${position_entry_price:.2f} (BE)"
                                 )
                     
+                    # NEW: Track RSI for reversal detection (when position is open)
+                    temp_df_exit = pd.DataFrame(data_up_to_current)
+                    indicators_exit = self._get_indicators_from_ai_service(temp_df_exit, symbol)
+                    if indicators_exit and 'rsi' in indicators_exit:
+                        rsi_val = indicators_exit['rsi'].get('value')
+                        if rsi_val is not None:
+                            rsi_history.append(rsi_val)
+                            # Keep only last 10 RSI values
+                            if len(rsi_history) > 10:
+                                rsi_history.pop(0)
+                    
                     exit_analysis = self.analyze_exit_signals(
                         symbol=symbol,
                         entry_price=position_entry_price,
@@ -1142,6 +1153,11 @@ class ConfluenceStrategyService:
                         portfolio_value=cash + (position_shares * current_price),
                         risk_per_trade=risk_per_trade
                     )
+                    
+                    # NEW: Pass RSI history to exit_analysis for reversal detection
+                    if rsi_history and len(rsi_history) >= 2 and 'indicators' in exit_analysis:
+                        if 'rsi' in exit_analysis['indicators']:
+                            exit_analysis['indicators']['rsi']['rsi_history'] = rsi_history
                     
                     exit_signal = exit_analysis.get('exit_signal', 'hold')
                     exit_reason = exit_analysis.get('exit_reason')
