@@ -122,8 +122,8 @@ class AIService:
                 except Exception as e:
                     self.logger.warning(f"Could not initialize NewsAPI: {e}")
                     self.newsapi_client = None
-            else:
-                self.logger.info("NEWSAPI_KEY not set, using mock news data")
+        else:
+            self.logger.info("NEWSAPI_KEY not set, using mock news data")
     
     def _get_mock_news_headlines(self, symbol: str) -> List[str]:
         """Fallback mock news headlines"""
@@ -426,7 +426,7 @@ class AIService:
                     'signal': 'buy' if current_price > donchian_high else 'sell' if current_price < donchian_low else 'neutral'
                 }
             except Exception as e:
-                self.logger.debug(f"Donchian Channels calculation failed: {e}")
+                    self.logger.debug(f"Donchian Channels calculation failed: {e}")
             
             # 13. Ichimoku Cloud
             if TA_AVAILABLE:
@@ -561,7 +561,7 @@ class AIService:
             self._save_to_cache(self._technical_indicators_cache, cache_key, indicators)
             
         except Exception as e:
-            self.logger.error(f"Error calculating technical indicators: {e}", exc_info=True)
+                    self.logger.error(f"Error calculating technical indicators: {e}", exc_info=True)
         
         return indicators
 
@@ -696,8 +696,7 @@ class AIService:
                 if abs(first_trend) > 0.1 and second_volatility < 0.05:
                     if first_trend > 0:
                         patterns['bull_flag'] = {'signal': 'buy', 'weight': 12, 'confidence': 0.6}
-                    else:
-                        patterns['bear_flag'] = {'signal': 'sell', 'weight': 12, 'confidence': 0.6}
+            else:                        patterns['bear_flag'] = {'signal': 'sell', 'weight': 12, 'confidence': 0.6}
             return patterns
         except Exception as e:
             self.logger.debug(f"Error detecting chart patterns: {e}")
@@ -1206,7 +1205,7 @@ class AIService:
                                         sell_score += 8
                                         bearish_count += 1
                                         concerns_list.append("Price near resistance level")
-                            else:
+                                    else:
                                         neutral_count += 1
                                 
                                 # Volume Profile
@@ -1340,7 +1339,7 @@ class AIService:
                                                     weekly_signal_temp -= 12
                                             
                                             weekly_signal = max(-100, min(100, weekly_signal_temp))
-                            else:
+                                        else:
                                             weekly_signal = 0.0
                                     except Exception as e:
                                         self.logger.debug(f"Error calculating weekly indicators for {symbol}: {e}")
@@ -1423,7 +1422,7 @@ class AIService:
                                 # 3. Timeframe alignment (20% weight)
                                 if same_direction:
                                     alignment_conf = 1.0
-                                    else:
+                                else:
                                     alignment_conf = 0.5
                                 
                                 # 4. Volatility adjustment (10% weight) - proportional reduction
@@ -1679,7 +1678,7 @@ class AIService:
                 except Exception as e:
                     self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
                     return self._mock_predict_price(symbol, asset_type, days_ahead)
-                                    else:
+            else:
                 return self._mock_predict_price(symbol, asset_type, days_ahead)
         
         except Exception as e:
@@ -1714,7 +1713,7 @@ class AIService:
             return headlines[:max_articles]
         
         except Exception as e:
-            self.logger.warning(f"Error fetching news for {symbol}: {e}")
+                    self.logger.warning(f"Error fetching news for {symbol}: {e}")
             return self._get_mock_news_headlines(symbol)
 
     def analyze_sentiment(
@@ -1852,7 +1851,7 @@ class AIService:
                 }
         
         except Exception as e:
-                            self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
+                    self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
             return {
                 'symbol': symbol,
                 'sentiment': 'neutral',
@@ -2039,12 +2038,11 @@ class AIService:
             
             if critical_count > 0:
                 overall_severity = 'critical'
-            elif warning_count > 2:
+                                    warning_count > 2:
                 overall_severity = 'warning'
-            elif len(anomalies) > 0:
+                                    len(anomalies) > 0:
                 overall_severity = 'info'
-                else:
-                overall_severity = 'none'
+                                else:                overall_severity = 'none'
             
             return {
                 'anomalies': anomalies,
@@ -2055,7 +2053,7 @@ class AIService:
             }
         
         except Exception as e:
-            self.logger.error(f"Error in detect_anomalies: {e}", exc_info=True)
+                    self.logger.error(f"Error in detect_anomalies: {e}", exc_info=True)
         return {
                 'anomalies': [],
                 'total_anomalies': 0,
@@ -2243,7 +2241,7 @@ class AIService:
                     'current_holdings': current_holdings
                 }
         
-            except Exception as e:
+        except Exception as e:
                 self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
         return {
                 'suggested_allocation': current_holdings,
@@ -2379,7 +2377,7 @@ class AIService:
                                     'value': shares * current_prices[symbol]
                                 })
                 
-                elif strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
+            strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
                     # Get AI recommendations for this date
                     if self.market_data_service:
                         # Build current holdings dict
@@ -2410,10 +2408,10 @@ class AIService:
                     if strategy == 'follow_ai':
                                     if signal_strength > signal_threshold or signal_strength < -signal_threshold:
                                         filtered_recommendations.append(rec)
-                    elif strategy == 'high_confidence':
+                            strategy == 'high_confidence':
                                     if signal_strength > 50 or signal_strength < -50:
                                         filtered_recommendations.append(rec)
-                    elif strategy == 'weighted_allocation':
+                        strategy == 'weighted_allocation':
                                     filtered_recommendations.append(rec)
                             
                             # Execute trades
@@ -2489,8 +2487,7 @@ class AIService:
                 avg_return = np.mean(returns)
                 std_return = np.std(returns)
                 sharpe_ratio = (avg_return / std_return) if std_return > 0 else 0
-                else:
-                sharpe_ratio = 0.0
+                                else:                sharpe_ratio = 0.0
             
             # CAGR (using actual weekly periods, not calendar days)
             num_periods = len(equity_curve) - 1  # Number of weekly periods
