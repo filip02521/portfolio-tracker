@@ -401,7 +401,7 @@ class AIService:
                         # Calculate position as percentage between bands
                         if bb_upper != bb_lower:
                             position = ((current_price - bb_lower) / (bb_upper - bb_lower)) * 100
-            else:
+                        else:
                             position = 50.0
                         
                         indicators['bollinger_bands'] = {
