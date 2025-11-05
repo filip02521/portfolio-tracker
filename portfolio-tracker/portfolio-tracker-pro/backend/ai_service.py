@@ -107,8 +107,8 @@ class AIService:
                                                    model="ProsusAI/finbert",
                                                    device=-1)  # CPU
                 self.logger.info("FinBERT sentiment pipeline initialized")
-                except Exception as e:
-                    self.logger.warning(f"Could not initialize FinBERT: {e}")
+            except Exception as e:
+                self.logger.warning(f"Could not initialize FinBERT: {e}")
                 self.sentiment_pipeline = None
         
         # Initialize NewsAPI client
