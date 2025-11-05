@@ -124,7 +124,7 @@ class AIService:
                     self.newsapi_client = None
             else:
                 self.logger.info("NEWSAPI_KEY not set, using mock news data")
-
+    
     def _get_mock_news_headlines(self, symbol: str) -> List[str]:
         """Fallback mock news headlines"""
         mock_headlines = {
@@ -480,8 +480,8 @@ class AIService:
                             'value': float(obv_val),
                             'trend': trend,
                             'signal': 'buy' if trend == 'increasing' else 'sell' if trend == 'decreasing' else 'neutral'
-                        }
-                except Exception as e:
+            }
+        except Exception as e:
                     self.logger.debug(f"OBV calculation failed: {e}")
             
             # 15. A/D Line (Accumulation/Distribution)
@@ -498,8 +498,8 @@ class AIService:
                             'value': float(ad_val),
                             'trend': trend,
                             'signal': 'buy' if trend == 'accumulating' else 'sell' if trend == 'distributing' else 'neutral'
-                        }
-                except Exception as e:
+            }
+        except Exception as e:
                     self.logger.debug(f"A/D Line calculation failed: {e}")
             
             # 16. VWAP (Volume Weighted Average Price)
@@ -511,8 +511,8 @@ class AIService:
                     'position': float(vwap_position),
                     'signal': 'buy' if current_price > vwap else 'sell'
                 }
-            except Exception as e:
-                self.logger.debug(f"VWAP calculation failed: {e}")
+        except Exception as e:
+                    self.logger.debug(f"VWAP calculation failed: {e}")
             
             # 17. CMF (Chaikin Money Flow)
             if TA_AVAILABLE:
@@ -536,8 +536,8 @@ class AIService:
                         'value': float(volume_roc),
                         'signal': 'buy' if volume_roc > 20 else 'sell' if volume_roc < -20 else 'neutral'
                     }
-            except Exception as e:
-                self.logger.debug(f"Volume ROC calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"Volume ROC calculation failed: {e}")
             
             # ========== MOMENTUM INDICATORS ==========
             
@@ -553,8 +553,8 @@ class AIService:
                         'short_term': 'bullish' if momentum_7d > 5 else 'bearish' if momentum_7d < -5 else 'neutral',
                         'long_term': 'bullish' if momentum_30d > 10 else 'bearish' if momentum_30d < -10 else 'neutral'
                     }
-            except Exception as e:
-                self.logger.debug(f"Momentum calculation failed: {e}")
+                except Exception as e:
+                    self.logger.debug(f"Momentum calculation failed: {e}")
             
             # Save to cache
             self._save_to_cache(self._technical_indicators_cache, cache_key, indicators)
@@ -606,11 +606,11 @@ class AIService:
             current_price = float(df['close'].iloc[-1])
             current_price_position = 'neutral'
             if current_price < val_price:
-                current_price_position = 'below_val'
+                    current_price_position = 'below_val'
             elif current_price > vah_price:
                 current_price_position = 'above_vah'
             elif abs(current_price - poc_price) / poc_price < 0.02:
-                current_price_position = 'at_poc'
+                    current_price_position = 'at_poc'
             else:
                 current_price_position = 'within_va'
             return {'poc_price': poc_price, 'vah_price': vah_price, 'val_price': val_price, 'current_price_position': current_price_position, 'total_volume': float(total_volume)}
@@ -695,7 +695,7 @@ class AIService:
                 if abs(first_trend) > 0.1 and second_volatility < 0.05:
                     if first_trend > 0:
                         patterns['bull_flag'] = {'signal': 'buy', 'weight': 12, 'confidence': 0.6}
-                    else:
+                else:
                         patterns['bear_flag'] = {'signal': 'sell', 'weight': 12, 'confidence': 0.6}
             return patterns
         except Exception as e:
@@ -745,7 +745,7 @@ class AIService:
                 benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 30)
                 if not benchmark_data or len(benchmark_data) < 10:
                     return {}
-            except:
+                except:
                 return {}
             asset_returns = df['close'].pct_change().dropna().values
             benchmark_returns = pd.Series([d.get('close', 0) for d in benchmark_data]).pct_change().dropna().values
@@ -764,7 +764,7 @@ class AIService:
                 beta = np.cov(asset_returns, benchmark_returns)[0, 1] / np.var(benchmark_returns)
                 if np.isnan(beta):
                     beta = 1.0
-            else:
+                        else:
                 beta = 1.0
             asset_total_return = (asset_returns + 1).prod() - 1
             benchmark_total_return = (benchmark_returns + 1).prod() - 1
@@ -794,7 +794,7 @@ class AIService:
             portfolio_holdings: Current portfolio allocation {symbol: percentage}
             target_allocation: Target allocation {symbol: target_percentage}
             rebalance_threshold: Minimum drift threshold to trigger recommendation (default 0.05 = 5%)
-        
+            
         Returns:
             Dictionary with recommendations list and metadata
         """
@@ -847,6 +847,13 @@ class AIService:
                 concerns_list = []
                 indicators = {}
                 
+                # Track indicator consensus for quality scoring
+                bullish_count = 0
+                bearish_count = 0
+                neutral_count = 0
+                has_golden_cross = False
+                has_inverse_h_and_s = False
+                
                 # For stablecoins, use simple allocation drift logic only
                 if symbol in stablecoins:
                     if abs(allocation_drift) >= rebalance_threshold:
@@ -854,8 +861,8 @@ class AIService:
                         priority = "medium" if abs(allocation_drift) >= 0.10 else "low"
                         reason = f"Allocation drift: {allocation_drift*100:.1f}% from target"
                         
-                        recommendations.append({
-                            "asset": symbol,
+                            recommendations.append({
+                                "asset": symbol,
                             "symbol": symbol,
                             "action": action,
                             "priority": priority,
@@ -879,8 +886,8 @@ class AIService:
                             "metrics": {}
                         })
                     processed_symbols.add(symbol)
-                    continue
-                
+                        continue
+                    
                 # For non-stablecoins, perform comprehensive technical analysis
                 if self.market_data_service:
                     try:
@@ -921,15 +928,19 @@ class AIService:
                                 if 'rsi' in indicators:
                                     rsi_val = indicators['rsi'].get('value', 50)
                                     if rsi_val < 30:
-                                        signal_strength += 15
+                                signal_strength += 15
                                         buy_score += 15
+                                        bullish_count += 1
                                         key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "buy", "weight": "high"})
                                         strengths_list.append("RSI indicates oversold condition")
                                     elif rsi_val > 70:
-                                        signal_strength -= 15
+                                signal_strength -= 15
                                         sell_score += 15
+                                        bearish_count += 1
                                         key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "sell", "weight": "high"})
                                         concerns_list.append("RSI indicates overbought condition")
+                                    else:
+                                        neutral_count += 1
                                 
                                 # MACD
                                 if 'macd' in indicators:
@@ -938,21 +949,27 @@ class AIService:
                                     macd_trend = macd_data.get('trend')
                                     
                                     if macd_crossover == 'bullish':
-                                        signal_strength += 20
+                                    signal_strength += 20
                                         buy_score += 20
+                                        bullish_count += 1
                                         key_indicators_list.append({"name": "MACD", "value": macd_data.get('histogram', 0), "signal": "buy", "weight": "very_high"})
                                         strengths_list.append("MACD bullish crossover detected")
                                     elif macd_crossover == 'bearish':
-                                        signal_strength -= 20
+                                    signal_strength -= 20
                                         sell_score += 20
+                                        bearish_count += 1
                                         key_indicators_list.append({"name": "MACD", "value": macd_data.get('histogram', 0), "signal": "sell", "weight": "very_high"})
                                         concerns_list.append("MACD bearish crossover detected")
                                     elif macd_trend == 'bullish' and not macd_crossover:
-                                        signal_strength += 5
+                                    signal_strength += 5
                                         buy_score += 5
+                                        bullish_count += 1
                                     elif macd_trend == 'bearish' and not macd_crossover:
-                                        signal_strength -= 5
+                                    signal_strength -= 5
                                         sell_score += 5
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # Golden/Death Cross (check first to avoid double-counting with MA weights)
                                 golden_cross_active = False
@@ -974,20 +991,28 @@ class AIService:
                                     if 'ma50' in indicators:
                                         ma50_signal = indicators['ma50'].get('signal', 'neutral')
                                         if ma50_signal == 'buy':
-                                            signal_strength += 5
+                                signal_strength += 5
                                             buy_score += 5
+                                            bullish_count += 1
                                         elif ma50_signal == 'sell':
-                                            signal_strength -= 5
+                                signal_strength -= 5
                                             sell_score += 5
+                                            bearish_count += 1
+                                        else:
+                                            neutral_count += 1
                                     
                                     if 'ma200' in indicators:
                                         ma200_signal = indicators['ma200'].get('signal', 'neutral')
                                         if ma200_signal == 'buy':
-                                            signal_strength += 8
+                                signal_strength += 8
                                             buy_score += 8
+                                            bullish_count += 1
                                         elif ma200_signal == 'sell':
-                                            signal_strength -= 8
+                                signal_strength -= 8
                                             sell_score += 8
+                                            bearish_count += 1
+                            else:
+                                            neutral_count += 1
                                 
                                 # Bollinger Bands
                                 if 'bollinger_bands' in indicators:
@@ -996,22 +1021,39 @@ class AIService:
                                     if bb_signal == 'buy':
                                         signal_strength += 12
                                         buy_score += 12
+                                        bullish_count += 1
                                         key_indicators_list.append({"name": "Bollinger", "value": bb.get('position', 50), "signal": "buy", "weight": "high"})
                                     elif bb_signal == 'sell':
                                         signal_strength -= 12
                                         sell_score += 12
+                                        bearish_count += 1
                                         key_indicators_list.append({"name": "Bollinger", "value": bb.get('position', 50), "signal": "sell", "weight": "high"})
+                            else:
+                                        neutral_count += 1
                                 
                                 # Stochastic
                                 if 'stochastic' in indicators:
                                     stoch = indicators['stochastic']
                                     stoch_k = stoch.get('k', 50)
+                                    stoch_d = stoch.get('d', 50)
                                     if stoch_k < 20:
-                                        signal_strength += 8
+                                    signal_strength += 8
                                         buy_score += 8
+                                        bullish_count += 1
                                     elif stoch_k > 80:
-                                        signal_strength -= 8
+                                signal_strength -= 8
                                         sell_score += 8
+                                        bearish_count += 1
+                                    elif stoch_k > stoch_d:
+                                        signal_strength += 6
+                                        buy_score += 6
+                                        bullish_count += 1
+                                    elif stoch_k < stoch_d:
+                                        signal_strength -= 6
+                                        sell_score += 6
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # Williams %R
                                 if 'williams_r' in indicators:
@@ -1020,9 +1062,13 @@ class AIService:
                                     if willr_signal == 'buy':
                                         signal_strength += 4
                                         buy_score += 4
+                                        bullish_count += 1
                                     elif willr_signal == 'sell':
                                         signal_strength -= 4
                                         sell_score += 4
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # MFI
                                 if 'mfi' in indicators:
@@ -1031,25 +1077,35 @@ class AIService:
                                     if mfi_signal == 'buy':
                                         signal_strength += 7
                                         buy_score += 7
+                                        bullish_count += 1
                                     elif mfi_signal == 'sell':
                                         signal_strength -= 7
                                         sell_score += 7
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # CCI (with stricter thresholds)
                                 if 'cci' in indicators:
                                     cci_val = indicators['cci'].get('value', 0)
                                     if cci_val > 150:
-                                        signal_strength += 8
+                                    signal_strength += 8
                                         buy_score += 8
+                                        bullish_count += 1
                                     elif cci_val < -150:
                                         signal_strength -= 8
                                         sell_score += 8
+                                        bearish_count += 1
                                     elif cci_val > 100:
                                         signal_strength += 4
                                         buy_score += 4
+                                        bullish_count += 1
                                     elif cci_val < -100:
                                         signal_strength -= 4
                                         sell_score += 4
+                                        bearish_count += 1
+                                else:
+                                        neutral_count += 1
                                 
                                 # ADX
                                 if 'adx' in indicators:
@@ -1057,9 +1113,13 @@ class AIService:
                                     if adx.get('strength') == 'strong' and adx.get('direction') == 'bullish':
                                         signal_strength += 8
                                         buy_score += 8
+                                        bullish_count += 1
                                     elif adx.get('strength') == 'strong' and adx.get('direction') == 'bearish':
-                                        signal_strength -= 8
+                                    signal_strength -= 8
                                         sell_score += 8
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # Volume indicators
                                 if 'obv' in indicators:
@@ -1067,9 +1127,13 @@ class AIService:
                                     if obv_signal == 'buy':
                                         signal_strength += 5
                                         buy_score += 5
+                                        bullish_count += 1
                                     elif obv_signal == 'sell':
                                         signal_strength -= 5
                                         sell_score += 5
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 if 'cmf' in indicators:
                                     cmf = indicators['cmf']
@@ -1077,9 +1141,13 @@ class AIService:
                                     if cmf_signal == 'buy':
                                         signal_strength += 7
                                         buy_score += 7
+                                        bullish_count += 1
                                     elif cmf_signal == 'sell':
                                         signal_strength -= 7
                                         sell_score += 7
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # VWAP
                                 if 'vwap' in indicators:
@@ -1087,19 +1155,27 @@ class AIService:
                                     if vwap_signal == 'buy':
                                         signal_strength += 6
                                         buy_score += 6
+                                        bullish_count += 1
                                     elif vwap_signal == 'sell':
                                         signal_strength -= 6
                                         sell_score += 6
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # Momentum
                                 if 'momentum' in indicators:
                                     momentum = indicators['momentum']
                                     if momentum.get('short_term') == 'bullish':
-                                        signal_strength += 5
+                                signal_strength += 5
                                         buy_score += 5
+                                        bullish_count += 1
                                     elif momentum.get('short_term') == 'bearish':
-                                        signal_strength -= 5
+                                signal_strength -= 5
                                         sell_score += 5
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # ATR-based confidence adjustment (not signal strength)
                                 if 'atr' in indicators:
@@ -1110,10 +1186,11 @@ class AIService:
                                         confidence_adjustment = -0.2
                                     elif volatility_pct > 3:
                                         confidence_adjustment = -0.1
-                                    else:
+                            else:
                                         confidence_adjustment = 0
                                 else:
                                     confidence_adjustment = 0
+                                    volatility_pct = 0  # Default for volatility factor calculation
                                 
                                 # Support/Resistance
                                 support_resistance = self._detect_support_resistance(df)
@@ -1121,11 +1198,15 @@ class AIService:
                                     if support_resistance.get('near_support'):
                                         signal_strength += 8
                                         buy_score += 8
+                                        bullish_count += 1
                                         strengths_list.append("Price near support level")
                                     elif support_resistance.get('near_resistance'):
                                         signal_strength -= 8
                                         sell_score += 8
+                                        bearish_count += 1
                                         concerns_list.append("Price near resistance level")
+                            else:
+                                        neutral_count += 1
                                 
                                 # Volume Profile
                                 volume_profile = self._calculate_volume_profile(df)
@@ -1134,9 +1215,13 @@ class AIService:
                                     if position == 'below_val':
                                         signal_strength += 8
                                         buy_score += 8
+                                        bullish_count += 1
                                     elif position == 'above_vah':
                                         signal_strength -= 8
                                         sell_score += 8
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # Chart Patterns
                                 chart_patterns = self._detect_chart_patterns(df)
@@ -1146,11 +1231,17 @@ class AIService:
                                     if pattern_signal == 'buy':
                                         signal_strength += pattern_weight
                                         buy_score += pattern_weight
+                                        bullish_count += 1
+                                        if 'inverse_head_and_shoulders' in pattern_name:
+                                            has_inverse_h_and_s = True
                                         strengths_list.append(f"{pattern_name.replace('_', ' ').title()} pattern detected")
                                     elif pattern_signal == 'sell':
                                         signal_strength -= pattern_weight
                                         sell_score += pattern_weight
+                                        bearish_count += 1
                                         concerns_list.append(f"{pattern_name.replace('_', ' ').title()} pattern detected")
+                                    else:
+                                        neutral_count += 1
                                 
                                 # Candlestick Patterns
                                 candlestick_patterns = self._detect_candlestick_patterns(df)
@@ -1159,19 +1250,45 @@ class AIService:
                                     if pattern_signal == 'buy':
                                         signal_strength += 10
                                         buy_score += 10
+                                        bullish_count += 1
                                     elif pattern_signal == 'sell':
                                         signal_strength -= 10
                                         sell_score += 10
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
                                 
                                 # Correlation/Beta
                                 correlation_beta = self._calculate_correlation_and_beta(df, symbol, 'BTC')
                                 if correlation_beta:
                                     if correlation_beta.get('outperforming'):
-                                        signal_strength += 3
+                                signal_strength += 3
                                         buy_score += 3
+                                        bullish_count += 1
                                     elif correlation_beta.get('underperforming'):
-                                        signal_strength -= 3
+                                signal_strength -= 3
                                         sell_score += 3
+                                        bearish_count += 1
+                                    else:
+                                        neutral_count += 1
+                                
+                                # Calculate indicator consensus for quality scoring
+                                total_indicators = bullish_count + bearish_count + neutral_count
+                                if total_indicators > 0:
+                                    consensus_ratio = max(bullish_count, bearish_count) / total_indicators
+                                else:
+                                    consensus_ratio = 0.5
+                                
+                                # Calculate quality multiplier for signal_strength
+                                quality_multiplier = 1.0
+                                
+                                # Bonus za zgodność wskaźników (>80% consensus)
+                                if consensus_ratio > 0.8:
+                                    quality_multiplier += 0.2
+                                
+                                # Apply quality multiplier before clamping
+                                raw_signal_strength = signal_strength
+                                signal_strength = signal_strength * quality_multiplier
                                 
                                 # Clamp signal_strength to [-100, 100]
                                 signal_strength = max(-100, min(100, signal_strength))
@@ -1222,7 +1339,7 @@ class AIService:
                                                     weekly_signal_temp -= 12
                                             
                                             weekly_signal = max(-100, min(100, weekly_signal_temp))
-                                        else:
+                            else:
                                             weekly_signal = 0.0
                                     except Exception as e:
                                         self.logger.debug(f"Error calculating weekly indicators for {symbol}: {e}")
@@ -1249,7 +1366,7 @@ class AIService:
                                 elif abs_daily > 20 or abs_weekly > 20:
                                     # Strong signal on one timeframe = średnioterminowe
                                     timeframe_info = "średnioterminowe"
-                                else:
+                            else:
                                     # Weak signals or no clear trend = krótkoterminowe
                                     timeframe_info = "krótkoterminowe"
                                 
@@ -1292,9 +1409,50 @@ class AIService:
                                         stoch_signal = stoch.get('signal', 'neutral')
                                         key_indicators_list.append({"name": "Stochastic", "value": stoch_k, "signal": stoch_signal, "weight": "medium"})
                                 
-                                # Calculate confidence
-                                base_confidence = abs(signal_strength) / 100.0 if signal_strength != 0 else 0.0
-                                confidence = max(0.0, min(1.0, base_confidence + confidence_adjustment))
+                                # Multi-factor confidence calculation
+                                # 1. Base confidence from signal_strength (30% weight)
+                                base_conf = abs(signal_strength) / 100.0
+                                
+                                # 2. Indicator consensus (40% weight)
+                                if total_indicators > 0:
+                                    consensus_conf = consensus_ratio
+                                else:
+                                    consensus_conf = 0.5
+                                
+                                # 3. Timeframe alignment (20% weight)
+                                if same_direction:
+                                    alignment_conf = 1.0
+                                    else:
+                                    alignment_conf = 0.5
+                                
+                                # 4. Volatility adjustment (10% weight) - proportional reduction
+                                if volatility_pct > 5:
+                                    volatility_factor = 0.6  # High volatility
+                                elif volatility_pct > 3:
+                                    volatility_factor = 0.8  # Medium volatility
+                                else:
+                                    volatility_factor = 1.0  # Low volatility
+                                
+                                # Combined confidence
+                                confidence = (base_conf * 0.3 + consensus_conf * 0.4 + alignment_conf * 0.2) * volatility_factor
+                                
+                                # Bonus za timeframe alignment i kluczowe wzorce (dodatkowy boost)
+                                if same_direction and abs_daily > 30 and abs_weekly > 30:
+                                    confidence += 0.1
+                                if has_golden_cross or has_inverse_h_and_s:
+                                    confidence += 0.1
+                                
+                                # Guarantee minimum confidence for strong signals
+                                abs_signal = abs(signal_strength)
+                                if abs_signal > 70:
+                                    confidence = max(0.70, confidence)  # Min 70% for signal>70
+                                elif abs_signal > 50:
+                                    confidence = max(0.50, confidence)  # Min 50% for signal>50
+                                elif abs_signal > 30:
+                                    confidence = max(0.30, confidence)  # Min 30% for signal>30
+                                
+                                # Clamp final confidence to reasonable range
+                                confidence = min(0.95, max(0.05, confidence))
                                 
                                 # Determine action and priority based on signal_strength and allocation drift
                                 if signal_strength > 20:
@@ -1375,7 +1533,7 @@ class AIService:
                                 processed_symbols.add(symbol)
                                 continue
                     
-                    except Exception as e:
+                            except Exception as e:
                         self.logger.warning(f"Error processing {symbol}: {e}")
                         diagnostic_info[symbol] = str(e)
                 
@@ -1520,7 +1678,7 @@ class AIService:
                 except Exception as e:
                     self.logger.warning(f"Prophet prediction failed for {symbol}: {e}, using mock")
                     return self._mock_predict_price(symbol, asset_type, days_ahead)
-            else:
+                                    else:
                 return self._mock_predict_price(symbol, asset_type, days_ahead)
         
         except Exception as e:
@@ -1612,7 +1770,7 @@ class AIService:
                         elif 'negative' in label.lower():
                             sentiments.append('negative')
                             scores.append(-score)
-                        else:
+                                        else:
                             sentiments.append('neutral')
                             scores.append(0.0)
                     
@@ -1626,7 +1784,7 @@ class AIService:
                             sentiment = 'positive'
                         elif avg_score < -0.1:
                             sentiment = 'negative'
-                        else:
+                                else:
                             sentiment = 'neutral'
                         
                         confidence = min(0.95, abs(avg_score) * 2 + 0.5)
@@ -1650,9 +1808,9 @@ class AIService:
                             'confidence': 0.5,
                             'model_used': 'fallback',
                             'status': 'no_results'
-                        }
-                
-                except Exception as e:
+                                }
+                                
+                            except Exception as e:
                     self.logger.warning(f"FinBERT sentiment analysis failed for {symbol}: {e}")
                     return {
                         'symbol': symbol,
@@ -1692,7 +1850,7 @@ class AIService:
                     'total_articles': len(headlines)
                 }
         
-        except Exception as e:
+                        except Exception as e:
             self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
             return {
                 'symbol': symbol,
@@ -1884,7 +2042,7 @@ class AIService:
                 overall_severity = 'warning'
             elif len(anomalies) > 0:
                 overall_severity = 'info'
-            else:
+                else:
                 overall_severity = 'none'
             
             return {
@@ -1897,7 +2055,7 @@ class AIService:
         
         except Exception as e:
             self.logger.error(f"Error in detect_anomalies: {e}", exc_info=True)
-            return {
+        return {
                 'anomalies': [],
                 'total_anomalies': 0,
                 'severity': 'error',
@@ -1915,7 +2073,7 @@ class AIService:
         Args:
             current_holdings: Current portfolio allocation {symbol: percentage}
             risk_tolerance: 'conservative', 'moderate', or 'aggressive'
-        
+            
         Returns:
             Dictionary with optimized allocation suggestions
         """
@@ -1975,7 +2133,7 @@ class AIService:
                 valid_symbols.append(symbol)
             
             if len(returns_list) < 2:
-                return {
+            return {
                     'suggested_allocation': current_holdings,
                     'optimization_method': 'none',
                     'status': 'insufficient_data'
@@ -2016,7 +2174,7 @@ class AIService:
                 # Risk-adjusted return
                 if portfolio_std > 0:
                     sharpe_like = portfolio_return / portfolio_std
-                else:
+            else:
                     sharpe_like = 0
                 
                 return -sharpe_like * (1 - risk_weight) + portfolio_variance * risk_weight
@@ -2086,13 +2244,13 @@ class AIService:
         
         except Exception as e:
             self.logger.error(f"Error in suggest_holdings_optimization: {e}", exc_info=True)
-            return {
+        return {
                 'suggested_allocation': current_holdings,
                 'optimization_method': 'none',
                 'status': 'error',
                 'error': str(e)
-            }
-
+        }
+    
     def backtest_recommendations(
         self,
         start_date: str,
@@ -2112,7 +2270,7 @@ class AIService:
             symbols: List of symbols to backtest
             strategy: 'follow_ai', 'high_confidence', 'weighted_allocation', 'buy_and_hold'
             signal_threshold: Signal strength threshold for 'follow_ai' strategy
-        
+            
         Returns:
             Dictionary with backtest results including equity curve, metrics, trade history
         """
@@ -2205,7 +2363,7 @@ class AIService:
                     if date_str == sorted_dates[0]:
                         # Initial allocation: equal weight
                         allocation_per_symbol = cash / len(symbols)
-                        for symbol in symbols:
+                for symbol in symbols:
                             if symbol in current_prices and current_prices[symbol] > 0:
                                 shares = allocation_per_symbol / current_prices[symbol]
                                 positions[symbol] += shares
@@ -2247,14 +2405,14 @@ class AIService:
                             filtered_recommendations = []
                             for rec in recommendations:
                                 signal_strength = rec.get('signal_strength', 0)
-                                
-                                if strategy == 'follow_ai':
+                    
+                    if strategy == 'follow_ai':
                                     if signal_strength > signal_threshold or signal_strength < -signal_threshold:
                                         filtered_recommendations.append(rec)
-                                elif strategy == 'high_confidence':
+                    elif strategy == 'high_confidence':
                                     if signal_strength > 50 or signal_strength < -50:
                                         filtered_recommendations.append(rec)
-                                elif strategy == 'weighted_allocation':
+                    elif strategy == 'weighted_allocation':
                                     filtered_recommendations.append(rec)
                             
                             # Execute trades
@@ -2272,7 +2430,7 @@ class AIService:
                                         signal = rec.get('signal_strength', 0)
                                         allocation_pct = max(0, signal / 100.0) if signal > 0 else 0
                                         trade_value = portfolio_value * allocation_pct
-                                    else:
+                        else:
                                         # Allocate equal share per recommendation
                                         trade_value = cash / max(1, len([r for r in filtered_recommendations if r.get('action') == 'buy']))
                                     
@@ -2285,31 +2443,31 @@ class AIService:
                                         
                                         trade_history.append({
                                             'date': date_str,
-                                            'symbol': symbol,
-                                            'action': 'buy',
+                                'symbol': symbol,
+                                'action': 'buy',
                                             'shares': shares,
                                             'price': price,
                                             'value': shares * price,
-                                            'signal_strength': signal_strength
-                                        })
-                                
+                                'signal_strength': signal_strength
+                            })
+                    
                                 elif action == 'sell' and positions[symbol] > 0:
                                     shares_to_sell = positions[symbol]  # Sell all
-                                    
-                                    if shares_to_sell > 0:
+                        
+                        if shares_to_sell > 0:
                                         positions[symbol] = 0
                                         cash += shares_to_sell * price
-                                        
+                            
                                         trade_history.append({
                                             'date': date_str,
-                                            'symbol': symbol,
-                                            'action': 'sell',
-                                            'shares': shares_to_sell,
+                                'symbol': symbol,
+                                'action': 'sell',
+                                'shares': shares_to_sell,
                                             'price': price,
                                             'value': shares_to_sell * price,
-                                            'signal_strength': signal_strength
-                                        })
-                
+                                'signal_strength': signal_strength
+                            })
+            
                 # Record equity curve
                 current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
                 equity_curve.append(current_value)
@@ -2330,7 +2488,7 @@ class AIService:
                 avg_return = np.mean(returns)
                 std_return = np.std(returns)
                 sharpe_ratio = (avg_return / std_return) if std_return > 0 else 0
-            else:
+                else:
                 sharpe_ratio = 0.0
             
             # CAGR (using actual weekly periods, not calendar days)
@@ -2342,11 +2500,11 @@ class AIService:
             peak = equity_curve[0]
             max_drawdown = 0.0
             for value in equity_curve:
-                if value > peak:
-                    peak = value
+                    if value > peak:
+                        peak = value
                 drawdown = (peak - value) / peak if peak > 0 else 0
-                if drawdown > max_drawdown:
-                    max_drawdown = drawdown
+                    if drawdown > max_drawdown:
+                        max_drawdown = drawdown
             max_drawdown_pct = max_drawdown * 100
             
             # Win rate
@@ -2393,7 +2551,7 @@ class AIService:
                 'trade_history': trade_history,
                 'status': 'success'
             }
-        
+            
         except Exception as e:
             self.logger.error(f"Error in backtest_recommendations: {e}", exc_info=True)
             return {
