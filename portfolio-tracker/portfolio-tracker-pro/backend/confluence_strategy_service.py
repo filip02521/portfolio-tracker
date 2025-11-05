@@ -4,8 +4,15 @@ Confluence Strategy Service - Advanced trading strategy based on signal confluen
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from logging_config import get_logger
-import pandas as pd
-import numpy as np
+
+try:
+    import pandas as pd
+    import numpy as np
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    pd = None
+    np = None
 
 try:
     import ta
@@ -116,7 +123,7 @@ class ConfluenceStrategyService:
             self.logger.debug(f"Error detecting pin bar: {e}")
             return {}
     
-    def _detect_market_structure(self, df: pd.DataFrame) -> Dict:
+    def _detect_market_structure(self, df) -> Dict:
         """
         Detect market structure (Higher High / Lower Low)
         
@@ -187,7 +194,7 @@ class ConfluenceStrategyService:
             self.logger.debug(f"Error detecting market structure: {e}")
             return {}
     
-    def _analyze_ema_confluence(self, df: pd.DataFrame) -> Dict:
+    def _analyze_ema_confluence(self, df) -> Dict:
         """
         Analyze EMA confluence (EMA 10, 20, 50, 200)
         
@@ -281,7 +288,7 @@ class ConfluenceStrategyService:
             self.logger.debug(f"Error analyzing EMA confluence: {e}")
             return {}
     
-    def _analyze_volume_breakout(self, df: pd.DataFrame) -> Dict:
+    def _analyze_volume_breakout(self, df) -> Dict:
         """
         Analyze volume for breakout signals
         
@@ -338,37 +345,51 @@ class ConfluenceStrategyService:
             self.logger.debug(f"Error analyzing volume breakout: {e}")
             return {}
     
-    def _get_indicators_from_ai_service(self, df: pd.DataFrame, symbol: str) -> Dict:
+    def _get_indicators_from_ai_service(self, df, symbol: str) -> Dict:
         """
         Get technical indicators using methods from ai_service.py
         
         This method reuses existing indicator calculation logic
+        Uses lazy import to avoid circular dependencies
         """
         try:
-            # Import ai_service to reuse its methods
+            if not PANDAS_AVAILABLE or df is None:
+                return {}
+            
+            # Lazy import to avoid circular dependencies
             from ai_service import AIService
             
             # Create temporary AIService instance (we only need its methods)
-            # Note: We'll need to pass market_data_service, but we can use None for basic calculations
             temp_ai = AIService(self.market_data_service)
             
             # Get indicators
             indicators = temp_ai._calculate_technical_indicators(df, symbol)
             
             return indicators
+        except ImportError as e:
+            self.logger.debug(f"AIService not available: {e}")
+            return {}
         except Exception as e:
             self.logger.debug(f"Error getting indicators from ai_service: {e}")
             return {}
     
-    def _get_candlestick_patterns(self, df: pd.DataFrame) -> Dict:
+    def _get_candlestick_patterns(self, df) -> Dict:
         """
         Get candlestick patterns using methods from ai_service.py
+        Uses lazy import to avoid circular dependencies
         """
         try:
+            if not PANDAS_AVAILABLE or df is None:
+                return {}
+            
+            # Lazy import to avoid circular dependencies
             from ai_service import AIService
             temp_ai = AIService(self.market_data_service)
             patterns = temp_ai._detect_candlestick_patterns(df)
             return patterns
+        except ImportError as e:
+            self.logger.debug(f"AIService not available: {e}")
+            return {}
         except Exception as e:
             self.logger.debug(f"Error getting candlestick patterns: {e}")
             return {}
@@ -1191,7 +1212,7 @@ class ConfluenceStrategyService:
                 'error': str(e)
             }
     
-    def _analyze_entry_for_backtest(self, df: pd.DataFrame, symbol: str, min_confluence_score: int, min_confidence: float) -> Dict:
+    def _analyze_entry_for_backtest(self, df, symbol: str, min_confluence_score: int, min_confidence: float) -> Dict:
         """Helper method for backtesting"""
         try:
             indicators = self._get_indicators_from_ai_service(df, symbol)
