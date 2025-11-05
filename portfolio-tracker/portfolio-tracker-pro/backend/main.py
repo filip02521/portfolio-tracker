@@ -2553,6 +2553,174 @@ async def backtest_ai_recommendations(
             detail=f"Internal server error ({error_type}): {str(e)}"
         )
 
+# ========== CONFLUENCE STRATEGY ENDPOINTS ==========
+
+class ConfluenceEntryRequest(BaseModel):
+    symbol: str
+    interval: str = '4h'  # '1h', '4h', '1d'
+    timeframe: str = '4h'
+
+class ConfluenceExitRequest(BaseModel):
+    symbol: str
+    entry_price: float
+    entry_date: str
+    current_price: float
+    current_date: str
+    interval: str = '4h'
+    portfolio_value: float = 10000.0
+    risk_per_trade: float = 0.02
+
+class ConfluenceBacktestRequest(BaseModel):
+    symbol: str
+    start_date: str
+    end_date: str
+    initial_capital: float
+    interval: str = '4h'
+    risk_per_trade: float = 0.02
+    min_confluence_score: int = 4
+    min_confidence: float = 0.7
+
+@app.post("/api/strategy/confluence/analyze-entry", tags=["Strategy/Confluence"])
+async def analyze_confluence_entry(
+    request: ConfluenceEntryRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Analyze entry signals based on confluence of multiple indicators.
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Entry signal (buy/sell/hold)
+    - Confidence score (0-1)
+    - Confluence score (0-6)
+    - Entry price
+    - List of confluence conditions met
+    - All calculated indicators and patterns
+    """
+    try:
+        result = confluence_strategy_service.analyze_entry_signals(
+            symbol=request.symbol,
+            interval=request.interval,
+            timeframe=request.timeframe
+        )
+        return result
+    except Exception as e:
+        error_type = type(e).__name__
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error ({error_type}): {str(e)}"
+        )
+
+@app.post("/api/strategy/confluence/analyze-exit", tags=["Strategy/Confluence"])
+async def analyze_confluence_exit(
+    request: ConfluenceExitRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Analyze exit signals with position management (SL/TP/Trailing Stop).
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Exit signal (hold/sell_50%/sell_100%)
+    - Exit reason
+    - Stop Loss, Take Profit levels
+    - Trailing Stop
+    - Current return percentage
+    - Risk/Reward ratio
+    - Position size recommendations
+    """
+    try:
+        result = confluence_strategy_service.analyze_exit_signals(
+            symbol=request.symbol,
+            entry_price=request.entry_price,
+            entry_date=request.entry_date,
+            current_price=request.current_price,
+            current_date=request.current_date,
+            interval=request.interval,
+            portfolio_value=request.portfolio_value,
+            risk_per_trade=request.risk_per_trade
+        )
+        return result
+    except Exception as e:
+        error_type = type(e).__name__
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error ({error_type}): {str(e)}"
+        )
+
+@app.post("/api/strategy/confluence/backtest", tags=["Strategy/Confluence"])
+async def backtest_confluence_strategy(
+    request: ConfluenceBacktestRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Backtest the confluence strategy on historical data.
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Total return, CAGR, Sharpe ratio
+    - Max drawdown, win rate, profit factor
+    - Equity curve (time series)
+    - Trade history with full details
+    """
+    try:
+        result = confluence_strategy_service.backtest_confluence_strategy(
+            symbol=request.symbol,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            initial_capital=request.initial_capital,
+            interval=request.interval,
+            risk_per_trade=request.risk_per_trade,
+            min_confluence_score=request.min_confluence_score,
+            min_confidence=request.min_confidence
+        )
+        return result
+    except Exception as e:
+        error_type = type(e).__name__
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error ({error_type}): {str(e)}"
+        )
+
+@app.get("/api/strategy/confluence/history/{symbol}", tags=["Strategy/Confluence"])
+async def get_confluence_history(
+    symbol: str,
+    interval: str = '4h',
+    limit: int = 100,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Get historical confluence signals for a symbol.
+    
+    **Authentication Required:** Yes
+    
+    **Query Parameters:**
+    - interval: Data interval ('1h', '4h', '1d')
+    - limit: Maximum number of signals to return
+    
+    **Returns:**
+    - List of historical entry/exit signals
+    """
+    try:
+        # For now, return a placeholder response
+        # In the future, this could store and retrieve historical signals
+        return {
+            'symbol': symbol,
+            'interval': interval,
+            'limit': limit,
+            'signals': [],
+            'message': 'Historical signals not yet implemented. Use analyze-entry endpoint for current signals.'
+        }
+    except Exception as e:
+        error_type = type(e).__name__
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error ({error_type}): {str(e)}"
+        )
+
 @app.post("/api/backtesting/run", tags=["Backtesting"])
 async def run_backtest(
     request: BacktestRequest,
