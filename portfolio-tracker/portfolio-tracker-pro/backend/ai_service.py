@@ -230,7 +230,7 @@ class AIService:
                             'status': 'oversold' if stoch_k < 20 else 'overbought' if stoch_k > 80 else 'neutral',
                             'signal': 'buy' if stoch_k < 20 else 'sell' if stoch_k > 80 else ('buy' if stoch_k > stoch_d else 'sell' if stoch_k < stoch_d else 'neutral')
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"Stochastic calculation failed: {e}")
             
             # 3. Williams %R
@@ -244,7 +244,7 @@ class AIService:
                             'status': 'oversold' if willr_val < -80 else 'overbought' if willr_val > -20 else 'neutral',
                             'signal': 'buy' if willr_val < -80 else 'sell' if willr_val > -20 else 'neutral'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"Williams %R calculation failed: {e}")
             
             # 4. Money Flow Index (MFI)
@@ -258,7 +258,7 @@ class AIService:
                             'status': 'oversold' if mfi_val < 20 else 'overbought' if mfi_val > 80 else 'neutral',
                             'signal': 'buy' if mfi_val < 20 else 'sell' if mfi_val > 80 else 'neutral'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"MFI calculation failed: {e}")
             
             # 5. CCI (Commodity Channel Index)
@@ -272,7 +272,7 @@ class AIService:
                             'status': 'strong_bullish' if cci_val > 150 else 'strong_bearish' if cci_val < -150 else ('bullish' if cci_val > 100 else 'bearish' if cci_val < -100 else 'neutral'),
                             'signal': 'buy' if cci_val > 150 else 'sell' if cci_val < -150 else ('buy' if cci_val > 100 else 'sell' if cci_val < -100 else 'neutral')
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"CCI calculation failed: {e}")
             
             # ========== TREND INDICATORS ==========
@@ -303,7 +303,7 @@ class AIService:
                             'trend': 'bullish' if macd_line > signal_line else 'bearish',
                             'crossover': crossover
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"MACD calculation failed: {e}")
             
             # 7. Moving Averages (MA50, MA200)
@@ -336,7 +336,7 @@ class AIService:
                             'death_cross': ma50 < ma200,
                             'signal': 'buy' if ma50 > ma200 else 'sell'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"Moving Averages calculation failed: {e}")
             
             # 8. ADX (Average Directional Index)
@@ -354,7 +354,7 @@ class AIService:
                             'direction': 'bullish' if adx_pos > adx_neg else 'bearish',
                             'signal': 'buy' if adx > 25 and adx_pos > adx_neg else 'sell' if adx > 25 and adx_neg > adx_pos else 'neutral'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"ADX calculation failed: {e}")
             
             # 9. Parabolic SAR
@@ -368,7 +368,7 @@ class AIService:
                             'position': 'below' if current_price > psar_val else 'above',
                             'signal': 'buy' if current_price > psar_val else 'sell'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"Parabolic SAR calculation failed: {e}")
             
             # ========== VOLATILITY INDICATORS ==========
@@ -385,7 +385,7 @@ class AIService:
                             'percent': float(atr_percent),
                             'volatility': 'high' if atr_percent > 3 else 'medium' if atr_percent > 1.5 else 'low'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"ATR calculation failed: {e}")
             
             # 11. Bollinger Bands
@@ -411,7 +411,7 @@ class AIService:
                             'status': 'oversold' if position < 20 else 'overbought' if position > 80 else 'neutral',
                             'signal': 'buy' if position < 20 else 'sell' if position > 80 else 'neutral'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"Bollinger Bands calculation failed: {e}")
             
             # 12. Donchian Channels
@@ -525,7 +525,7 @@ class AIService:
                             'status': 'accumulation' if cmf > 0.1 else 'distribution' if cmf < -0.1 else 'neutral',
                             'signal': 'buy' if cmf > 0.1 else 'sell' if cmf < -0.1 else 'neutral'
                         }
-            except Exception as e:
+                except Exception as e:
                 self.logger.debug(f"CMF calculation failed: {e}")
             
             # 18. Volume ROC (Rate of Change)
