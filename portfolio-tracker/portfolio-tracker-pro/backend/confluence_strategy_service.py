@@ -1025,6 +1025,15 @@ class ConfluenceStrategyService:
                     temp_df = pd.DataFrame(data_up_to_current)
                     entry_analysis = self._analyze_entry_for_backtest(temp_df, symbol, min_confluence_score, min_confidence)
                     
+                    # NEW: Track RSI for reversal detection
+                    if entry_analysis.get('indicators') and 'rsi' in entry_analysis.get('indicators', {}):
+                        rsi_val = entry_analysis['indicators']['rsi'].get('value')
+                        if rsi_val is not None:
+                            rsi_history.append(rsi_val)
+                            # Keep only last 10 RSI values
+                            if len(rsi_history) > 10:
+                                rsi_history.pop(0)
+                    
                     # Log signal generation for debugging
                     if i % 50 == 0 or entry_analysis.get('confluence_score', 0) >= 3:
                         self.logger.debug(
