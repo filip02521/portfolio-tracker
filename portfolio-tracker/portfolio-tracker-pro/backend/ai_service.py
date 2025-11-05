@@ -107,8 +107,8 @@ class AIService:
                                                    model="ProsusAI/finbert",
                                                    device=-1)  # CPU
                 self.logger.info("FinBERT sentiment pipeline initialized")
-            except Exception as e:
-                self.logger.warning(f"Could not initialize FinBERT: {e}")
+                except Exception as e:
+                    self.logger.warning(f"Could not initialize FinBERT: {e}")
                 self.sentiment_pipeline = None
         
         # Initialize NewsAPI client
@@ -245,7 +245,7 @@ class AIService:
                             'signal': 'buy' if willr_val < -80 else 'sell' if willr_val > -20 else 'neutral'
                         }
                 except Exception as e:
-                self.logger.debug(f"Williams %R calculation failed: {e}")
+                    self.logger.debug(f"Williams %R calculation failed: {e}")
             
             # 4. Money Flow Index (MFI)
             if TA_AVAILABLE:
