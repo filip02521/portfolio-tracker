@@ -309,19 +309,39 @@ def analyze_backtest_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         "best_overall": None,
         "best_sharpe": None,
         "best_win_rate": None,
-        "best_return": None
+        "best_return": None,
+        "warnings": [],
+        "summary_statistics": {}
     }
     
     best_sharpe = -999
     best_win_rate = -1
     best_return = -999
     
+    # Sanity checks
+    all_trades_count = []
+    all_signals = []
+    configs_with_zero_trades = []
+    
     for result in results:
         config_name = result.get("config_name", "unknown")
         threshold_results = result.get("threshold_results", [])
         
         if not threshold_results:
+            analysis["warnings"].append(f"Config {config_name}: No threshold results")
             continue
+        
+        # Check for zero trades across all thresholds
+        config_has_trades = False
+        for tr in threshold_results:
+            if "error" not in tr:
+                num_trades = tr.get("num_trades", 0)
+                all_trades_count.append(num_trades)
+                if num_trades > 0:
+                    config_has_trades = True
+        
+        if not config_has_trades:
+            configs_with_zero_trades.append(config_name)
         
         # Find best threshold for this config
         best_threshold_result = max(
@@ -334,7 +354,13 @@ def analyze_backtest_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         )
         
         if "error" in best_threshold_result:
+            analysis["warnings"].append(f"Config {config_name}: Error in best threshold - {best_threshold_result.get('error')}")
             continue
+        
+        # Sanity check: warn if num_trades = 0
+        num_trades = best_threshold_result.get("num_trades", 0)
+        if num_trades == 0:
+            analysis["warnings"].append(f"Config {config_name} (threshold={best_threshold_result.get('signal_threshold')}): 0 trades executed")
         
         sharpe = best_threshold_result.get("sharpe_ratio", 0)
         win_rate = best_threshold_result.get("win_rate", 0)
@@ -351,7 +377,7 @@ def analyze_backtest_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             "total_return": total_return,
             "cagr": best_threshold_result.get("cagr", 0),
             "max_drawdown": best_threshold_result.get("max_drawdown", 0),
-            "num_trades": best_threshold_result.get("num_trades", 0),
+            "num_trades": num_trades,
             "composite_score": composite_score
         }
         
@@ -369,6 +395,21 @@ def analyze_backtest_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         if total_return > best_return:
             best_return = total_return
             analysis["best_return"] = config_summary
+    
+    # Summary statistics
+    if all_trades_count:
+        analysis["summary_statistics"] = {
+            "total_trades": sum(all_trades_count),
+            "avg_trades_per_config": sum(all_trades_count) / len(all_trades_count) if all_trades_count else 0,
+            "min_trades": min(all_trades_count),
+            "max_trades": max(all_trades_count),
+            "configs_with_zero_trades": configs_with_zero_trades,
+            "configs_with_trades": len([c for c in all_trades_count if c > 0])
+        }
+    
+    # Warning if all results are zero
+    if all_trades_count and all(t == 0 for t in all_trades_count):
+        analysis["warnings"].append("⚠️  CRITICAL: All backtests resulted in 0 trades! Check signal thresholds and data availability.")
     
     # Sort by composite score
     analysis["configs_ranked"].sort(key=lambda x: x["composite_score"], reverse=True)

@@ -786,7 +786,9 @@ class AIService:
         self,
         portfolio_holdings: Dict[str, float],
         target_allocation: Dict[str, float],
-        rebalance_threshold: float = 0.05
+        rebalance_threshold: float = 0.05,
+        as_of_date: Optional[str] = None,
+        historical_data_dict: Optional[Dict[str, List[Dict]]] = None
     ) -> Optional[Dict]:
         """
         Generate AI-powered rebalancing recommendations using comprehensive technical analysis.
@@ -795,6 +797,8 @@ class AIService:
             portfolio_holdings: Current portfolio allocation {symbol: percentage}
             target_allocation: Target allocation {symbol: target_percentage}
             rebalance_threshold: Minimum drift threshold to trigger recommendation (default 0.05 = 5%)
+            as_of_date: Optional date string (ISO format) for historical backtesting. If provided, uses only data up to this date.
+            historical_data_dict: Optional dict {symbol: [candles]} for historical data. If provided with as_of_date, uses this instead of fetching.
             
         Returns:
             Dictionary with recommendations list and metadata
@@ -892,19 +896,52 @@ class AIService:
                 # For non-stablecoins, perform comprehensive technical analysis
                 if self.market_data_service:
                     try:
-                        # Get historical data for multiple timeframes to determine recommendation timeframe
-                        # Daily data for short-term analysis
-                        daily_data, daily_interval = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, 30
-                        )
-                        # Weekly data for long-term analysis
-                        weekly_data, weekly_interval = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, 90  # Gets weekly data (prediction_horizon > 60)
-                        )
-                        
-                        # Use daily data as primary for calculations
-                        historical_data = daily_data
-                        interval = daily_interval
+                        # Use provided historical data if available (for backtesting)
+                        if historical_data_dict and symbol in historical_data_dict:
+                            # Filter to as_of_date if provided
+                            if as_of_date:
+                                try:
+                                    from datetime import datetime
+                                    as_of_dt = datetime.fromisoformat(as_of_date.replace('Z', '+00:00'))
+                                    filtered_data = []
+                                    for candle in historical_data_dict[symbol]:
+                                        candle_date_str = candle.get('timestamp', candle.get('date', ''))
+                                        if candle_date_str:
+                                            try:
+                                                candle_dt = datetime.fromisoformat(candle_date_str.replace('Z', '+00:00'))
+                                                if candle_dt <= as_of_dt:
+                                                    filtered_data.append(candle)
+                                            except Exception:
+                                                # If date parsing fails, include the candle (fallback)
+                                                filtered_data.append(candle)
+                                    historical_data = filtered_data
+                                    interval = '1w'  # Backtest uses weekly data
+                                except Exception as e:
+                                    self.logger.debug(f"Error filtering historical data for {symbol} as_of_date {as_of_date}: {e}")
+                                    historical_data = historical_data_dict[symbol]
+                                    interval = '1w'
+                            else:
+                                historical_data = historical_data_dict[symbol]
+                                interval = '1w'
+                            
+                            # For backtesting, we have weekly data - use it for both daily and weekly signals
+                            # This allows us to calculate weekly_signal properly
+                            daily_data = historical_data  # Use weekly data for daily signal (backtest limitation)
+                            weekly_data = historical_data  # Use same data for weekly signal calculation
+                        else:
+                            # Get historical data for multiple timeframes to determine recommendation timeframe
+                            # Daily data for short-term analysis
+                            daily_data, daily_interval = self.market_data_service.get_symbol_history_with_interval(
+                                symbol, 30
+                            )
+                            # Weekly data for long-term analysis
+                            weekly_data, weekly_interval = self.market_data_service.get_symbol_history_with_interval(
+                                symbol, 90  # Gets weekly data (prediction_horizon > 60)
+                            )
+                            
+                            # Use daily data as primary for calculations
+                            historical_data = daily_data
+                            interval = daily_interval
                         
                         # Calculate signals for both timeframes
                         daily_signal = 0.0
@@ -1309,54 +1346,96 @@ class AIService:
                                 daily_signal = signal_strength
                                 
                                 # Calculate weekly timeframe signal for timeframe determination
+                                # For backtesting, we use the same data (weekly candles) for both daily and weekly
+                                # For live recommendations, we have separate daily and weekly data
                                 if weekly_data and len(weekly_data) >= 20:
                                     try:
                                         weekly_df = pd.DataFrame(weekly_data)
-                                        weekly_indicators = self._calculate_technical_indicators(weekly_df, symbol)
                                         
-                                        if weekly_indicators and len(weekly_indicators) > 0:
-                                            weekly_signal_temp = 0.0
+                                        # Ensure we have required columns
+                                        if 'close' not in weekly_df.columns:
+                                            # Try to find close price in other columns
+                                            if 'Close' in weekly_df.columns:
+                                                weekly_df['close'] = weekly_df['Close']
+                                            elif len(weekly_data) > 0 and isinstance(weekly_data[0], dict):
+                                                # Reconstruct from dict data
+                                                weekly_df['close'] = [c.get('close', 0) for c in weekly_data]
+                                        
+                                        if len(weekly_df) >= 20:
+                                            weekly_indicators = self._calculate_technical_indicators(weekly_df, symbol)
                                             
-                                            # Quick calculation of weekly signal (simplified version focusing on key indicators)
-                                            if 'rsi' in weekly_indicators:
-                                                rsi_w = weekly_indicators['rsi'].get('value', 50)
-                                                if rsi_w < 30:
-                                                    weekly_signal_temp += 15
-                                                elif rsi_w > 70:
-                                                    weekly_signal_temp -= 15
-                                            
-                                            if 'macd' in weekly_indicators:
-                                                macd_w = weekly_indicators['macd']
-                                                if macd_w.get('crossover') == 'bullish':
-                                                    weekly_signal_temp += 20
-                                                elif macd_w.get('crossover') == 'bearish':
-                                                    weekly_signal_temp -= 20
-                                                elif macd_w.get('trend') == 'bullish':
-                                                    weekly_signal_temp += 5
-                                                elif macd_w.get('trend') == 'bearish':
-                                                    weekly_signal_temp -= 5
-                                            
-                                            if 'ma_cross' in weekly_indicators:
-                                                ma_cross_w = weekly_indicators['ma_cross']
-                                                if ma_cross_w.get('golden_cross'):
-                                                    weekly_signal_temp += 10
-                                                elif ma_cross_w.get('death_cross'):
-                                                    weekly_signal_temp -= 10
-                                            
-                                            if 'bollinger_bands' in weekly_indicators:
-                                                bb_w = weekly_indicators['bollinger_bands']
-                                                if bb_w.get('signal') == 'buy':
-                                                    weekly_signal_temp += 12
-                                                elif bb_w.get('signal') == 'sell':
-                                                    weekly_signal_temp -= 12
-                                            
-                                            weekly_signal = max(-100, min(100, weekly_signal_temp))
+                                            if weekly_indicators and len(weekly_indicators) > 0:
+                                                weekly_signal_temp = 0.0
+                                                
+                                                # Calculate weekly signal using same logic as daily (comprehensive)
+                                                # RSI
+                                                if 'rsi' in weekly_indicators:
+                                                    rsi_w = weekly_indicators['rsi'].get('value', 50)
+                                                    if rsi_w < 30:
+                                                        weekly_signal_temp += 15
+                                                    elif rsi_w > 70:
+                                                        weekly_signal_temp -= 15
+                                                
+                                                # MACD
+                                                if 'macd' in weekly_indicators:
+                                                    macd_w = weekly_indicators['macd']
+                                                    if macd_w.get('crossover') == 'bullish':
+                                                        weekly_signal_temp += 20
+                                                    elif macd_w.get('crossover') == 'bearish':
+                                                        weekly_signal_temp -= 20
+                                                    elif macd_w.get('trend') == 'bullish':
+                                                        weekly_signal_temp += 5
+                                                    elif macd_w.get('trend') == 'bearish':
+                                                        weekly_signal_temp -= 5
+                                                
+                                                # MA Cross
+                                                if 'ma_cross' in weekly_indicators:
+                                                    ma_cross_w = weekly_indicators['ma_cross']
+                                                    if ma_cross_w.get('golden_cross'):
+                                                        weekly_signal_temp += 10
+                                                    elif ma_cross_w.get('death_cross'):
+                                                        weekly_signal_temp -= 10
+                                                
+                                                # Bollinger Bands
+                                                if 'bollinger_bands' in weekly_indicators:
+                                                    bb_w = weekly_indicators['bollinger_bands']
+                                                    if bb_w.get('signal') == 'buy':
+                                                        weekly_signal_temp += 12
+                                                    elif bb_w.get('signal') == 'sell':
+                                                        weekly_signal_temp -= 12
+                                                
+                                                # Stochastic
+                                                if 'stochastic' in weekly_indicators:
+                                                    stoch_w = weekly_indicators['stochastic']
+                                                    if stoch_w.get('signal') == 'buy':
+                                                        weekly_signal_temp += 8
+                                                    elif stoch_w.get('signal') == 'sell':
+                                                        weekly_signal_temp -= 8
+                                                
+                                                # MA50
+                                                if 'ma50' in weekly_indicators:
+                                                    ma50_w = weekly_indicators['ma50']
+                                                    if ma50_w.get('signal') == 'buy':
+                                                        weekly_signal_temp += 6
+                                                    elif ma50_w.get('signal') == 'sell':
+                                                        weekly_signal_temp -= 6
+                                                
+                                                weekly_signal = max(-100, min(100, weekly_signal_temp))
+                                                self.logger.debug(f"{symbol}: Calculated weekly_signal={weekly_signal:.2f} from {len(weekly_indicators)} indicators")
+                                            else:
+                                                self.logger.debug(f"{symbol}: Weekly indicators empty or None (data length: {len(weekly_df)})")
+                                                weekly_signal = 0.0
                                         else:
+                                            self.logger.debug(f"{symbol}: Weekly data insufficient ({len(weekly_df)} points, need 20)")
                                             weekly_signal = 0.0
                                     except Exception as e:
-                                        self.logger.debug(f"Error calculating weekly indicators for {symbol}: {e}")
+                                        self.logger.debug(f"Error calculating weekly indicators for {symbol}: {e}", exc_info=True)
                                         weekly_signal = 0.0
                                 else:
+                                    if not weekly_data:
+                                        self.logger.debug(f"{symbol}: No weekly_data available")
+                                    elif len(weekly_data) < 20:
+                                        self.logger.debug(f"{symbol}: Weekly data too short ({len(weekly_data)} points, need 20)")
                                     weekly_signal = 0.0
                                 
                                 # Determine timeframe based on alignment of daily and weekly signals
@@ -2270,7 +2349,8 @@ class AIService:
         initial_capital: float,
         symbols: List[str],
         strategy: str = "follow_ai",
-        signal_threshold: float = 20.0
+        signal_threshold: float = 20.0,
+        confidence_threshold: float = 0.3  # Minimum confidence for trade execution
     ) -> Optional[Dict]:
         """
         Backtest AI recommendations strategies on historical data.
@@ -2359,9 +2439,16 @@ class AIService:
             buy_recommendations_count = 0
             sell_recommendations_count = 0
             
+            # Track position entry prices for trailing stop and take profit
+            position_entry_prices = {}  # {symbol: {'price': float, 'date': str, 'shares': float}}
+            position_high_prices = {}  # {symbol: float} - highest price since entry for trailing stop
+            
             # Backtest loop (weekly rebalancing)
-            for date_str in sorted_dates:
+            self.logger.info(f"Starting backtest loop: {len(sorted_dates)} dates to process")
+            for i, date_str in enumerate(sorted_dates, 1):
                 date_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                if i % 10 == 0 or i == 1 or i == len(sorted_dates):
+                    self.logger.info(f"Processing date {i}/{len(sorted_dates)}: {date_str}")
                 
                 # Get current prices for all symbols
                 current_prices = {}
@@ -2397,8 +2484,9 @@ class AIService:
                                     'value': shares * current_prices[symbol]
                                 })
                 
-            if strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
-                # Get AI recommendations for this date
+                # AI-based strategies: generate recommendations for each date
+                if strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
+                    # Get AI recommendations for this date
                     if self.market_data_service:
                         # Build current holdings dict
                         current_holdings = {}
@@ -2410,35 +2498,84 @@ class AIService:
                         # Build target allocation (equal weight for simplicity)
                         target_allocation = {s: 1.0 / len(symbols) for s in symbols}
                         
-                        # Get recommendations
+                        # Get recommendations with historical data for this date
                         recommendations_result = self.recommend_rebalance(
                             current_holdings,
                             target_allocation,
-                            rebalance_threshold=0.05
+                            rebalance_threshold=0.05,
+                            as_of_date=date_str,
+                            historical_data_dict=historical_data
                         )
+                        
+                        self.logger.debug(f"Backtest {date_str}: Generated {len(recommendations_result.get('recommendations', [])) if recommendations_result else 0} recommendations")
                         
                         if recommendations_result and 'recommendations' in recommendations_result:
                             recommendations = recommendations_result['recommendations']
                             
+                            # Log signal strengths for debugging
+                            for rec in recommendations:
+                                signal_strength = rec.get('signal_strength', 0)
+                                self.logger.debug(f"Backtest {date_str} {rec.get('symbol', 'N/A')}: signal_strength={signal_strength:.2f}, action={rec.get('action', 'N/A')}")
+                            
                             # Filter recommendations based on strategy
+                            # Enhanced filtering for better win rate:
+                            # 1. Signal threshold (absolute value) - primary filter
+                            # 2. Adaptive confidence threshold based on signal strength
+                            # 3. Only trade when signal and confidence align
                             filtered_recommendations = []
+                            
                             for rec in recommendations:
                                 signal_strength = rec.get('signal_strength', 0)
                                 confidence = rec.get('confidence', 0.0)
+                                action = rec.get('action', 'hold')
                                 
                                 # Collect metadata for all recommendations (before filtering)
                                 all_confidence_values.append(confidence)
                                 all_signal_strength_values.append(signal_strength)
                                 total_recommendations_count += 1
                                 
+                                # Enhanced filtering for better win rate
+                                should_trade = False
+                                abs_signal = abs(signal_strength)
+                                
+                                # Adaptive confidence threshold: 
+                                # - Very strong signals (|signal| > 25): minimal confidence (0.15)
+                                # - Strong signals (|signal| > 20): lower confidence (0.20)
+                                # - Medium signals (|signal| > 15): medium confidence (0.25)
+                                # - Weak signals (|signal| > threshold): higher confidence (0.30)
+                                if abs_signal > 25:
+                                    min_confidence = 0.15  # Very strong signals need minimal confidence
+                                elif abs_signal > 20:
+                                    min_confidence = 0.20
+                                elif abs_signal > 15:
+                                    min_confidence = 0.25
+                                else:
+                                    min_confidence = 0.30  # Weak signals need higher confidence
+                                
                                 if strategy == 'follow_ai':
-                                    if signal_strength > signal_threshold or signal_strength < -signal_threshold:
-                                        filtered_recommendations.append(rec)
+                                    # For buy: signal > threshold AND confidence >= adaptive threshold
+                                    # For sell: signal < -threshold AND confidence >= adaptive threshold
+                                    if action == 'buy':
+                                        should_trade = (signal_strength > signal_threshold and 
+                                                       confidence >= min_confidence)
+                                    elif action == 'sell':
+                                        should_trade = (signal_strength < -signal_threshold and 
+                                                       confidence >= min_confidence)
                                 elif strategy == 'high_confidence':
-                                    if signal_strength > 50 or signal_strength < -50:
-                                        filtered_recommendations.append(rec)
+                                    # Higher thresholds for high confidence strategy
+                                    if action == 'buy':
+                                        should_trade = (signal_strength > 50 and confidence >= 0.5)
+                                    elif action == 'sell':
+                                        should_trade = (signal_strength < -50 and confidence >= 0.5)
                                 elif strategy == 'weighted_allocation':
+                                    # For weighted: require minimum confidence (adaptive)
+                                    should_trade = (abs_signal > 0 and confidence >= min_confidence)
+                                
+                                if should_trade:
                                     filtered_recommendations.append(rec)
+                                    self.logger.debug(f"Backtest {date_str}: Approved {action} {rec.get('symbol', 'N/A')}: signal={signal_strength:.2f}, confidence={confidence:.3f} (min={min_confidence:.2f})")
+                            
+                            self.logger.debug(f"Backtest {date_str}: Filtered {len(filtered_recommendations)} recommendations (threshold={signal_threshold})")
                             
                             # Execute trades
                             for rec in filtered_recommendations:
@@ -2448,6 +2585,7 @@ class AIService:
                                 
                                 action = rec.get('action', 'hold')
                                 price = current_prices[symbol]
+                                signal_strength = rec.get('signal_strength', 0)
                                 
                                 # Count executed recommendations
                                 if action == 'buy':
@@ -2472,22 +2610,41 @@ class AIService:
                                         positions[symbol] += shares
                                         cash -= shares * price
                                         
+                                        # Track entry price for trailing stop/take profit
+                                        if symbol not in position_entry_prices:
+                                            position_entry_prices[symbol] = {'price': price, 'date': date_str, 'shares': shares}
+                                            position_high_prices[symbol] = price
+                                        else:
+                                            # Average entry price for multiple buys
+                                            old_entry = position_entry_prices[symbol]
+                                            total_shares = old_entry['shares'] + shares
+                                            avg_price = ((old_entry['price'] * old_entry['shares']) + (price * shares)) / total_shares
+                                            position_entry_prices[symbol] = {'price': avg_price, 'date': date_str, 'shares': total_shares}
+                                            position_high_prices[symbol] = max(position_high_prices.get(symbol, price), price)
+                                        
                                         trade_history.append({
                                             'date': date_str,
-                                'symbol': symbol,
-                                'action': 'buy',
+                                            'symbol': symbol,
+                                            'action': 'buy',
                                             'shares': shares,
                                             'price': price,
                                             'value': shares * price,
-                                'signal_strength': signal_strength
-                            })
-                    
+                                            'signal_strength': signal_strength
+                                        })
+                                        self.logger.debug(f"Backtest {date_str}: BUY {shares:.4f} {symbol} @ ${price:.2f} (signal={signal_strength:.2f})")
+                                
                                 elif action == 'sell' and positions[symbol] > 0:
                                     shares_to_sell = positions[symbol]  # Sell all
                                     
                                     if shares_to_sell > 0:
                                         positions[symbol] = 0
                                         cash += shares_to_sell * price
+                                        
+                                        # Clear position tracking
+                                        if symbol in position_entry_prices:
+                                            del position_entry_prices[symbol]
+                                        if symbol in position_high_prices:
+                                            del position_high_prices[symbol]
                                         
                                         trade_history.append({
                                             'date': date_str,
@@ -2498,10 +2655,77 @@ class AIService:
                                             'value': shares_to_sell * price,
                                             'signal_strength': signal_strength
                                         })
-            
-            # Record equity curve
-            current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
-            equity_curve.append(current_value)
+                                        self.logger.debug(f"Backtest {date_str}: SELL {shares_to_sell:.4f} {symbol} @ ${price:.2f} (signal={signal_strength:.2f})")
+                            
+                            # Trailing stop loss and take profit for ALL open positions (after processing recommendations)
+                            # This improves win rate by cutting losses and letting profits run
+                            for pos_symbol in list(positions.keys()):
+                                if positions[pos_symbol] > 0 and pos_symbol in position_entry_prices:
+                                    entry_info = position_entry_prices[pos_symbol]
+                                    entry_price = entry_info['price']
+                                    
+                                    # Update highest price since entry
+                                    if pos_symbol not in position_high_prices:
+                                        position_high_prices[pos_symbol] = current_prices.get(pos_symbol, entry_price)
+                                    else:
+                                        position_high_prices[pos_symbol] = max(position_high_prices[pos_symbol], current_prices.get(pos_symbol, entry_price))
+                                    
+                                    current_price = current_prices.get(pos_symbol, entry_price)
+                                    current_return = (current_price - entry_price) / entry_price if entry_price > 0 else 0
+                                    high_price = position_high_prices[pos_symbol]
+                                    
+                                    # Take profit: sell if profit > 8% (more realistic for weekly rebalancing)
+                                    if current_return > 0.08:
+                                        shares_to_sell = positions[pos_symbol]
+                                        if shares_to_sell > 0:
+                                            positions[pos_symbol] = 0
+                                            cash += shares_to_sell * current_price
+                                            
+                                            # Clear position tracking
+                                            del position_entry_prices[pos_symbol]
+                                            del position_high_prices[pos_symbol]
+                                            
+                                            trade_history.append({
+                                                'date': date_str,
+                                                'symbol': pos_symbol,
+                                                'action': 'sell',
+                                                'shares': shares_to_sell,
+                                                'price': current_price,
+                                                'value': shares_to_sell * current_price,
+                                                'signal_strength': -999,  # Special marker for take profit
+                                                'reason': 'take_profit'
+                                            })
+                                            self.logger.debug(f"Backtest {date_str}: SELL (TAKE PROFIT) {shares_to_sell:.4f} {pos_symbol} @ ${current_price:.2f} (return={current_return*100:.1f}%)")
+                                    
+                                    # Trailing stop loss: 7% below highest price since entry (wider for better win rate)
+                                    # Only activate trailing stop if position is in profit (protect profits, not losses)
+                                    elif high_price > 0 and current_return > 0.02:  # Only if > 2% profit
+                                        trailing_stop_price = high_price * 0.93  # 7% below high (protect profits)
+                                        if current_price <= trailing_stop_price:
+                                            shares_to_sell = positions[pos_symbol]
+                                            if shares_to_sell > 0:
+                                                positions[pos_symbol] = 0
+                                                cash += shares_to_sell * current_price
+                                                
+                                                # Clear position tracking
+                                                del position_entry_prices[pos_symbol]
+                                                del position_high_prices[pos_symbol]
+                                                
+                                                trade_history.append({
+                                                    'date': date_str,
+                                                    'symbol': pos_symbol,
+                                                    'action': 'sell',
+                                                    'shares': shares_to_sell,
+                                                    'price': current_price,
+                                                    'value': shares_to_sell * current_price,
+                                                    'signal_strength': -999,  # Special marker for stop loss
+                                                    'reason': 'trailing_stop'
+                                                })
+                                                self.logger.debug(f"Backtest {date_str}: SELL (TRAILING STOP) {shares_to_sell:.4f} {pos_symbol} @ ${current_price:.2f} (return={current_return*100:.1f}%, high={high_price:.2f})")
+                
+                # Record equity curve after processing this date (for all strategies)
+                current_value = cash + sum(positions[symbol] * current_prices.get(symbol, 0) for symbol in symbols)
+                equity_curve.append(current_value)
             
             # Calculate final metrics
             final_value = equity_curve[-1] if equity_curve else initial_capital
@@ -2627,6 +2851,18 @@ class AIService:
             median_confidence = np.median(all_confidence_values) if all_confidence_values else 0.0
             median_signal_strength = np.median(all_signal_strength_values) if all_signal_strength_values else 0.0
             
+            # Summary statistics for signal_strength
+            min_signal = np.min(all_signal_strength_values) if all_signal_strength_values else 0.0
+            max_signal = np.max(all_signal_strength_values) if all_signal_strength_values else 0.0
+            
+            # Log summary
+            self.logger.info(f"Backtest completed: {len(trade_history)} trades executed")
+            self.logger.info(f"  Total recommendations: {total_recommendations_count}")
+            self.logger.info(f"  Buy recommendations: {buy_recommendations_count}, Sell: {sell_recommendations_count}")
+            self.logger.info(f"  Signal_strength: min={min_signal:.2f}, max={max_signal:.2f}, avg={avg_signal_strength:.2f}, median={median_signal_strength:.2f}")
+            self.logger.info(f"  Confidence: avg={avg_confidence:.3f}, median={median_confidence:.3f}")
+            self.logger.info(f"  Total return: {total_return*100:.2f}%, Trades: {total_trades}, Win rate: {win_rate:.1f}%")
+            
             return {
                 'strategy': strategy,
                 'start_date': start_date,
@@ -2657,6 +2893,8 @@ class AIService:
                     'median_confidence': float(median_confidence),
                     'avg_signal_strength': float(avg_signal_strength),
                     'median_signal_strength': float(median_signal_strength),
+                    'min_signal_strength': float(min_signal),
+                    'max_signal_strength': float(max_signal),
                     'total_recommendations': total_recommendations_count,
                     'buy_recommendations': buy_recommendations_count,
                     'sell_recommendations': sell_recommendations_count,

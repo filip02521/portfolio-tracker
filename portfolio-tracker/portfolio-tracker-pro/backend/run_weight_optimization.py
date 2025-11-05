@@ -3,15 +3,23 @@
 Run weight optimization backtests for all configurations.
 
 Usage:
-    python run_weight_optimization.py
+    python run_weight_optimization.py [--period DAYS] [--thresholds THRESHOLDS] [--verbose] [--debug]
+
+Options:
+    --period DAYS: Number of days for backtest (default: 730 = 2 years)
+    --thresholds THRESHOLDS: Comma-separated list of signal thresholds (default: "5.0,7.5,10.0,20.0,30.0,40.0,50.0")
+    --verbose: Enable verbose logging
+    --debug: Enable debug mode (export intermediate results to JSON)
 
 This script will:
 1. Load all weight configurations from weight_configs.json
-2. Run backtests for each configuration
-3. Analyze results and save to weight_optimization_results.json
+2. Prefetch all historical data
+3. Run backtests for each configuration
+4. Analyze results and save to weight_optimization_results.json
 """
 import sys
 import os
+import argparse
 from datetime import datetime, timedelta
 import logging
 
@@ -39,6 +47,20 @@ logger = logging.getLogger(__name__)
 def main():
     """Main function to run weight optimization"""
     
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Run weight optimization backtests')
+    parser.add_argument('--period', type=int, default=730, help='Number of days for backtest (default: 730 = 2 years)')
+    parser.add_argument('--thresholds', type=str, default='5.0,7.5,10.0,20.0,30.0,40.0,50.0', 
+                       help='Comma-separated list of signal thresholds (default: "5.0,7.5,10.0,20.0,30.0,40.0,50.0")')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode (export intermediate results)')
+    args = parser.parse_args()
+    
+    # Set logging level
+    if args.verbose or args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+    
     # Load or create configurations
     logger.info("Loading weight configurations...")
     configs = load_weight_configs()
@@ -57,20 +79,47 @@ def main():
     
     # Backtest parameters
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=180)  # Last 180 days
+    start_date = end_date - timedelta(days=args.period)
+    
+    # Parse thresholds
+    signal_thresholds = [float(t.strip()) for t in args.thresholds.split(',')]
     
     symbols = ['BTC', 'ETH', 'SOL', 'AAPL', 'MSFT', 'TSLA']
-    signal_thresholds = [10.0, 20.0, 30.0]
     initial_capital = 10000.0
     strategy = "follow_ai"
     
+    # Prefetch all historical data before backtesting
+    logger.info(f"\n{'='*60}")
+    logger.info("Prefetching historical data for all symbols...")
+    logger.info(f"{'='*60}")
+    
+    prefetch_start = datetime.now()
+    for symbol in symbols:
+        try:
+            logger.info(f"Prefetching data for {symbol}...")
+            # Use prediction_horizon > 60 to get weekly data for long-term backtests
+            data, interval = market_data_service.get_symbol_history_with_interval(symbol, 90)
+            if data:
+                logger.info(f"  ✅ {symbol}: {len(data)} data points ({interval})")
+            else:
+                logger.warning(f"  ⚠️  {symbol}: No data available")
+        except Exception as e:
+            logger.error(f"  ❌ {symbol}: Error prefetching data - {e}")
+    
+    prefetch_duration = (datetime.now() - prefetch_start).total_seconds()
+    logger.info(f"Prefetch completed in {prefetch_duration:.1f} seconds")
+    logger.info(f"{'='*60}\n")
+    
     logger.info(f"Backtest parameters:")
+    logger.info(f"  Period: {args.period} days ({args.period // 365} years)")
     logger.info(f"  Start date: {start_date.strftime('%Y-%m-%d')}")
     logger.info(f"  End date: {end_date.strftime('%Y-%m-%d')}")
     logger.info(f"  Symbols: {symbols}")
     logger.info(f"  Signal thresholds: {signal_thresholds}")
     logger.info(f"  Initial capital: ${initial_capital:,.2f}")
     logger.info(f"  Strategy: {strategy}")
+    logger.info(f"  Debug mode: {args.debug}")
+    logger.info(f"  Verbose: {args.verbose}")
     
     # Run backtests for each configuration
     all_results = []

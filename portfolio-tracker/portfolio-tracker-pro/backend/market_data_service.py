@@ -11,6 +11,11 @@ import os
 import datetime as dt
 from prometheus_client import Counter
 
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 logger = get_logger(__name__)
 
 try:
@@ -37,10 +42,10 @@ market_cache_hits = Counter(
 
 class MarketDataService:
     def __init__(self):
-        # Cache for prices (TTL: 5 minutes for prices, 1 hour for history)
+        # Cache for prices (TTL: 5 minutes for prices, 24 hours for history)
         self._price_cache: Dict[str, Dict] = {}
         self._cache_ttl = 300  # 5 minutes for current prices
-        self._history_cache_ttl = 7200  # 2 hours for historical data (increased for weekly/monthly candles)
+        self._history_cache_ttl = 86400  # 24 hours for historical data (increased for backtests)
         # Alpha Vantage rate limiting (5 req/min => min 12s interval)
         self._av_last_request_time: float = 0.0
         self._av_min_interval: float = 12.0
@@ -717,81 +722,128 @@ class MarketDataService:
             
             # Try Yahoo Finance as fallback (no rate limits, supports multiple intervals)
             if series is None and YFINANCE_AVAILABLE:
-                try:
-                    market_provider_requests.labels('yahoo_finance', 'attempt').inc()
-                    ticker = yf.Ticker(symbol)
-                    
-                    # Calculate date range
-                    end_date = dt.date.today()
-                    start_date = end_date - dt.timedelta(days=history_days + 10)
-                    
-                    # Map interval to yfinance period
-                    period_map = {
-                        '1h': '1mo',  # 1 month of hourly data
-                        '1d': '1y',   # 1 year of daily data
-                        '1w': '2y'    # 2 years of weekly data
-                    }
-                    
-                    # Use history() method for historical data
-                    # Try period first (more reliable), then fallback to start/end dates
+                # Retry logic for Yahoo Finance
+                max_retries = 3
+                base_delay = 1.0
+                for attempt in range(max_retries):
                     try:
-                        if interval == '1h':
-                            hist = ticker.history(period='1mo', interval='1h')
+                        market_provider_requests.labels('yahoo_finance', 'attempt').inc()
+                        ticker = yf.Ticker(symbol)
+                        
+                        # Calculate date range
+                        end_date = dt.date.today()
+                        start_date = end_date - dt.timedelta(days=history_days + 10)
+                        
+                        # Determine appropriate period based on history_days and interval
+                        # For weekly data, we need longer periods
+                        if interval == '1w':
+                            if history_days > 365:
+                                period = '5y'  # 5 years for long-term weekly
+                            elif history_days > 180:
+                                period = '2y'  # 2 years
+                            else:
+                                period = '1y'  # 1 year
                         elif interval == '1d':
-                            hist = ticker.history(period='6mo', interval='1d')
-                        elif interval == '1w':
-                            hist = ticker.history(period='2y', interval='1wk')
-                        else:
-                            hist = ticker.history(period='6mo', interval='1d')
-                    except Exception:
-                        # Fallback to start/end dates if period fails
+                            if history_days > 365:
+                                period = '2y'  # 2 years for daily
+                            else:
+                                period = '1y'  # 1 year
+                        else:  # 1h
+                            period = '60d'  # 60 days for hourly
+                        
+                        # Use history() method for historical data
+                        # Try period first (more reliable), then fallback to start/end dates
+                        hist = None
                         try:
                             if interval == '1h':
-                                hist = ticker.history(start=start_date, end=end_date, interval='1h')
+                                hist = ticker.history(period=period, interval='1h', timeout=10)
                             elif interval == '1d':
-                                hist = ticker.history(start=start_date, end=end_date, interval='1d')
+                                hist = ticker.history(period=period, interval='1d', timeout=10)
                             elif interval == '1w':
-                                hist = ticker.history(start=start_date, end=end_date, interval='1wk')
+                                hist = ticker.history(period=period, interval='1wk', timeout=10)
                             else:
-                                hist = ticker.history(start=start_date, end=end_date, interval='1d')
-                        except Exception as e2:
-                            logger.debug(f"Yahoo Finance history() failed for {symbol}: {e2}")
-                            hist = pd.DataFrame()
-                    
-                    if not hist.empty:
-                        series = []
-                        for date, row in hist.iterrows():
-                            series.append({
-                                "date": date.date().isoformat(),
-                                "close": float(row['Close']),
-                                "open": float(row['Open']),
-                                "high": float(row['High']),
-                                "low": float(row['Low']),
-                                "volume": float(row['Volume']) if 'Volume' in row else 0.0
-                            })
+                                hist = ticker.history(period='1y', interval='1d', timeout=10)
+                        except Exception as e1:
+                            logger.debug(f"Yahoo Finance period fetch failed for {symbol}, trying start/end dates: {e1}")
+                            # Fallback to start/end dates if period fails
+                            try:
+                                if interval == '1h':
+                                    hist = ticker.history(start=start_date, end=end_date, interval='1h', timeout=10)
+                                elif interval == '1d':
+                                    hist = ticker.history(start=start_date, end=end_date, interval='1d', timeout=10)
+                                elif interval == '1w':
+                                    hist = ticker.history(start=start_date, end=end_date, interval='1wk', timeout=10)
+                                else:
+                                    hist = ticker.history(start=start_date, end=end_date, interval='1d', timeout=10)
+                            except Exception as e2:
+                                logger.debug(f"Yahoo Finance start/end fetch failed for {symbol}: {e2}")
+                                if attempt < max_retries - 1:
+                                    delay = base_delay * (2 ** attempt)  # 1s, 2s, 4s
+                                    logger.debug(f"Yahoo Finance retry {attempt + 1}/{max_retries} for {symbol} in {delay:.1f}s")
+                                    time.sleep(delay)
+                                    continue
+                                else:
+                                    hist = None
                         
-                        # Limit to requested history_days
-                        if len(series) > history_days:
-                            series = series[-history_days:]
-                        
-                        # Cache the result
-                        if history_cache_key:
-                            self._price_cache[history_cache_key] = {
-                                'data': series,
-                                'timestamp': time.time()
-                            }
-                            if self._redis:
-                                try:
-                                    import json
-                                    self._redis.setex(history_cache_key, self._history_cache_ttl, json.dumps(series))
-                                except Exception:
-                                    pass
-                        
-                        market_provider_requests.labels('yahoo_finance', 'success').inc()
-                        logger.info(f"Yahoo Finance: fetched {len(series)} historical data points for {symbol} ({interval})")
-                except Exception as e:
-                    logger.warning(f"Yahoo Finance history fetch failed for {symbol}: {e}")
-                    market_provider_requests.labels('yahoo_finance', 'error').inc()
+                        if hist is not None and not hist.empty:
+                            series = []
+                            for date, row in hist.iterrows():
+                                # Handle both DatetimeIndex and regular index
+                                if isinstance(date, pd.Timestamp):
+                                    date_str = date.date().isoformat()
+                                    timestamp = date.isoformat()
+                                else:
+                                    date_str = str(date)
+                                    timestamp = date_str
+                                
+                                series.append({
+                                    "date": date_str,
+                                    "timestamp": timestamp,
+                                    "close": float(row['Close']) if 'Close' in row else 0.0,
+                                    "open": float(row['Open']) if 'Open' in row else 0.0,
+                                    "high": float(row['High']) if 'High' in row else 0.0,
+                                    "low": float(row['Low']) if 'Low' in row else 0.0,
+                                    "volume": float(row['Volume']) if 'Volume' in row and pd.notna(row['Volume']) else 0.0
+                                })
+                            
+                            # Limit to requested history_days (approximate)
+                            if len(series) > history_days:
+                                series = series[-history_days:]
+                            
+                            # Cache the result
+                            if history_cache_key:
+                                self._price_cache[history_cache_key] = {
+                                    'data': series,
+                                    'timestamp': time.time()
+                                }
+                                if self._redis:
+                                    try:
+                                        import json
+                                        self._redis.setex(history_cache_key, self._history_cache_ttl, json.dumps(series))
+                                    except Exception:
+                                        pass
+                            
+                            market_provider_requests.labels('yahoo_finance', 'success').inc()
+                            logger.info(f"Yahoo Finance: fetched {len(series)} historical data points for {symbol} ({interval}, period={period})")
+                            break  # Success, exit retry loop
+                        else:
+                            if attempt < max_retries - 1:
+                                delay = base_delay * (2 ** attempt)
+                                logger.debug(f"Yahoo Finance empty result for {symbol}, retry {attempt + 1}/{max_retries} in {delay:.1f}s")
+                                time.sleep(delay)
+                                continue
+                            else:
+                                logger.warning(f"Yahoo Finance: no data returned for {symbol} after {max_retries} attempts")
+                                market_provider_requests.labels('yahoo_finance', 'empty').inc()
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt)
+                            logger.warning(f"Yahoo Finance history fetch failed for {symbol} (attempt {attempt + 1}/{max_retries}), retrying in {delay:.1f}s: {e}")
+                            time.sleep(delay)
+                            continue
+                        else:
+                            logger.warning(f"Yahoo Finance history fetch failed for {symbol} after {max_retries} attempts: {e}")
+                            market_provider_requests.labels('yahoo_finance', 'error').inc()
             
             # Try Alpha Vantage as fallback (daily only)
             if series is None and interval == '1d':
