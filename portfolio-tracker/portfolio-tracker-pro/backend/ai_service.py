@@ -1713,7 +1713,7 @@ class AIService:
             return headlines[:max_articles]
         
         except Exception as e:
-                    self.logger.warning(f"Error fetching news for {symbol}: {e}")
+            self.logger.warning(f"Error fetching news for {symbol}: {e}")
             return self._get_mock_news_headlines(symbol)
 
     def analyze_sentiment(
@@ -1851,7 +1851,7 @@ class AIService:
                 }
         
         except Exception as e:
-                    self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
+            self.logger.error(f"Error in analyze_sentiment for {symbol}: {e}", exc_info=True)
             return {
                 'symbol': symbol,
                 'sentiment': 'neutral',
@@ -2038,11 +2038,12 @@ class AIService:
             
             if critical_count > 0:
                 overall_severity = 'critical'
-                                    warning_count > 2:
+            elif warning_count > 2:
                 overall_severity = 'warning'
-                                    len(anomalies) > 0:
+            elif len(anomalies) > 0:
                 overall_severity = 'info'
-                                else:                overall_severity = 'none'
+            else:
+                overall_severity = 'none'
             
             return {
                 'anomalies': anomalies,
@@ -2173,7 +2174,7 @@ class AIService:
                 # Risk-adjusted return
                 if portfolio_std > 0:
                     sharpe_like = portfolio_return / portfolio_std
-            else:
+                else:
                     sharpe_like = 0
                 
                 return -sharpe_like * (1 - risk_weight) + portfolio_variance * risk_weight
@@ -2377,8 +2378,8 @@ class AIService:
                                     'value': shares * current_prices[symbol]
                                 })
                 
-            strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
-                    # Get AI recommendations for this date
+            if strategy in ['follow_ai', 'high_confidence', 'weighted_allocation']:
+                # Get AI recommendations for this date
                     if self.market_data_service:
                         # Build current holdings dict
                         current_holdings = {}
@@ -2404,14 +2405,14 @@ class AIService:
                             filtered_recommendations = []
                             for rec in recommendations:
                                 signal_strength = rec.get('signal_strength', 0)
-                    
-                    if strategy == 'follow_ai':
+                                
+                                if strategy == 'follow_ai':
                                     if signal_strength > signal_threshold or signal_strength < -signal_threshold:
                                         filtered_recommendations.append(rec)
-                            strategy == 'high_confidence':
+                                elif strategy == 'high_confidence':
                                     if signal_strength > 50 or signal_strength < -50:
                                         filtered_recommendations.append(rec)
-                        strategy == 'weighted_allocation':
+                                elif strategy == 'weighted_allocation':
                                     filtered_recommendations.append(rec)
                             
                             # Execute trades
