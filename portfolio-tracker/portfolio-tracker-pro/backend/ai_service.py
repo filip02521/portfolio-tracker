@@ -425,8 +425,8 @@ class AIService:
                     'breakout': 'bullish' if current_price > donchian_high else 'bearish' if current_price < donchian_low else None,
                     'signal': 'buy' if current_price > donchian_high else 'sell' if current_price < donchian_low else 'neutral'
                 }
-                except Exception as e:
-                                self.logger.debug(f"Donchian Channels calculation failed: {e}")
+            except Exception as e:
+                self.logger.debug(f"Donchian Channels calculation failed: {e}")
             
             # 13. Ichimoku Cloud
             if TA_AVAILABLE:
