@@ -2341,6 +2341,13 @@ class AIService:
             equity_curve = [initial_capital]
             trade_history = []
             
+            # Track metadata for recommendations used in backtest (init early!)
+            all_confidence_values = []
+            all_signal_strength_values = []
+            total_recommendations_count = 0
+            buy_recommendations_count = 0
+            sell_recommendations_count = 0
+            
             # Backtest loop (weekly rebalancing)
             for date_str in sorted_dates:
                 date_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
@@ -2527,13 +2534,6 @@ class AIService:
             total_profit = 0.0
             total_loss = 0.0
             trade_returns = []
-            
-            # Track metadata for recommendations used in backtest
-            all_confidence_values = []
-            all_signal_strength_values = []
-            total_recommendations_count = 0
-            buy_recommendations_count = 0
-            sell_recommendations_count = 0
             
             # Track open positions (FIFO)
             open_positions = {}  # {symbol: [(shares, buy_price, buy_date), ...]}
