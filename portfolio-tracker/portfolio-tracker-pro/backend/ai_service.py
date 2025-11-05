@@ -2406,6 +2406,12 @@ class AIService:
                             filtered_recommendations = []
                             for rec in recommendations:
                                 signal_strength = rec.get('signal_strength', 0)
+                                confidence = rec.get('confidence', 0.0)
+                                
+                                # Collect metadata for all recommendations (before filtering)
+                                all_confidence_values.append(confidence)
+                                all_signal_strength_values.append(signal_strength)
+                                total_recommendations_count += 1
                                 
                                 if strategy == 'follow_ai':
                                     if signal_strength > signal_threshold or signal_strength < -signal_threshold:
@@ -2424,6 +2430,12 @@ class AIService:
                                 
                                 action = rec.get('action', 'hold')
                                 price = current_prices[symbol]
+                                
+                                # Count executed recommendations
+                                if action == 'buy':
+                                    buy_recommendations_count += 1
+                                elif action == 'sell':
+                                    sell_recommendations_count += 1
                                 
                                 if action == 'buy' and cash > 0:
                                     if strategy == 'weighted_allocation':
@@ -2516,6 +2528,13 @@ class AIService:
             total_loss = 0.0
             trade_returns = []
             
+            # Track metadata for recommendations used in backtest
+            all_confidence_values = []
+            all_signal_strength_values = []
+            total_recommendations_count = 0
+            buy_recommendations_count = 0
+            sell_recommendations_count = 0
+            
             # Track open positions (FIFO)
             open_positions = {}  # {symbol: [(shares, buy_price, buy_date), ...]}
             
@@ -2591,6 +2610,12 @@ class AIService:
             # Calmar Ratio: CAGR / Max Drawdown (as percentage)
             calmar_ratio = (cagr / max_drawdown_pct) if max_drawdown_pct > 0 else 0.0
             
+            # Calculate metadata averages
+            avg_confidence = np.mean(all_confidence_values) if all_confidence_values else 0.0
+            avg_signal_strength = np.mean(all_signal_strength_values) if all_signal_strength_values else 0.0
+            median_confidence = np.median(all_confidence_values) if all_confidence_values else 0.0
+            median_signal_strength = np.median(all_signal_strength_values) if all_signal_strength_values else 0.0
+            
             return {
                 'strategy': strategy,
                 'start_date': start_date,
@@ -2616,6 +2641,16 @@ class AIService:
                     for i, val in enumerate(equity_curve)
                 ],
                 'trade_history': trade_history,
+                'metadata': {
+                    'avg_confidence': float(avg_confidence),
+                    'median_confidence': float(median_confidence),
+                    'avg_signal_strength': float(avg_signal_strength),
+                    'median_signal_strength': float(median_signal_strength),
+                    'total_recommendations': total_recommendations_count,
+                    'buy_recommendations': buy_recommendations_count,
+                    'sell_recommendations': sell_recommendations_count,
+                    'executed_recommendations': buy_recommendations_count + sell_recommendations_count
+                },
                 'status': 'success'
             }
             
