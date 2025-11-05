@@ -462,7 +462,7 @@ class AIService:
                             'position': 'above' if above_cloud else 'below' if below_cloud else 'in_cloud',
                             'signal': signal
                         }
-        except Exception as e:
+                except Exception as e:
                     self.logger.debug(f"Ichimoku Cloud calculation failed: {e}")
             
             # ========== VOLUME INDICATORS ==========
