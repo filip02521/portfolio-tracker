@@ -34,6 +34,7 @@ from logging_config import setup_logging, get_logger
 from watchlist_service import WatchlistService
 from ai_service import AIService
 from backtesting_service import BacktestEngine
+from confluence_strategy_service import ConfluenceStrategyService
 from exchange_manager import ExchangeManager
 from datetime import datetime
 from pydantic import BaseModel
@@ -258,6 +259,7 @@ risk_management_service = RiskManagementService()  # Initialize risk management 
 watchlist_service = WatchlistService()  # Initialize user watchlist service
 ai_service = AIService(market_data_service=market_data_service)  # Initialize AI service
 backtest_engine = BacktestEngine(market_data_service=market_data_service)  # Initialize backtesting engine
+confluence_strategy_service = ConfluenceStrategyService(market_data_service=market_data_service)  # Initialize confluence strategy service
 exchange_manager = ExchangeManager()  # Initialize exchange manager
 
 # Initialize background worker for price alerts (will be started in lifespan startup)
