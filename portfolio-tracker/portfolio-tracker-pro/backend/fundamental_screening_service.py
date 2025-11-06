@@ -1309,6 +1309,11 @@ class FundamentalScreeningService:
                     'error': 'No rebalance dates generated'
                 }
             
+            # Calculate total days for backtest to ensure we fetch enough historical data
+            total_days = (end_dt - start_dt).days
+            # Add buffer for safety (30 days)
+            required_history_days = total_days + 30
+            
             # Initialize backtest state
             cash = initial_capital
             positions = {}  # {symbol: {'shares': float, 'entry_price': float, 'entry_date': str}}
@@ -1325,6 +1330,11 @@ class FundamentalScreeningService:
             total_loss = 0.0
             winning_trades_count = 0
             losing_trades_count = 0
+            
+            # Store backtest date range for _get_historical_price to use
+            self._backtest_start_date = start_dt
+            self._backtest_end_date = end_dt
+            self._backtest_required_days = required_history_days
             
             # Process each rebalance period
             for rebalance_idx, rebalance_date in enumerate(rebalance_dates):
@@ -1724,13 +1734,34 @@ class FundamentalScreeningService:
         return dates
     
     def _get_historical_price(self, symbol: str, date: datetime) -> Optional[float]:
-        """Get historical price for a symbol on a specific date"""
+        """
+        Get historical price for a symbol on a specific date.
+        
+        If called during backtest (backtest date range is set), fetches enough data
+        to cover the entire backtest period. Otherwise, fetches last 365 days.
+        """
         if not self.market_data_service:
             return None
         
         try:
+            # If we're in a backtest, fetch enough data to cover the entire period
+            # Otherwise, fetch last 365 days (default behavior)
+            if hasattr(self, '_backtest_required_days') and self._backtest_required_days:
+                # Use the required days from backtest
+                days_to_fetch = max(self._backtest_required_days, 365)
+                # Also ensure we fetch from at least the requested date (in case date is older)
+                if isinstance(date, datetime):
+                    days_since_date = (datetime.now().date() - date.date()).days
+                    if days_since_date > 0:
+                        days_to_fetch = max(days_to_fetch, days_since_date + 30)  # Add buffer
+                # Cap at reasonable maximum (5 years = ~1825 days) to avoid API issues
+                days_to_fetch = min(days_to_fetch, 1825)
+            else:
+                # Default: fetch last 365 days
+                days_to_fetch = 365
+            
             # Get historical data - get_symbol_history returns a list directly
-            historical_data = self.market_data_service.get_symbol_history(symbol, days=365)
+            historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch)
             
             # Handle case where it might return tuple (data, interval) or None
             if historical_data is None:
