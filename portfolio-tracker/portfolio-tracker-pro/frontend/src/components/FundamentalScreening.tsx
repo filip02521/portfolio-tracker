@@ -289,6 +289,7 @@ const FundamentalScreening: React.FC = () => {
       <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
         <Tab label="Single Symbol Analysis" />
         <Tab label="VQ+ Strategy Screening" />
+        <Tab label="Backtest Strategy" />
       </Tabs>
 
       {error && (
