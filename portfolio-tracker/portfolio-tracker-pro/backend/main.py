@@ -2915,16 +2915,16 @@ async def screen_vq_plus(
     - Market cap and current price
     - Detailed breakdown for each stock
     """
-        try:
-            results = fundamental_screening_service.screen_vq_plus_strategy(
-                symbols=request.symbols,
-                min_f_score=request.min_f_score,
-                max_z_score=request.max_z_score,  # Actually min threshold (we want > 3.0)
-                max_accrual_ratio=request.max_accrual_ratio,
-                auto_universe=request.auto_universe,
-                universe_index=request.universe_index,
-                value_percentile=request.value_percentile
-            )
+    try:
+        results = fundamental_screening_service.screen_vq_plus_strategy(
+            symbols=request.symbols,
+            min_f_score=request.min_f_score,
+            max_z_score=request.max_z_score,  # Actually min threshold (we want > 3.0)
+            max_accrual_ratio=request.max_accrual_ratio,
+            auto_universe=request.auto_universe,
+            universe_index=request.universe_index,
+            value_percentile=request.value_percentile
+        )
         return {
             'total_screened': len(results),
             'symbols_analyzed': len(request.symbols) if request.symbols else 0,
