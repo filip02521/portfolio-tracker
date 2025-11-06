@@ -856,25 +856,41 @@ class FundamentalScreeningService:
             'recommendation': 'PASS' if accrual_ratio < 5 else ('CAUTION' if accrual_ratio < 10 else 'EXCLUDE')
         }
     
-    def screen_vq_plus_strategy(self, symbols: List[str], min_f_score: int = 7, max_z_score: float = 3.0, max_accrual_ratio: float = 5.0) -> List[Dict]:
+    def screen_vq_plus_strategy(self, symbols: List[str] = None, min_f_score: int = 7, 
+                                max_z_score: float = 3.0, max_accrual_ratio: float = 5.0,
+                                auto_universe: bool = False, universe_index: str = 'SP500',
+                                value_percentile: float = 0.2) -> List[Dict]:
         """
         Screen stocks using VQ+ Strategy (Value + Quality with protective filters).
         
-        Strategy steps:
-        1. Screen for Value (low valuation - using EBIT/EV)
-        2. Filter by Quality (high F-Score)
-        3. Apply protective filters (Z-Score, Accrual Ratio)
-        4. Rank by combined score
+        According to the report (VI.1):
+        1. Szeroki Skrining Value: Algorytmiczna selekcja uniwersum spółek nisko wycenianych (dolny kwintyl EBIT/EV)
+        2. Automatyczny Filtr Jakości (F-Score): F-Score ≥ 7, 8, lub 9
+        3. Automatyczne Filtry Ochronne: Z-Score > 3.0, Accrual Ratio < threshold
+        4. Budowa Portfela i Rebalansowanie: Równe wagi, rebalansowanie roczne
         
         Args:
-            symbols: List of stock symbols to screen
+            symbols: List of stock symbols to screen (if None and auto_universe=True, uses universe)
             min_f_score: Minimum F-Score required (default: 7)
-            max_z_score: Maximum Z-Score threshold (default: 3.0, but we want > 3.0)
+            max_z_score: Minimum Z-Score threshold (default: 3.0, we want > 3.0)
             max_accrual_ratio: Maximum Accrual Ratio allowed (default: 5.0)
+            auto_universe: If True and symbols is None, automatically selects universe and ranks by EBIT/EV
+            universe_index: Index to use for universe selection (default: 'SP500')
+            value_percentile: Percentile for value screening (0.2 = bottom quintile = highest EBIT/EV)
             
         Returns:
             List of screened stocks with scores and rankings
         """
+        # Step 1: If auto_universe and no symbols provided, get universe and rank by EBIT/EV
+        if (symbols is None or len(symbols) == 0) and auto_universe:
+            universe_symbols = self.get_universe_symbols(index=universe_index)
+            # Rank universe by EBIT/EV (bottom percentile = highest EBIT/EV = lowest valuation)
+            ranked_universe = self.rank_universe_by_ebit_ev(universe_symbols, percentile=value_percentile)
+            symbols = [stock['symbol'] for stock in ranked_universe]
+            self.logger.info(f"Auto-selected {len(symbols)} stocks from {universe_index} universe (bottom {value_percentile*100}% by EBIT/EV)")
+        elif symbols is None:
+            symbols = []
+        
         results = []
         
         for symbol in symbols:
