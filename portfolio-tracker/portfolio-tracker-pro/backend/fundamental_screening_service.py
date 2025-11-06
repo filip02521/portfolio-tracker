@@ -474,10 +474,34 @@ class FundamentalScreeningService:
         
         # Revenue should already be extracted from ic_items above
         
+        # Market Cap from Finnhub is in millions USD - convert to full USD
+        market_cap_raw = profile_data.get('marketCapitalization', profile_data.get('market_cap', 0))
+        # Finnhub returns market cap in millions, so multiply by 1,000,000
+        if market_cap_raw and market_cap_raw > 0:
+            # Check if it's already in full units (very large number) or millions
+            # If less than 10,000, assume it's in millions (typical market caps are trillions)
+            if market_cap_raw < 10000:
+                market_cap = safe_value(market_cap_raw) * 1000000
+            else:
+                market_cap = safe_value(market_cap_raw)
+        else:
+            market_cap = 0
+        
+        # Share Outstanding from Finnhub is also in millions
+        shares_outstanding_raw = profile_data.get('shareOutstanding', profile_data.get('sharesOutstanding', 0))
+        if shares_outstanding_raw and shares_outstanding_raw > 0:
+            # If less than 1000, assume millions
+            if shares_outstanding_raw < 1000:
+                shares_outstanding = safe_value(shares_outstanding_raw) * 1000000
+            else:
+                shares_outstanding = safe_value(shares_outstanding_raw)
+        else:
+            shares_outstanding = 0
+        
         return {
             'symbol': profile_data.get('ticker', profile_data.get('symbol', '')),
             'company_name': profile_data.get('name', profile_data.get('companyName', '')),
-            'market_cap': safe_value(profile_data.get('marketCapitalization', profile_data.get('market_cap', 0))),
+            'market_cap': market_cap,
             'total_assets': safe_value(latest_financials.get('total_assets', profile_data.get('totalAssets', 0))),
             'total_liabilities': safe_value(latest_financials.get('total_liabilities', profile_data.get('totalLiabilities', 0))),
             'net_income': safe_value(latest_financials.get('net_income', 0)),
@@ -488,7 +512,7 @@ class FundamentalScreeningService:
             'current_liabilities': safe_value(profile_data.get('currentLiabilities', latest_financials.get('current_liabilities', 0))),
             'long_term_debt': safe_value(profile_data.get('longTermDebt', latest_financials.get('long_term_debt', 0))),
             'book_value': safe_value(profile_data.get('bookValue', profile_data.get('book_value', 0))),
-            'shares_outstanding': safe_value(profile_data.get('shareOutstanding', profile_data.get('sharesOutstanding', 0))),
+            'shares_outstanding': shares_outstanding,
             'cogs': safe_value(cogs),
             'gross_profit': safe_value(gross_profit),
             'retained_earnings': safe_value(latest_financials.get('retained_earnings', 0)),
