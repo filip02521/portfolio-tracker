@@ -1760,8 +1760,25 @@ class FundamentalScreeningService:
                 # Default: fetch last 365 days
                 days_to_fetch = 365
             
-            # Get historical data - get_symbol_history returns a list directly
-            historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch)
+            # Get historical data
+            # For longer periods (>365 days), use get_symbol_history_with_interval which handles Yahoo Finance better
+            # For shorter periods, use get_symbol_history (faster, simpler)
+            if days_to_fetch > 365:
+                # Use get_symbol_history_with_interval for longer periods (can use Yahoo Finance with 5y period)
+                # Use prediction_horizon > 60 to get weekly/daily data
+                prediction_horizon = min(days_to_fetch, 730)  # Cap at 730 for weekly
+                try:
+                    result = self.market_data_service.get_symbol_history_with_interval(symbol, prediction_horizon)
+                    if isinstance(result, tuple):
+                        historical_data, interval = result
+                    else:
+                        historical_data = result
+                except Exception as e:
+                    self.logger.warning(f"Error using get_symbol_history_with_interval for {symbol}, falling back to get_symbol_history: {e}")
+                    historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch)
+            else:
+                # Use get_symbol_history for shorter periods (returns list directly)
+                historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch)
             
             # Handle case where it might return tuple (data, interval) or None
             if historical_data is None:
