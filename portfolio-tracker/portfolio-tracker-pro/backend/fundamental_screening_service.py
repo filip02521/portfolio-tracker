@@ -1251,7 +1251,8 @@ class FundamentalScreeningService:
         max_accrual_ratio: float = 5.0,
         auto_universe: bool = False,
         universe_index: str = 'SP500',
-        value_percentile: float = 0.2
+        value_percentile: float = 0.2,
+        transaction_cost: float = 0.001  # 0.1% per trade (default)
     ) -> Dict:
         """
         Backtest the VQ+ Strategy on historical data.
@@ -1276,6 +1277,7 @@ class FundamentalScreeningService:
             auto_universe: Auto-select universe if symbols is None
             universe_index: Index for universe selection (default: 'SP500')
             value_percentile: Value percentile for screening (default: 0.2)
+            transaction_cost: Transaction cost as decimal (default: 0.001 = 0.1% per trade)
             
         Returns:
             Dict with backtest results:
@@ -1412,11 +1414,13 @@ class FundamentalScreeningService:
                     for symbol, position in positions_to_close:
                         exit_price = self._get_historical_price(symbol, trading_date)
                         if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
-                            cash_added, profit = self._close_position(
+                            cash_added, profit, transaction_cost_incurred = self._close_position(
                                 symbol, position, exit_price, rebalance_date,
-                                positions, trade_history, 'No stocks pass screening'
+                                positions, trade_history, 'No stocks pass screening',
+                                transaction_cost
                             )
                             cash += cash_added
+                            total_transaction_costs += transaction_cost_incurred
                             if profit > 0:
                                 total_profit += profit
                                 winning_trades_count += 1
@@ -1446,11 +1450,13 @@ class FundamentalScreeningService:
                     if symbol not in target_symbols:
                         exit_price = self._get_historical_price(symbol, trading_date)
                         if exit_price and exit_price > 0:
-                            cash_added, profit = self._close_position(
+                            cash_added, profit, transaction_cost_incurred = self._close_position(
                                 symbol, position, exit_price, rebalance_date,
-                                positions, trade_history, 'Filter failed at rebalance'
+                                positions, trade_history, 'Filter failed at rebalance',
+                                transaction_cost
                             )
                             cash += cash_added
+                            total_transaction_costs += transaction_cost_incurred
                             if profit > 0:
                                 total_profit += profit
                                 winning_trades_count += 1
@@ -1529,22 +1535,29 @@ class FundamentalScreeningService:
                                     shares = target_position_value / entry_price
                                     position_value = shares * entry_price
                                     
-                                    positions[symbol] = {
-                                        'shares': shares,
-                                        'entry_price': entry_price,
-                                        'entry_date': rebalance_date.strftime('%Y-%m-%d')
-                                    }
-                                    cash -= position_value
+                                    # Calculate transaction cost for opening position
+                                    transaction_cost_amount = position_value * transaction_cost if transaction_cost > 0 else 0.0
+                                    total_cost = position_value + transaction_cost_amount
                                     
-                                    trade_history.append({
-                                        'date': rebalance_date.strftime('%Y-%m-%d'),
-                                        'action': 'buy',
-                                        'symbol': symbol,
-                                        'price': entry_price,
-                                        'shares': shares,
-                                        'value': position_value,
-                                        'reason': 'VQ+ rebalance'
-                                    })
+                                    if cash >= total_cost:
+                                        positions[symbol] = {
+                                            'shares': shares,
+                                            'entry_price': entry_price,
+                                            'entry_date': rebalance_date.strftime('%Y-%m-%d')
+                                        }
+                                        cash -= total_cost
+                                        total_transaction_costs += transaction_cost_amount
+                                        
+                                        trade_history.append({
+                                            'date': rebalance_date.strftime('%Y-%m-%d'),
+                                            'action': 'buy',
+                                            'symbol': symbol,
+                                            'price': entry_price,
+                                            'shares': shares,
+                                            'value': position_value,
+                                            'transaction_cost': round(transaction_cost_amount, 2),
+                                            'reason': 'VQ+ rebalance'
+                                        })
                                 break
                         else:
                             # If we can't afford even one position at equal weight,
@@ -1633,11 +1646,13 @@ class FundamentalScreeningService:
             for symbol, position in final_positions_list:
                 exit_price = self._get_historical_price(symbol, final_date)
                 if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
-                    cash_added, profit = self._close_position(
+                    cash_added, profit, transaction_cost_incurred = self._close_position(
                         symbol, position, exit_price, final_date,
-                        positions, trade_history, 'End of backtest'
+                        positions, trade_history, 'End of backtest',
+                        transaction_cost
                     )
                     cash += cash_added
+                    total_transaction_costs += transaction_cost_incurred
                     if profit > 0:
                         total_profit += profit
                         winning_trades_count += 1
@@ -1681,7 +1696,8 @@ class FundamentalScreeningService:
                 f"Backtest completed - Initial: ${initial_capital:,.2f}, Final: ${final_portfolio_value:,.2f}, "
                 f"Return: {total_return:.2f}%, Trades: {len(trade_history)}, "
                 f"Winners: {winning_trades_count}, Losers: {losing_trades_count}, "
-                f"Total Profit: ${total_profit:,.2f}, Total Loss: ${total_loss:,.2f}"
+                f"Total Profit: ${total_profit:,.2f}, Total Loss: ${total_loss:,.2f}, "
+                f"Total Transaction Costs: ${total_transaction_costs:,.2f}"
             )
             
             # Calculate CAGR
@@ -1970,8 +1986,9 @@ class FundamentalScreeningService:
         exit_date: datetime,
         positions: Dict,
         trade_history: List,
-        reason: str
-    ) -> Tuple[float, float]:
+        reason: str,
+        transaction_cost: float = 0.0
+    ) -> Tuple[float, float, float]:
         """
         Close a position and update trade history.
         
@@ -1983,9 +2000,10 @@ class FundamentalScreeningService:
             positions: Dict of open positions (will be modified - symbol removed)
             trade_history: List to append trade record to
             reason: Reason for closing the position
+            transaction_cost: Transaction cost as decimal (e.g., 0.001 = 0.1%)
         
         Returns:
-            Tuple of (cash_added, profit)
+            Tuple of (cash_added, profit, transaction_cost_incurred)
         """
         # Extract position data
         shares = position.get('shares', 0)
@@ -2000,6 +2018,10 @@ class FundamentalScreeningService:
         exit_value = shares * exit_price
         profit = (exit_price - entry_price) * shares
         return_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+        
+        # Calculate transaction cost
+        transaction_cost_amount = exit_value * transaction_cost if transaction_cost > 0 else 0.0
+        cash_added = exit_value - transaction_cost_amount
         
         # Remove position from positions dict (if it exists)
         if symbol in positions:
@@ -2023,10 +2045,11 @@ class FundamentalScreeningService:
             'profit': round(profit, 2),
             'reason': reason,
             'entry_price': entry_price,
-            'entry_date': entry_date
+            'entry_date': entry_date,
+            'transaction_cost': round(transaction_cost_amount, 2)
         })
         
-        return exit_value, profit
+        return cash_added, profit, transaction_cost_amount
     
     def get_universe_symbols(self, index: str = 'SP500') -> List[str]:
         """
