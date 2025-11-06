@@ -1398,6 +1398,7 @@ class FundamentalScreeningService:
             total_loss = 0.0
             winning_trades_count = 0
             losing_trades_count = 0
+            total_transaction_costs = 0.0  # Track total transaction costs
             
             # Store backtest date range for _get_historical_price to use
             self._backtest_start_date = start_dt
@@ -1678,7 +1679,7 @@ class FundamentalScreeningService:
                 )
             
             # Close all positions at end
-            final_date = end_dt
+            final_date = self._adjust_to_trading_day(end_dt)  # Adjust to trading day
             final_positions_list = list(positions.items())  # Create copy before iteration
             for symbol, position in final_positions_list:
                 exit_price = self._get_historical_price(symbol, final_date)
@@ -1782,6 +1783,8 @@ class FundamentalScreeningService:
                 'losing_trades': losing_trades_count,
                 'initial_capital': initial_capital,
                 'final_value': round(final_portfolio_value, 2),
+                'total_transaction_costs': round(total_transaction_costs, 2),
+                'transaction_cost_pct': round((total_transaction_costs / initial_capital * 100), 2) if initial_capital > 0 else 0.0,
                 'equity_curve': equity_curve,
                 'trade_history': trade_history,
                 'portfolio_compositions': portfolio_compositions,
@@ -1791,7 +1794,9 @@ class FundamentalScreeningService:
                     'max_positions': max_positions,
                     'min_f_score': min_f_score,
                     'max_z_score': max_z_score,
-                    'max_accrual_ratio': max_accrual_ratio
+                    'max_accrual_ratio': max_accrual_ratio,
+                    'transaction_cost': transaction_cost,
+                    'min_daily_volume': min_daily_volume
                 }
             }
             
