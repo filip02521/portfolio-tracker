@@ -273,47 +273,86 @@ class FundamentalScreeningService:
             if not isinstance(latest, dict):
                 latest = {}
             
-            # Handle report data - can be list or dict
-            report_data = latest.get('report', [])
-            if isinstance(report_data, dict):
-                # If it's a dict, convert to list of items
-                report_data = [report_data] if report_data else []
-            elif not isinstance(report_data, list):
-                report_data = []
+            # Finnhub returns report as dict with 'bs' (balance sheet), 'ic' (income statement), 'cf' (cash flow)
+            report = latest.get('report', {})
+            if not isinstance(report, dict):
+                report = {}
             
-            for report in report_data:
-                if not isinstance(report, dict):
-                    continue
-                    
-                concept = report.get('concept', '')
-                if not isinstance(concept, str):
-                    continue
-                    
-                concept = concept.lower()
-                value = report.get('value', 0)
-                try:
-                    value = float(value) if value else 0
-                except (ValueError, TypeError):
-                    value = 0
-                
-                if 'netincomeloss' in concept or 'netincome' in concept:
-                    latest_financials['net_income'] = value
-                elif concept == 'assets':
-                    latest_financials['total_assets'] = value
-                elif 'liabilit' in concept:
-                    latest_financials['total_liabilities'] = value
-                elif 'operatingcashflow' in concept or 'operatingcash' in concept:
-                    latest_financials['operating_cash_flow'] = value
-                elif 'costofrevenue' in concept or 'costofgoodssold' in concept or 'cogs' in concept:
-                    latest_financials['cogs'] = value
-                elif 'grossprofit' in concept or 'grossincome' in concept:
-                    latest_financials['gross_profit'] = value
-                elif 'retainedearnings' in concept:
-                    latest_financials['retained_earnings'] = value
-                elif 'cashandcashequivalents' in concept or 'cashandshortterminvestments' in concept:
-                    latest_financials['cash_and_cash_equivalents'] = value
-                elif 'stockholdersequity' in concept or 'totalequity' in concept:
-                    latest_financials['total_stockholders_equity'] = value
+            # Helper function to extract value from items list matching concepts
+            def extract_value(items, concepts, default=0):
+                """Extract value from items list matching concepts"""
+                if not isinstance(items, list):
+                    return default
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    concept = item.get('concept', '').lower()
+                    for concept_key in concepts:
+                        if concept_key in concept:
+                            value = item.get('value', 0)
+                            try:
+                                return float(value) if value else default
+                            except (ValueError, TypeError):
+                                return default
+                return default
+            
+            # Parse Balance Sheet (bs)
+            bs_items = report.get('bs', [])
+            if isinstance(bs_items, list):
+                # Prioritize total assets over current assets
+                latest_financials['total_assets'] = extract_value(
+                    bs_items, ['assetstotal', 'assets'], 0
+                )
+                # Only use current assets if specifically found, don't overwrite total
+                current_assets_val = extract_value(bs_items, ['assetscurrent'], 0)
+                if current_assets_val > 0:
+                    latest_financials['current_assets'] = current_assets_val
+                # Prioritize total liabilities
+                latest_financials['total_liabilities'] = extract_value(
+                    bs_items, ['liabilitiestotal', 'liabilities'], 0
+                )
+                # Only use current liabilities if specifically found
+                current_liabilities_val = extract_value(bs_items, ['liabilitiescurrent'], 0)
+                if current_liabilities_val > 0:
+                    latest_financials['current_liabilities'] = current_liabilities_val
+                latest_financials['long_term_debt'] = extract_value(
+                    bs_items, ['longtermdebt', 'longtermdebtnetofcurrent'], latest_financials.get('long_term_debt', 0)
+                )
+                latest_financials['cash_and_cash_equivalents'] = extract_value(
+                    bs_items, ['cashandcashequivalents', 'cashandequivalents'], latest_financials.get('cash_and_cash_equivalents', 0)
+                )
+                latest_financials['retained_earnings'] = extract_value(
+                    bs_items, ['retainedearnings'], latest_financials.get('retained_earnings', 0)
+                )
+                latest_financials['total_stockholders_equity'] = extract_value(
+                    bs_items, ['stockholdersequity', 'equity', 'shareholdersequity'], latest_financials.get('total_stockholders_equity', 0)
+                )
+            
+            # Parse Income Statement (ic)
+            ic_items = report.get('ic', [])
+            if isinstance(ic_items, list):
+                latest_financials['revenue'] = extract_value(
+                    ic_items, ['revenues', 'revenue', 'sales', 'netsales', 'totalrevenue'], latest_financials.get('revenue', 0)
+                )
+                latest_financials['cogs'] = extract_value(
+                    ic_items, ['costofrevenue', 'costofgoodssold', 'cogs'], latest_financials.get('cogs', 0)
+                )
+                latest_financials['gross_profit'] = extract_value(
+                    ic_items, ['grossprofit', 'grossincome'], latest_financials.get('gross_profit', 0)
+                )
+                latest_financials['ebit'] = extract_value(
+                    ic_items, ['operatingincomeloss', 'incomebeforetax', 'ebit', 'earningsbeforeinterestandtax'], latest_financials.get('ebit', 0)
+                )
+                latest_financials['net_income'] = extract_value(
+                    ic_items, ['netincomeloss', 'netincome', 'netincometocommon'], latest_financials.get('net_income', 0)
+                )
+            
+            # Parse Cash Flow (cf)
+            cf_items = report.get('cf', [])
+            if isinstance(cf_items, list):
+                latest_financials['operating_cash_flow'] = extract_value(
+                    cf_items, ['operatingcashflow', 'cashfromoperations', 'netcashprovidedbyoperatingactivities'], latest_financials.get('operating_cash_flow', 0)
+                )
         
         revenue = profile_data.get('revenue', 0) or latest_financials.get('revenue', 0)
         cogs = latest_financials.get('cogs', 0)
@@ -333,17 +372,7 @@ class FundamentalScreeningService:
             except (ValueError, TypeError):
                 return default
         
-        # Extract revenue from financials if not in profile
-        if revenue == 0:
-            # Try to find revenue in financials reports
-            revenue_concepts = ['revenue', 'totalrevenue', 'sales', 'netsales']
-            for report in report_data:
-                if isinstance(report, dict):
-                    concept = report.get('concept', '').lower()
-                    if any(rc in concept for rc in revenue_concepts):
-                        revenue = safe_value(report.get('value', 0))
-                        if revenue > 0:
-                            break
+        # Revenue should already be extracted from ic_items above
         
         return {
             'symbol': profile_data.get('ticker', profile_data.get('symbol', '')),
