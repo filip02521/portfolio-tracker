@@ -1077,7 +1077,7 @@ class FundamentalScreeningService:
                     # Close all positions if no stocks pass
                     for symbol, position in list(positions.items()):
                         exit_price = self._get_historical_price(symbol, rebalance_date)
-                        if exit_price:
+                        if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
                             cash_added, profit = self._close_position(
                                 symbol, position, exit_price, rebalance_date,
                                 positions, trade_history, 'No stocks pass screening'
@@ -1107,7 +1107,7 @@ class FundamentalScreeningService:
                 for symbol, position in list(positions.items()):
                     if symbol not in target_symbols:
                         exit_price = self._get_historical_price(symbol, rebalance_date)
-                        if exit_price:
+                        if exit_price and exit_price > 0:
                             cash_added, profit = self._close_position(
                                 symbol, position, exit_price, rebalance_date,
                                 positions, trade_history, 'Filter failed at rebalance'
@@ -1124,7 +1124,7 @@ class FundamentalScreeningService:
                 portfolio_value = cash
                 for symbol, position in positions.items():
                     current_price = self._get_historical_price(symbol, rebalance_date)
-                    if current_price:
+                    if current_price and current_price > 0:
                         portfolio_value += position['shares'] * current_price
                 
                 # Step 5: Rebalance to equal weights
@@ -1135,7 +1135,7 @@ class FundamentalScreeningService:
                 existing_symbols = list(positions.keys())
                 for symbol in existing_symbols:
                     exit_price = self._get_historical_price(symbol, rebalance_date)
-                    if exit_price:
+                    if exit_price and exit_price > 0:
                         old_position = positions.pop(symbol)
                         cash_added, profit = self._close_position(
                             symbol, old_position, exit_price, rebalance_date,
@@ -1155,7 +1155,7 @@ class FundamentalScreeningService:
                 # Now open new positions with equal weights
                 for symbol in target_symbols:
                     entry_price = self._get_historical_price(symbol, rebalance_date)
-                    if entry_price and entry_price > 0:
+                    if entry_price and isinstance(entry_price, (int, float)) and entry_price > 0:
                         shares = target_position_value / entry_price
                         position_value = shares * entry_price
                         
@@ -1203,14 +1203,14 @@ class FundamentalScreeningService:
                 portfolio_value = cash
                 for symbol, position in positions.items():
                     current_price = self._get_historical_price(symbol, rebalance_date)
-                    if current_price:
+                    if current_price and isinstance(current_price, (int, float)) and current_price > 0:
                         portfolio_value += position['shares'] * current_price
                 
                 # Step 6: Update portfolio composition
                 current_positions = []
                 for symbol, position in positions.items():
                     current_price = self._get_historical_price(symbol, rebalance_date)
-                    if current_price:
+                    if current_price and isinstance(current_price, (int, float)) and current_price > 0:
                         current_positions.append({
                             'symbol': symbol,
                             'shares': position['shares'],
@@ -1248,7 +1248,7 @@ class FundamentalScreeningService:
             final_date = end_dt
             for symbol, position in list(positions.items()):
                 exit_price = self._get_historical_price(symbol, final_date)
-                if exit_price:
+                if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
                     cash_added, profit = self._close_position(
                         symbol, position, exit_price, final_date,
                         positions, trade_history, 'End of backtest'
@@ -1265,7 +1265,7 @@ class FundamentalScreeningService:
             final_portfolio_value = cash
             for symbol, position in positions.items():
                 exit_price = self._get_historical_price(symbol, final_date)
-                if exit_price:
+                if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
                     final_portfolio_value += position['shares'] * exit_price
             
             portfolio_values.append(final_portfolio_value)
