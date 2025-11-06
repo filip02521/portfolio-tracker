@@ -837,7 +837,520 @@ const FundamentalScreening: React.FC = () => {
           )}
         </Box>
       )}
+
+      {/* Backtest Strategy Tab */}
+      {activeTab === 2 && (
+        <BacktestTab 
+          getToken={getToken}
+          loading={loading}
+          setLoading={setLoading}
+          error={error}
+          setError={setError}
+        />
+      )}
     </Container>
+  );
+};
+
+// Backtest Tab Component
+interface BacktestTabProps {
+  getToken: () => string | null;
+  loading: boolean;
+  setLoading: (loading: boolean) => void;
+  error: string | null;
+  setError: (error: string | null) => void;
+}
+
+interface BacktestResult {
+  status: string;
+  total_return?: number;
+  cagr?: number;
+  sharpe_ratio?: number;
+  max_drawdown?: number;
+  win_rate?: number;
+  profit_factor?: number;
+  total_trades?: number;
+  winning_trades?: number;
+  losing_trades?: number;
+  initial_capital?: number;
+  final_value?: number;
+  equity_curve?: Array<{ date: string; value: number }>;
+  trade_history?: Array<{
+    date: string;
+    action: string;
+    symbol: string;
+    price: number;
+    shares: number;
+    value: number;
+    return_pct?: number;
+    profit?: number;
+    reason?: string;
+  }>;
+  portfolio_compositions?: Array<{
+    date: string;
+    positions: Array<{
+      symbol: string;
+      shares: number;
+      entry_price: number;
+      current_price: number;
+      value: number;
+      return_pct: number;
+    }>;
+    cash: number;
+    total_value: number;
+  }>;
+  rebalance_dates?: string[];
+  parameters?: {
+    rebalance_frequency: string;
+    max_positions: number;
+    min_f_score: number;
+    max_z_score: number;
+    max_accrual_ratio: number;
+  };
+  error?: string;
+}
+
+const BacktestTab: React.FC<BacktestTabProps> = ({ getToken, loading, setLoading, error, setError }) => {
+  const [symbols, setSymbols] = useState('AAPL,MSFT,GOOGL,AMZN,NVDA');
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() - 1);
+    return date.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [initialCapital, setInitialCapital] = useState(100000);
+  const [rebalanceFrequency, setRebalanceFrequency] = useState<'quarterly' | 'yearly'>('quarterly');
+  const [maxPositions, setMaxPositions] = useState(10);
+  const [backtestFilters, setBacktestFilters] = useState({
+    min_f_score: 6,
+    max_z_score: 2.0,
+    max_accrual_ratio: 10.0,
+  });
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+
+  const handleRunBacktest = async () => {
+    const symbolsList = symbols
+      .split(',')
+      .map(s => s.trim().toUpperCase())
+      .filter(s => s.length > 0);
+
+    if (symbolsList.length === 0) {
+      setError('Please enter at least one symbol');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setBacktestResult(null);
+
+    try {
+      const token = getToken();
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/fundamental/backtest/vq-plus`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          symbols: symbolsList,
+          start_date: startDate,
+          end_date: endDate,
+          initial_capital: initialCapital,
+          rebalance_frequency: rebalanceFrequency,
+          max_positions: maxPositions,
+          min_f_score: backtestFilters.min_f_score,
+          max_z_score: backtestFilters.max_z_score,
+          max_accrual_ratio: backtestFilters.max_accrual_ratio,
+          auto_universe: false,
+          universe_index: 'SP500',
+          value_percentile: 0.2,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Backtest failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setBacktestResult(data);
+    } catch (err: any) {
+      setError(err.message || 'Error running backtest');
+      setBacktestResult({ status: 'error', error: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box>
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          VQ+ Strategy Backtest Configuration
+        </Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2, mt: 2 }}>
+          <TextField
+            fullWidth
+            label="Symbols (comma-separated)"
+            value={symbols}
+            onChange={(e) => setSymbols(e.target.value)}
+            placeholder="AAPL, MSFT, GOOGL"
+            helperText="Enter stock symbols to test"
+          />
+          <TextField
+            fullWidth
+            type="date"
+            label="Start Date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            fullWidth
+            type="date"
+            label="End Date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            fullWidth
+            type="number"
+            label="Initial Capital ($)"
+            value={initialCapital}
+            onChange={(e) => setInitialCapital(Number(e.target.value))}
+            inputProps={{ min: 1000, step: 1000 }}
+          />
+          <FormControl fullWidth>
+            <Typography variant="body2" sx={{ mb: 1 }}>Rebalance Frequency</Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant={rebalanceFrequency === 'quarterly' ? 'contained' : 'outlined'}
+                onClick={() => setRebalanceFrequency('quarterly')}
+                fullWidth
+              >
+                Quarterly
+              </Button>
+              <Button
+                variant={rebalanceFrequency === 'yearly' ? 'contained' : 'outlined'}
+                onClick={() => setRebalanceFrequency('yearly')}
+                fullWidth
+              >
+                Yearly
+              </Button>
+            </Box>
+          </FormControl>
+          <TextField
+            fullWidth
+            type="number"
+            label="Max Positions"
+            value={maxPositions}
+            onChange={(e) => setMaxPositions(Number(e.target.value))}
+            inputProps={{ min: 1, max: 50 }}
+            helperText="Maximum number of positions in portfolio"
+          />
+          <TextField
+            fullWidth
+            type="number"
+            label="Min F-Score"
+            value={backtestFilters.min_f_score}
+            onChange={(e) => setBacktestFilters({ ...backtestFilters, min_f_score: Number(e.target.value) })}
+            inputProps={{ min: 0, max: 9 }}
+          />
+          <TextField
+            fullWidth
+            type="number"
+            label="Min Z-Score"
+            value={backtestFilters.max_z_score}
+            onChange={(e) => setBacktestFilters({ ...backtestFilters, max_z_score: Number(e.target.value) })}
+            inputProps={{ min: 0, step: 0.1 }}
+            helperText="Minimum Z-Score threshold"
+          />
+          <TextField
+            fullWidth
+            type="number"
+            label="Max Accrual Ratio (%)"
+            value={backtestFilters.max_accrual_ratio}
+            onChange={(e) => setBacktestFilters({ ...backtestFilters, max_accrual_ratio: Number(e.target.value) })}
+            inputProps={{ min: 0, step: 0.1 }}
+          />
+        </Box>
+        <Box sx={{ mt: 3 }}>
+          <Button
+            variant="contained"
+            size="large"
+            fullWidth
+            onClick={handleRunBacktest}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : <TrendingUp />}
+          >
+            {loading ? 'Running Backtest...' : 'Run Backtest'}
+          </Button>
+        </Box>
+      </Paper>
+
+      {backtestResult && (
+        <Box>
+          {backtestResult.status === 'error' ? (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {backtestResult.error || 'Backtest failed'}
+            </Alert>
+          ) : (
+            <>
+              {/* Performance Metrics */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Total Return
+                    </Typography>
+                    <Typography variant="h4" color={backtestResult.total_return && backtestResult.total_return >= 0 ? 'success.main' : 'error.main'}>
+                      {backtestResult.total_return?.toFixed(2) || '0.00'}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      CAGR
+                    </Typography>
+                    <Typography variant="h4" color={backtestResult.cagr && backtestResult.cagr >= 0 ? 'success.main' : 'error.main'}>
+                      {backtestResult.cagr?.toFixed(2) || '0.00'}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Sharpe Ratio
+                    </Typography>
+                    <Typography variant="h4">
+                      {backtestResult.sharpe_ratio?.toFixed(3) || '0.000'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Max Drawdown
+                    </Typography>
+                    <Typography variant="h4" color="error.main">
+                      {backtestResult.max_drawdown?.toFixed(2) || '0.00'}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Win Rate
+                    </Typography>
+                    <Typography variant="h4">
+                      {backtestResult.win_rate?.toFixed(2) || '0.00'}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Profit Factor
+                    </Typography>
+                    <Typography variant="h4" color={backtestResult.profit_factor && backtestResult.profit_factor > 1 ? 'success.main' : 'error.main'}>
+                      {backtestResult.profit_factor?.toFixed(2) || '0.00'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Total Trades
+                    </Typography>
+                    <Typography variant="h4">
+                      {backtestResult.total_trades || 0}
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Final Value
+                    </Typography>
+                    <Typography variant="h4">
+                      ${backtestResult.final_value?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || '0.00'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Box>
+
+              {/* Equity Curve */}
+              {backtestResult.equity_curve && backtestResult.equity_curve.length > 0 && (
+                <Card sx={{ mb: 3 }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Equity Curve
+                    </Typography>
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1, minHeight: 300 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Equity curve visualization would go here
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                        Data points: {backtestResult.equity_curve.length}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Start: ${backtestResult.equity_curve[0]?.value.toLocaleString()} | 
+                        End: ${backtestResult.equity_curve[backtestResult.equity_curve.length - 1]?.value.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Trade History */}
+              {backtestResult.trade_history && backtestResult.trade_history.length > 0 && (
+                <Card sx={{ mb: 3 }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Trade History ({backtestResult.trade_history.length} trades)
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Date</TableCell>
+                            <TableCell>Action</TableCell>
+                            <TableCell>Symbol</TableCell>
+                            <TableCell align="right">Price</TableCell>
+                            <TableCell align="right">Shares</TableCell>
+                            <TableCell align="right">Value</TableCell>
+                            <TableCell align="right">Return %</TableCell>
+                            <TableCell>Reason</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {backtestResult.trade_history.slice(0, 50).map((trade, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell>{trade.date}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={trade.action.toUpperCase()}
+                                  color={trade.action === 'buy' ? 'primary' : 'secondary'}
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>{trade.symbol}</TableCell>
+                              <TableCell align="right">${trade.price.toFixed(2)}</TableCell>
+                              <TableCell align="right">{trade.shares.toFixed(4)}</TableCell>
+                              <TableCell align="right">${trade.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell align="right">
+                                {trade.return_pct !== undefined && (
+                                  <Typography
+                                    variant="body2"
+                                    color={trade.return_pct >= 0 ? 'success.main' : 'error.main'}
+                                  >
+                                    {trade.return_pct >= 0 ? '+' : ''}{trade.return_pct.toFixed(2)}%
+                                  </Typography>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {trade.reason || 'N/A'}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    {backtestResult.trade_history.length > 50 && (
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Showing first 50 of {backtestResult.trade_history.length} trades
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Portfolio Compositions */}
+              {backtestResult.portfolio_compositions && backtestResult.portfolio_compositions.length > 0 && (
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Portfolio Compositions
+                    </Typography>
+                    {backtestResult.portfolio_compositions.slice(0, 5).map((composition, idx) => (
+                      <Accordion key={idx} sx={{ mb: 1 }}>
+                        <AccordionSummary expandIcon={<ExpandMore />}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', mr: 2 }}>
+                            <Typography variant="body1" fontWeight="bold">
+                              {composition.date}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Total Value: ${composition.total_value.toLocaleString(undefined, { maximumFractionDigits: 2 })} | 
+                              Positions: {composition.positions.length} | 
+                              Cash: ${composition.cash.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </Typography>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          {composition.positions.length > 0 ? (
+                            <TableContainer>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Symbol</TableCell>
+                                    <TableCell align="right">Shares</TableCell>
+                                    <TableCell align="right">Entry Price</TableCell>
+                                    <TableCell align="right">Current Price</TableCell>
+                                    <TableCell align="right">Value</TableCell>
+                                    <TableCell align="right">Return %</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {composition.positions.map((pos) => (
+                                    <TableRow key={pos.symbol}>
+                                      <TableCell>{pos.symbol}</TableCell>
+                                      <TableCell align="right">{pos.shares.toFixed(4)}</TableCell>
+                                      <TableCell align="right">${pos.entry_price.toFixed(2)}</TableCell>
+                                      <TableCell align="right">${pos.current_price.toFixed(2)}</TableCell>
+                                      <TableCell align="right">${pos.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
+                                      <TableCell align="right">
+                                        <Typography
+                                          variant="body2"
+                                          color={pos.return_pct >= 0 ? 'success.main' : 'error.main'}
+                                        >
+                                          {pos.return_pct >= 0 ? '+' : ''}{pos.return_pct.toFixed(2)}%
+                                        </Typography>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              No positions held
+                            </Typography>
+                          )}
+                        </AccordionDetails>
+                      </Accordion>
+                    ))}
+                    {backtestResult.portfolio_compositions.length > 5 && (
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Showing first 5 of {backtestResult.portfolio_compositions.length} rebalances
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </Box>
+      )}
+    </Box>
   );
 };
 
