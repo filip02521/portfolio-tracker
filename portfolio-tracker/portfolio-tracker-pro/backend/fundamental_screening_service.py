@@ -854,14 +854,17 @@ class FundamentalScreeningService:
         
         # B: Retained Earnings / Total Assets (TRUE Retained Earnings from balance sheet)
         retained_earnings = financial_data.get('retained_earnings', 0)
+        # Retained Earnings can be negative (accumulated losses)
+        # Don't override if it's negative - that's valid data
         if retained_earnings == 0:
             # Fallback: Retained Earnings = Total Equity - Common Stock (if available)
             total_equity = financial_data.get('total_stockholders_equity', 0)
             if total_equity > 0:
                 # Simplified: assume most of equity is retained earnings (common stock is usually small)
+                # But only if retained earnings wasn't explicitly negative
                 retained_earnings = total_equity * 0.8  # Conservative estimate
-            else:
-                # Last resort: use net income as proxy (less accurate)
+            # If retained_earnings is still 0 and we have no equity data, use net income as proxy
+            if retained_earnings == 0 and net_income > 0:
                 retained_earnings = net_income
         B = (retained_earnings / total_assets) if total_assets > 0 else 0
         
@@ -993,23 +996,35 @@ class FundamentalScreeningService:
         current_price = safe_float(current_price, 0.0)
         
         # Calculate ROIC
-        # ROIC = EBIT / (Total Assets - Current Liabilities - Cash) - TRUE formula from report
+        # ROIC = EBIT / Invested Capital
+        # Invested Capital = Total Assets - Current Liabilities - Cash (TRUE formula from report)
         ebit = safe_float(financial_data.get('ebit', 0))
         total_assets = safe_float(financial_data.get('total_assets', 1))
         current_liabilities = safe_float(financial_data.get('current_liabilities', 0))
         cash = safe_float(financial_data.get('cash_and_cash_equivalents', 0))
         # TRUE Invested Capital: Assets - Current Liabilities - Cash
         invested_capital = total_assets - current_liabilities - cash
+        # Ensure invested capital is positive (if negative, use total assets as fallback)
+        if invested_capital <= 0:
+            invested_capital = total_assets if total_assets > 0 else 1
         roic = (ebit / invested_capital) * 100 if invested_capital > 0 else 0
         
         # Calculate EBIT/EV (Earnings Yield)
         # EV = Market Cap + Total Debt - Cash - TRUE formula from report
         market_cap = safe_float(financial_data.get('market_cap', 0))
         long_term_debt = safe_float(financial_data.get('long_term_debt', 0))
+        current_liabilities = safe_float(financial_data.get('current_liabilities', 0))
+        # Total Debt = Long-term Debt + Current Liabilities (simplified)
+        # Note: In reality, we should use Total Liabilities, but for EV calculation,
+        # we use debt specifically (long-term debt + short-term debt)
+        # For simplicity, we'll use: Long-term Debt + (Current Liabilities as proxy for short-term debt)
         total_debt = long_term_debt + current_liabilities
         cash = safe_float(financial_data.get('cash_and_cash_equivalents', 0))
         # TRUE Enterprise Value: Market Cap + Debt - Cash
         enterprise_value = market_cap + total_debt - cash
+        # Ensure enterprise value is positive
+        if enterprise_value <= 0:
+            enterprise_value = market_cap if market_cap > 0 else 1
         ebit_ev = (ebit / enterprise_value) * 100 if enterprise_value > 0 else 0
         
         # Combined score (normalized, higher is better)
