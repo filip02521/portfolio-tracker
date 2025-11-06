@@ -136,7 +136,8 @@ interface ScreeningResult {
   passes_all_filters: boolean;
 }
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// API_URL should NOT include /api suffix - we add it in the endpoints
+const API_URL = process.env.REACT_APP_API_URL?.replace(/\/api$/, '') || 'http://localhost:8000';
 
 const FundamentalScreening: React.FC = () => {
   const getToken = () => localStorage.getItem('authToken');
