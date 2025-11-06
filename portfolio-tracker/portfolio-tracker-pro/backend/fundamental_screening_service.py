@@ -1350,6 +1350,13 @@ class FundamentalScreeningService:
                     'error': f'rebalance_frequency must be "quarterly" or "yearly", got "{rebalance_frequency}"'
                 }
             
+            # Validate transaction_cost
+            if transaction_cost < 0 or transaction_cost > 0.1:  # Max 10%
+                return {
+                    'status': 'error',
+                    'error': f'transaction_cost must be between 0 and 0.1 (0-10%), got {transaction_cost}'
+                }
+            
             # Adjust dates to trading days (skip weekends)
             start_dt = self._adjust_to_trading_day(start_dt)
             end_dt = self._adjust_to_trading_day(end_dt)
@@ -1570,13 +1577,30 @@ class FundamentalScreeningService:
                                 shares = remaining_cash / entry_price
                                 if shares > 0:
                                     position_value = shares * entry_price
-                                    positions[symbol] = {
-                                        'shares': shares,
-                                        'entry_price': entry_price,
-                                        'entry_date': rebalance_date.strftime('%Y-%m-%d')
-                                    }
-                                    cash -= position_value
-                                    remaining_cash -= position_value
+                                    # Calculate transaction cost
+                                    transaction_cost_amount = position_value * transaction_cost if transaction_cost > 0 else 0.0
+                                    total_cost = position_value + transaction_cost_amount
+                                    
+                                    if remaining_cash >= total_cost:
+                                        positions[symbol] = {
+                                            'shares': shares,
+                                            'entry_price': entry_price,
+                                            'entry_date': rebalance_date.strftime('%Y-%m-%d')
+                                        }
+                                        cash -= total_cost
+                                        total_transaction_costs += transaction_cost_amount
+                                        remaining_cash -= total_cost
+                                        
+                                        trade_history.append({
+                                            'date': rebalance_date.strftime('%Y-%m-%d'),
+                                            'action': 'buy',
+                                            'symbol': symbol,
+                                            'price': entry_price,
+                                            'shares': shares,
+                                            'value': position_value,
+                                            'transaction_cost': round(transaction_cost_amount, 2),
+                                            'reason': 'VQ+ rebalance (proportional)'
+                                        })
                                     
                                     trade_history.append({
                                         'date': rebalance_date.strftime('%Y-%m-%d'),
