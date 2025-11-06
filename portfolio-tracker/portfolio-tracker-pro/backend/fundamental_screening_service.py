@@ -279,42 +279,89 @@ class FundamentalScreeningService:
                 report = {}
             
             # Helper function to extract value from items list matching concepts
-            def extract_value(items, concepts, default=0):
-                """Extract value from items list matching concepts"""
+            def extract_value_exact(items, concept_exact, default=0):
+                """Extract value for exact concept match (e.g., 'us-gaap_Assets')"""
                 if not isinstance(items, list):
                     return default
                 for item in items:
                     if not isinstance(item, dict):
                         continue
+                    if item.get('concept', '') == concept_exact:
+                        value = item.get('value', 0)
+                        try:
+                            return float(value) if value else default
+                        except (ValueError, TypeError):
+                            return default
+                return default
+            
+            def extract_value(items, concepts, default=0, exclude_concepts=None):
+                """Extract value from items list matching concepts, excluding certain patterns"""
+                if not isinstance(items, list):
+                    return default
+                if exclude_concepts is None:
+                    exclude_concepts = []
+                
+                candidates = []
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
                     concept = item.get('concept', '').lower()
+                    label = item.get('label', '').lower()
+                    
+                    # Skip if matches exclusion pattern
+                    if any(excl in concept for excl in exclude_concepts):
+                        continue
+                    
+                    # Check if matches any of the target concepts
                     for concept_key in concepts:
                         if concept_key in concept:
                             value = item.get('value', 0)
                             try:
-                                return float(value) if value else default
+                                value = float(value) if value else 0
+                                # Prioritize items with "total" in label or concept
+                                priority = 2 if 'total' in label or 'total' in concept else 1
+                                candidates.append((priority, value))
+                                break
                             except (ValueError, TypeError):
-                                return default
+                                continue
+                
+                if candidates:
+                    # Return highest priority, then largest value
+                    candidates.sort(key=lambda x: (-x[0], -x[1]))
+                    return candidates[0][1]
                 return default
             
             # Parse Balance Sheet (bs)
             bs_items = report.get('bs', [])
             if isinstance(bs_items, list):
-                # Prioritize total assets over current assets
-                latest_financials['total_assets'] = extract_value(
-                    bs_items, ['assetstotal', 'assets'], 0
-                )
-                # Only use current assets if specifically found, don't overwrite total
-                current_assets_val = extract_value(bs_items, ['assetscurrent'], 0)
-                if current_assets_val > 0:
-                    latest_financials['current_assets'] = current_assets_val
-                # Prioritize total liabilities
-                latest_financials['total_liabilities'] = extract_value(
-                    bs_items, ['liabilitiestotal', 'liabilities'], 0
-                )
-                # Only use current liabilities if specifically found
-                current_liabilities_val = extract_value(bs_items, ['liabilitiescurrent'], 0)
-                if current_liabilities_val > 0:
-                    latest_financials['current_liabilities'] = current_liabilities_val
+                # Use exact concept matches first (most reliable)
+                latest_financials['total_assets'] = extract_value_exact(bs_items, 'us-gaap_Assets', 0)
+                latest_financials['current_assets'] = extract_value_exact(bs_items, 'us-gaap_AssetsCurrent', 0)
+                latest_financials['total_liabilities'] = extract_value_exact(bs_items, 'us-gaap_Liabilities', 0)
+                latest_financials['current_liabilities'] = extract_value_exact(bs_items, 'us-gaap_LiabilitiesCurrent', 0)
+                
+                # Fallback to pattern matching if exact match fails
+                if latest_financials['total_assets'] == 0:
+                    # Look for "Assets" but NOT "AssetsCurrent" or "AssetsNoncurrent"
+                    latest_financials['total_assets'] = extract_value(
+                        bs_items, ['assets'], 0, exclude_concepts=['assetscurrent', 'assetsnoncurrent', 'otherassets']
+                    )
+                
+                if latest_financials['current_assets'] == 0:
+                    latest_financials['current_assets'] = extract_value(
+                        bs_items, ['assetscurrent'], 0
+                    )
+                
+                if latest_financials['total_liabilities'] == 0:
+                    latest_financials['total_liabilities'] = extract_value(
+                        bs_items, ['liabilities'], 0, exclude_concepts=['liabilitiescurrent', 'liabilitiesnoncurrent', 'otherliabilities']
+                    )
+                
+                if latest_financials['current_liabilities'] == 0:
+                    latest_financials['current_liabilities'] = extract_value(
+                        bs_items, ['liabilitiescurrent'], 0
+                    )
+                
                 latest_financials['long_term_debt'] = extract_value(
                     bs_items, ['longtermdebt', 'longtermdebtnetofcurrent'], latest_financials.get('long_term_debt', 0)
                 )
@@ -331,9 +378,41 @@ class FundamentalScreeningService:
             # Parse Income Statement (ic)
             ic_items = report.get('ic', [])
             if isinstance(ic_items, list):
-                latest_financials['revenue'] = extract_value(
-                    ic_items, ['revenues', 'revenue', 'sales', 'netsales', 'totalrevenue'], latest_financials.get('revenue', 0)
+                # Try exact concept match first for revenue (Net Sales)
+                latest_financials['revenue'] = extract_value_exact(
+                    ic_items, 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', 0
                 )
+                # Also try other revenue concepts
+                if latest_financials['revenue'] == 0:
+                    # Look for items with "Net sales" or "Revenue" in label, prefer largest
+                    revenue_candidates = []
+                    for item in ic_items:
+                        if not isinstance(item, dict):
+                            continue
+                        concept = item.get('concept', '').lower()
+                        label = item.get('label', '').lower()
+                        value = item.get('value', 0)
+                        try:
+                            value = float(value) if value else 0
+                        except (ValueError, TypeError):
+                            continue
+                        
+                        # Look for revenue/sales concepts
+                        if ('revenue' in concept or 'sales' in concept) and 'assessed' not in concept:
+                            # Prioritize "net sales" or "revenue" in label
+                            priority = 2 if ('net sales' in label or 'revenue' in label) else 1
+                            revenue_candidates.append((priority, value))
+                    
+                    if revenue_candidates:
+                        revenue_candidates.sort(key=lambda x: (-x[0], -x[1]))
+                        latest_financials['revenue'] = revenue_candidates[0][1]
+                
+                # Fallback to pattern matching
+                if latest_financials['revenue'] == 0:
+                    latest_financials['revenue'] = extract_value(
+                        ic_items, ['revenues', 'revenue', 'sales', 'netsales', 'totalrevenue'], 0,
+                        exclude_concepts=['assessed']
+                    )
                 latest_financials['cogs'] = extract_value(
                     ic_items, ['costofrevenue', 'costofgoodssold', 'cogs'], latest_financials.get('cogs', 0)
                 )
