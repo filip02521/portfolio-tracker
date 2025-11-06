@@ -476,25 +476,30 @@ class FundamentalScreeningService:
         
         # Market Cap from Finnhub is in millions USD - convert to full USD
         market_cap_raw = profile_data.get('marketCapitalization', profile_data.get('market_cap', 0))
-        # Finnhub returns market cap in millions, so multiply by 1,000,000
+        # Finnhub returns market cap in millions USD
+        # Check if value is reasonable - if less than 1 trillion (1,000,000), it's in millions
         if market_cap_raw and market_cap_raw > 0:
-            # Check if it's already in full units (very large number) or millions
-            # If less than 10,000, assume it's in millions (typical market caps are trillions)
-            if market_cap_raw < 10000:
-                market_cap = safe_value(market_cap_raw) * 1000000
+            market_cap_val = safe_value(market_cap_raw)
+            # If market cap is less than 1 trillion (1,000,000 million), it's in millions
+            # Typical large cap stocks have market caps in trillions (1000+ million)
+            if market_cap_val < 1000000:  # Less than 1 trillion in millions = needs conversion
+                market_cap = market_cap_val * 1000000
             else:
-                market_cap = safe_value(market_cap_raw)
+                # Already in full units (very large number)
+                market_cap = market_cap_val
         else:
             market_cap = 0
         
         # Share Outstanding from Finnhub is also in millions
         shares_outstanding_raw = profile_data.get('shareOutstanding', profile_data.get('sharesOutstanding', 0))
         if shares_outstanding_raw and shares_outstanding_raw > 0:
-            # If less than 1000, assume millions
-            if shares_outstanding_raw < 1000:
-                shares_outstanding = safe_value(shares_outstanding_raw) * 1000000
+            shares_val = safe_value(shares_outstanding_raw)
+            # If less than 1 billion shares (1000 million), it's in millions
+            if shares_val < 1000:  # Less than 1 billion = needs conversion
+                shares_outstanding = shares_val * 1000000
             else:
-                shares_outstanding = safe_value(shares_outstanding_raw)
+                # Already in full units
+                shares_outstanding = shares_val
         else:
             shares_outstanding = 0
         
