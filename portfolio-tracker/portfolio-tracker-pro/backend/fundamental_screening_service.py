@@ -1400,30 +1400,80 @@ class FundamentalScreeningService:
             return None
         
         try:
-            # Get historical data
-            historical_data, _ = self.market_data_service.get_symbol_history(symbol, days=365)
+            # Get historical data - get_symbol_history returns a list directly
+            historical_data = self.market_data_service.get_symbol_history(symbol, days=365)
             
-            if not historical_data:
+            # Handle case where it might return tuple (data, interval) or None
+            if historical_data is None:
                 return None
             
-            # Find closest price to date
-            target_date = date.date()
+            if isinstance(historical_data, tuple):
+                historical_data = historical_data[0]
+            
+            if not isinstance(historical_data, list) or len(historical_data) == 0:
+                return None
+            
+            # Find closest price to date (prefer exact match, then closest)
+            target_date = date.date() if isinstance(date, datetime) else date
             closest_price = None
             min_diff = timedelta(days=365)
+            exact_match = None
             
             for candle in historical_data:
+                if not isinstance(candle, dict):
+                    continue
+                    
                 candle_date_str = candle.get('timestamp', candle.get('date', ''))
-                if candle_date_str:
-                    try:
-                        candle_dt = datetime.fromisoformat(candle_date_str.replace('Z', '+00:00'))
-                        diff = abs(candle_dt.date() - target_date)
-                        if diff < min_diff:
-                            min_diff = diff
-                            closest_price = float(candle.get('close', 0))
-                    except Exception:
+                if not candle_date_str:
+                    continue
+                    
+                try:
+                    # Handle different date formats
+                    if isinstance(candle_date_str, str):
+                        if 'T' in candle_date_str:
+                            candle_dt = datetime.fromisoformat(candle_date_str.replace('Z', '+00:00'))
+                        else:
+                            try:
+                                candle_dt = datetime.strptime(candle_date_str, '%Y-%m-%d')
+                            except ValueError:
+                                continue
+                    else:
                         continue
+                    
+                    candle_date = candle_dt.date()
+                    price_value = candle.get('close', candle.get('price', 0))
+                    
+                    if not price_value:
+                        continue
+                    
+                    try:
+                        price = float(price_value)
+                    except (ValueError, TypeError):
+                        continue
+                    
+                    if price <= 0:
+                        continue
+                    
+                    # Exact match
+                    if candle_date == target_date:
+                        exact_match = price
+                        break
+                    
+                    # Find closest date
+                    diff = abs(candle_date - target_date)
+                    if diff < min_diff:
+                        min_diff = diff
+                        closest_price = price
+                except Exception as e:
+                    self.logger.debug(f"Error parsing candle data for {symbol}: {e}")
+                    continue
             
-            return closest_price if closest_price and closest_price > 0 else None
+            # Prefer exact match, otherwise closest
+            result = exact_match if exact_match else closest_price
+            # Ensure result is a float, not None or other type
+            if result and isinstance(result, (int, float)) and result > 0:
+                return float(result)
+            return None
             
         except Exception as e:
             self.logger.warning(f"Error getting historical price for {symbol} on {date}: {e}")
