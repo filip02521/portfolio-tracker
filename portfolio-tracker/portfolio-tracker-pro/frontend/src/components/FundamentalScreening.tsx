@@ -334,8 +334,8 @@ const FundamentalScreening: React.FC = () => {
                     {analysisResult.symbol} - {analysisResult.fundamental_data.company_name}
                   </Typography>
                   <Divider sx={{ my: 2 }} />
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         F-Score
                       </Typography>
@@ -344,8 +344,8 @@ const FundamentalScreening: React.FC = () => {
                         color={getScoreColor(analysisResult.summary.f_score_value, 9) as any}
                         sx={{ mt: 1 }}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Z-Score
                       </Typography>
@@ -354,16 +354,16 @@ const FundamentalScreening: React.FC = () => {
                         color={getRiskColor(analysisResult.summary.z_score_risk) as any}
                         sx={{ mt: 1 }}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         ROIC
                       </Typography>
                       <Typography variant="h6" color={analysisResult.summary.roic > 0 ? 'success.main' : 'error.main'}>
                         {analysisResult.summary.roic.toFixed(2)}%
                       </Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Recommendation
                       </Typography>
@@ -372,8 +372,8 @@ const FundamentalScreening: React.FC = () => {
                         color={analysisResult.passes_vq_plus_filters ? 'success' : 'warning'}
                         sx={{ mt: 1 }}
                       />
-                    </Grid>
-                  </Grid>
+                    </Box>
+                  </Box>
                 </CardContent>
               </Card>
 
@@ -388,6 +388,23 @@ const FundamentalScreening: React.FC = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     {analysisResult.f_score.interpretation}
                   </Typography>
+                  {analysisResult.f_score.breakdown && Object.keys(analysisResult.f_score.breakdown).length > 0 && (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
+                      {Object.entries(analysisResult.f_score.breakdown).map(([key, value]) => (
+                        <Box key={key}>
+                          <Typography variant="body2" color="text.secondary">
+                            {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </Typography>
+                          <Chip
+                            label={value === 1 ? '✓' : '✗'}
+                            color={value === 1 ? 'success' : 'default'}
+                            size="small"
+                            sx={{ mt: 0.5 }}
+                          />
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
                   <Box sx={{ mb: 2 }}>
                     <LinearProgress
                       variant="determinate"
@@ -397,7 +414,7 @@ const FundamentalScreening: React.FC = () => {
                     />
                   </Box>
                   <Box>
-                    {analysisResult.f_score.details.map((detail, idx) => (
+                    {analysisResult.f_score.details && analysisResult.f_score.details.map((detail, idx) => (
                       <Typography key={idx} variant="body2" sx={{ mb: 1 }}>
                         {detail}
                       </Typography>
@@ -417,16 +434,16 @@ const FundamentalScreening: React.FC = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     {analysisResult.z_score.interpretation}
                   </Typography>
-                  <Grid container spacing={2}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
                     {Object.entries(analysisResult.z_score.components).map(([key, value]) => (
-                      <Grid item xs={6} sm={4} key={key}>
+                      <Box key={key}>
                         <Typography variant="body2" color="text.secondary">
                           Component {key}
                         </Typography>
                         <Typography variant="h6">{value.toFixed(4)}</Typography>
-                      </Grid>
+                      </Box>
                     ))}
-                  </Grid>
+                  </Box>
                   <Chip
                     label={analysisResult.z_score.recommendation}
                     color={getRiskColor(analysisResult.z_score.risk_level) as any}
@@ -443,42 +460,42 @@ const FundamentalScreening: React.FC = () => {
                   </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Return on Invested Capital (ROIC)
                       </Typography>
                       <Typography variant="h5" color={analysisResult.magic_formula.roic > 0 ? 'success.main' : 'error.main'}>
                         {analysisResult.magic_formula.roic.toFixed(2)}%
                       </Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Earnings Yield (EBIT/EV)
                       </Typography>
                       <Typography variant="h5" color={analysisResult.magic_formula.ebit_ev > 0 ? 'success.main' : 'error.main'}>
                         {analysisResult.magic_formula.ebit_ev.toFixed(2)}%
                       </Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Current Price
                       </Typography>
                       <Typography variant="h6">${analysisResult.magic_formula.current_price.toFixed(2)}</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Enterprise Value
                       </Typography>
                       <Typography variant="h6">${(analysisResult.magic_formula.enterprise_value / 1e9).toFixed(2)}B</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Invested Capital
                       </Typography>
                       <Typography variant="h6">${(analysisResult.magic_formula.invested_capital / 1e9).toFixed(2)}B</Typography>
-                    </Grid>
-                  </Grid>
+                    </Box>
+                  </Box>
                 </AccordionDetails>
               </Accordion>
 
@@ -493,26 +510,26 @@ const FundamentalScreening: React.FC = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     {analysisResult.accrual_ratio.interpretation}
                   </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Accrual Ratio
                       </Typography>
                       <Typography variant="h6">{analysisResult.accrual_ratio.accrual_ratio.toFixed(2)}%</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Net Income
                       </Typography>
                       <Typography variant="h6">${(analysisResult.accrual_ratio.net_income / 1e6).toFixed(2)}M</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
+                    </Box>
+                    <Box>
                       <Typography variant="body2" color="text.secondary">
                         Operating Cash Flow
                       </Typography>
                       <Typography variant="h6">${(analysisResult.accrual_ratio.operating_cash_flow / 1e6).toFixed(2)}M</Typography>
-                    </Grid>
-                  </Grid>
+                    </Box>
+                  </Box>
                   <Chip
                     label={analysisResult.accrual_ratio.recommendation}
                     color={getQualityColor(analysisResult.accrual_ratio.quality_flag) as any}
@@ -533,40 +550,71 @@ const FundamentalScreening: React.FC = () => {
               <FilterList sx={{ mr: 1, verticalAlign: 'middle' }} />
               Screening Filters
             </Typography>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} sm={4}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+              <TextField
+                fullWidth
+                label="Min F-Score"
+                type="number"
+                value={filters.min_f_score}
+                onChange={(e) => setFilters({ ...filters, min_f_score: parseInt(e.target.value) || 7 })}
+                inputProps={{ min: 0, max: 9 }}
+              />
+              <TextField
+                fullWidth
+                label="Min Z-Score"
+                type="number"
+                value={filters.min_z_score}
+                onChange={(e) => setFilters({ ...filters, min_z_score: parseFloat(e.target.value) || 3.0 })}
+                inputProps={{ min: 0, step: 0.1 }}
+              />
+              <TextField
+                fullWidth
+                label="Max Accrual Ratio"
+                type="number"
+                value={filters.max_accrual_ratio}
+                onChange={(e) => setFilters({ ...filters, max_accrual_ratio: parseFloat(e.target.value) || 5.0 })}
+                inputProps={{ min: 0, step: 0.1 }}
+              />
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'auto' }, gap: 2, mb: 2, alignItems: 'center' }}>
+              <FormControl>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.auto_universe}
+                      onChange={(e) => setFilters({ ...filters, auto_universe: e.target.checked })}
+                    />
+                  }
+                  label="Auto-select universe (rank by EBIT/EV)"
+                />
+              </FormControl>
+            </Box>
+            {filters.auto_universe && (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2, mb: 3 }}>
                 <TextField
                   fullWidth
-                  label="Min F-Score"
-                  type="number"
-                  value={filters.min_f_score}
-                  onChange={(e) => setFilters({ ...filters, min_f_score: parseInt(e.target.value) || 7 })}
-                  inputProps={{ min: 0, max: 9 }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
+                  select
+                  label="Index"
+                  value={filters.universe_index}
+                  onChange={(e) => setFilters({ ...filters, universe_index: e.target.value })}
+                  SelectProps={{ native: true }}
+                >
+                  <option value="SP500">S&P 500</option>
+                  <option value="RUSSELL2000">Russell 2000</option>
+                </TextField>
                 <TextField
                   fullWidth
-                  label="Min Z-Score"
+                  label="Value Percentile"
                   type="number"
-                  value={filters.min_z_score}
-                  onChange={(e) => setFilters({ ...filters, min_z_score: parseFloat(e.target.value) || 3.0 })}
-                  inputProps={{ min: 0, step: 0.1 }}
+                  value={filters.value_percentile}
+                  onChange={(e) => setFilters({ ...filters, value_percentile: parseFloat(e.target.value) || 0.2 })}
+                  inputProps={{ min: 0.1, max: 0.5, step: 0.1 }}
+                  helperText="0.2 = bottom 20% (highest EBIT/EV)"
                 />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="Max Accrual Ratio"
-                  type="number"
-                  value={filters.max_accrual_ratio}
-                  onChange={(e) => setFilters({ ...filters, max_accrual_ratio: parseFloat(e.target.value) || 5.0 })}
-                  inputProps={{ min: 0, step: 0.1 }}
-                />
-              </Grid>
-            </Grid>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={8}>
+              </Box>
+            )}
+            {!filters.auto_universe && (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' }, gap: 2, mb: 3, alignItems: 'center' }}>
                 <TextField
                   fullWidth
                   label="Symbols to Screen (comma-separated)"
@@ -576,8 +624,6 @@ const FundamentalScreening: React.FC = () => {
                   multiline
                   rows={3}
                 />
-              </Grid>
-              <Grid item xs={12} sm={4}>
                 <Button
                   fullWidth
                   variant="contained"
@@ -588,8 +634,21 @@ const FundamentalScreening: React.FC = () => {
                 >
                   Screen Stocks
                 </Button>
-              </Grid>
-            </Grid>
+              </Box>
+            )}
+            {filters.auto_universe && (
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                onClick={handleScreen}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <Search />}
+                sx={{ mb: 2 }}
+              >
+                Screen Stocks
+              </Button>
+            )}
           </Paper>
 
           {screeningResults.length > 0 && (
