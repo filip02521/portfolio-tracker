@@ -169,6 +169,7 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
     { text: 'Price Alerts', path: '/price-alerts', icon: <AlertsIcon /> },
     { text: 'AI Insights', path: '/ai-insights', icon: <AutoAwesomeIcon /> },
     { text: 'Confluence Strategy', path: '/strategy/confluence', icon: <TrendingUpIcon /> },
+    { text: 'Fundamental Screening', path: '/fundamental-screening', icon: <AssessmentIcon /> },
     null, // Divider
     { text: 'Tax Optimizer', path: '/tax-optimizer', icon: <TaxIcon /> },
     null, // Divider
