@@ -350,9 +350,30 @@ class FundamentalScreeningService:
             # Parse Cash Flow (cf)
             cf_items = report.get('cf', [])
             if isinstance(cf_items, list):
-                latest_financials['operating_cash_flow'] = extract_value(
-                    cf_items, ['operatingcashflow', 'cashfromoperations', 'netcashprovidedbyoperatingactivities'], latest_financials.get('operating_cash_flow', 0)
-                )
+                # Try multiple concepts for operating cash flow
+                ocf_candidates = []
+                for item in cf_items:
+                    if not isinstance(item, dict):
+                        continue
+                    concept = item.get('concept', '').lower()
+                    label = item.get('label', '').lower()
+                    value = item.get('value', 0)
+                    try:
+                        value = float(value) if value else 0
+                    except (ValueError, TypeError):
+                        continue
+                    
+                    # Operating cash flow concepts
+                    if any(term in concept for term in ['operatingcashflow', 'cashfromoperations', 'netcashprovidedbyoperatingactivities', 'operatingactivities']):
+                        ocf_candidates.append(value)
+                    elif any(term in label for term in ['operating', 'cash from operations']):
+                        ocf_candidates.append(value)
+                
+                if ocf_candidates:
+                    # Use the largest absolute value (most comprehensive)
+                    latest_financials['operating_cash_flow'] = max(ocf_candidates, key=abs)
+                else:
+                    latest_financials['operating_cash_flow'] = 0
         
         revenue = profile_data.get('revenue', 0) or latest_financials.get('revenue', 0)
         cogs = latest_financials.get('cogs', 0)
