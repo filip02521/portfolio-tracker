@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import requests
 import os
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,9 @@ class FundamentalScreeningService:
         self.logger = logger
         
         # API Keys for fundamental data
+        Config.init()  # Initialize Config to load environment variables
         self.finnhub_api_key = os.getenv('FINNHUB_API_KEY', '')
-        self.alpha_vantage_api_key = os.getenv('ALPHA_VANTAGE_API_KEY', '')
+        self.alpha_vantage_api_key = Config.ALPHA_VANTAGE_API_KEY or os.getenv('ALPHA_VANTAGE_API_KEY', '')
         
         # Cache for fundamental data
         self._fundamental_cache = {}
