@@ -1547,12 +1547,14 @@ class FundamentalScreeningService:
                         for attempt_count in range(affordable_count, 0, -1):
                             target_position_value = portfolio_value / attempt_count
                             
-                            # Check if we can afford all positions at this target value
+                            # Check if we can afford all positions at this target value (including transaction costs)
                             can_afford_all = True
                             for symbol, entry_price in symbol_prices.items():
                                 shares = target_position_value / entry_price
                                 position_value = shares * entry_price
-                                if position_value > cash:
+                                transaction_cost_amount = position_value * transaction_cost if transaction_cost > 0 else 0.0
+                                total_cost = position_value + transaction_cost_amount
+                                if total_cost > cash:
                                     can_afford_all = False
                                     break
                             
