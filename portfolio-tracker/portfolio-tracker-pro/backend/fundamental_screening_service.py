@@ -259,11 +259,42 @@ class FundamentalScreeningService:
         """Parse Finnhub API response into standardized format"""
         # Extract latest financials if available
         latest_financials = {}
+        
+        # Ensure profile_data is a dict
+        if not isinstance(profile_data, dict):
+            profile_data = {}
+        
+        # Ensure financials_data is a dict
+        if not isinstance(financials_data, dict):
+            financials_data = {}
+        
         if financials_data.get('data') and len(financials_data['data']) > 0:
             latest = financials_data['data'][0]
-            for report in latest.get('report', {}):
-                concept = report.get('concept', '').lower()
-                value = float(report.get('value', 0)) if report.get('value') else 0
+            if not isinstance(latest, dict):
+                latest = {}
+            
+            # Handle report data - can be list or dict
+            report_data = latest.get('report', [])
+            if isinstance(report_data, dict):
+                # If it's a dict, convert to list of items
+                report_data = [report_data] if report_data else []
+            elif not isinstance(report_data, list):
+                report_data = []
+            
+            for report in report_data:
+                if not isinstance(report, dict):
+                    continue
+                    
+                concept = report.get('concept', '')
+                if not isinstance(concept, str):
+                    continue
+                    
+                concept = concept.lower()
+                value = report.get('value', 0)
+                try:
+                    value = float(value) if value else 0
+                except (ValueError, TypeError):
+                    value = 0
                 
                 if 'netincomeloss' in concept or 'netincome' in concept:
                     latest_financials['net_income'] = value
@@ -751,18 +782,31 @@ class FundamentalScreeningService:
         if current_price is None:
             if self.market_data_service:
                 try:
-                    # Try to get latest price
-                    latest_data = self.market_data_service.get_symbol_history_with_interval(symbol, 1)
-                    if latest_data and len(latest_data) > 0:
-                        current_price = float(latest_data[-1].get('close', 0))
-                except:
+                    # Try to get latest price - get_symbol_history_with_interval returns tuple (data, interval)
+                    latest_data_result = self.market_data_service.get_symbol_history_with_interval(symbol, 1)
+                    if isinstance(latest_data_result, tuple):
+                        latest_data = latest_data_result[0]
+                    else:
+                        latest_data = latest_data_result
+                    
+                    if latest_data and isinstance(latest_data, list) and len(latest_data) > 0:
+                        last_candle = latest_data[-1]
+                        if isinstance(last_candle, dict):
+                            price_value = last_candle.get('close', 0)
+                            if price_value:
+                                current_price = float(price_value)
+                except Exception as e:
+                    self.logger.debug(f"Error getting current price for {symbol}: {e}")
                     pass
             
             if not current_price or current_price <= 0:
                 # Estimate from market cap and shares
                 market_cap = financial_data.get('market_cap', 0)
                 shares = financial_data.get('shares_outstanding', 1)
-                current_price = market_cap / shares if shares > 0 else 0
+                if market_cap and shares and shares > 0:
+                    current_price = market_cap / shares
+                else:
+                    current_price = 0
         
         # Calculate ROIC
         # ROIC = EBIT / (Total Assets - Current Liabilities - Cash) - TRUE formula from report
@@ -787,11 +831,15 @@ class FundamentalScreeningService:
         # Simple average for now (in production, use proper ranking)
         combined_score = (roic + ebit_ev) / 2
         
+        # Ensure current_price is a number
+        if not isinstance(current_price, (int, float)):
+            current_price = float(current_price) if current_price else 0.0
+        
         return {
             'roic': round(roic, 2),
             'ebit_ev': round(ebit_ev, 2),
             'combined_score': round(combined_score, 2),
-            'current_price': round(current_price, 2),
+            'current_price': round(float(current_price), 2) if current_price else 0.0,
             'enterprise_value': round(enterprise_value, 0),
             'invested_capital': round(invested_capital, 0)
         }
