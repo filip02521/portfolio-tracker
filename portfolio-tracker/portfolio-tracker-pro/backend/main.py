@@ -2723,6 +2723,257 @@ async def get_confluence_history(
             detail=f"Internal server error ({error_type}): {str(e)}"
         )
 
+# ============================================================================
+# Fundamental Screening API Endpoints
+# ============================================================================
+
+class FundamentalAnalysisRequest(BaseModel):
+    symbol: str
+    exchange: Optional[str] = 'US'
+
+class ScreeningRequest(BaseModel):
+    symbols: List[str]
+    min_f_score: Optional[int] = 7
+    max_z_score: Optional[float] = 3.0  # We want > 3.0, so this is a min threshold
+    max_accrual_ratio: Optional[float] = 5.0
+
+@app.get("/api/fundamental/data/{symbol}", tags=["Fundamental Screening"])
+async def get_fundamental_data(
+    symbol: str,
+    exchange: str = 'US',
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Get fundamental financial data for a symbol.
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Company name, market cap, financial metrics
+    - Total assets, liabilities, net income
+    - Operating cash flow, revenue, EBIT
+    - Current assets, current liabilities, long-term debt
+    - Book value, shares outstanding
+    """
+    try:
+        data = fundamental_screening_service.get_fundamental_data(symbol, exchange)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No fundamental data available for {symbol}")
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching fundamental data for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching fundamental data: {str(e)}")
+
+@app.post("/api/fundamental/f-score", tags=["Fundamental Screening"])
+async def calculate_f_score(
+    request: FundamentalAnalysisRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Calculate Piotroski F-Score for a symbol.
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - F-Score (0-9 points)
+    - Breakdown by category (Profitability, Leverage, Operating Efficiency)
+    - Detailed explanation for each criterion
+    - Interpretation
+    """
+    try:
+        result = fundamental_screening_service.calculate_piotroski_f_score(
+            request.symbol,
+            current_data=None,  # Will fetch automatically
+            previous_data=None  # Will estimate
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error calculating F-Score for {request.symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error calculating F-Score: {str(e)}")
+
+@app.post("/api/fundamental/z-score", tags=["Fundamental Screening"])
+async def calculate_z_score(
+    request: FundamentalAnalysisRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Calculate Altman Z-Score for bankruptcy risk assessment.
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Z-Score value
+    - Component breakdown (A, B, C, D, E)
+    - Risk level (safe/moderate/high)
+    - Interpretation and recommendation
+    """
+    try:
+        result = fundamental_screening_service.calculate_altman_z_score(
+            request.symbol,
+            financial_data=None  # Will fetch automatically
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error calculating Z-Score for {request.symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error calculating Z-Score: {str(e)}")
+
+@app.post("/api/fundamental/magic-formula", tags=["Fundamental Screening"])
+async def calculate_magic_formula(
+    request: FundamentalAnalysisRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Calculate Magic Formula metrics (ROIC and EBIT/EV).
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Return on Invested Capital (ROIC)
+    - Earnings Yield (EBIT/EV)
+    - Combined score
+    - Current price, enterprise value, invested capital
+    """
+    try:
+        result = fundamental_screening_service.calculate_magic_formula_metrics(
+            request.symbol,
+            current_price=None,  # Will fetch automatically
+            financial_data=None  # Will fetch automatically
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error calculating Magic Formula for {request.symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error calculating Magic Formula: {str(e)}")
+
+@app.post("/api/fundamental/accrual-ratio", tags=["Fundamental Screening"])
+async def calculate_accrual_ratio(
+    request: FundamentalAnalysisRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Calculate Accrual Ratio to detect earnings quality issues.
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Accrual Ratio percentage
+    - Accrual amount
+    - Net income vs Operating cash flow
+    - Quality flag (excellent/good/acceptable/warning/danger)
+    - Interpretation and recommendation
+    """
+    try:
+        result = fundamental_screening_service.calculate_accrual_ratio(
+            request.symbol,
+            financial_data=None  # Will fetch automatically
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error calculating Accrual Ratio for {request.symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error calculating Accrual Ratio: {str(e)}")
+
+@app.post("/api/fundamental/screen/vq-plus", tags=["Fundamental Screening"])
+async def screen_vq_plus(
+    request: ScreeningRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Screen stocks using VQ+ Strategy (Value + Quality with protective filters).
+    
+    **Authentication Required:** Yes
+    
+    **Strategy Steps:**
+    1. Screen for Value (low valuation - using EBIT/EV)
+    2. Filter by Quality (high F-Score)
+    3. Apply protective filters (Z-Score > 3.0, Accrual Ratio < threshold)
+    4. Rank by combined score
+    
+    **Returns:**
+    - List of screened stocks (ranked by combined score)
+    - F-Score, Z-Score, ROIC, EBIT/EV, Accrual Ratio for each
+    - Combined score and ranking
+    - Market cap and current price
+    - Detailed breakdown for each stock
+    """
+    try:
+        results = fundamental_screening_service.screen_vq_plus_strategy(
+            symbols=request.symbols,
+            min_f_score=request.min_f_score,
+            max_z_score=request.max_z_score,  # Actually min threshold (we want > 3.0)
+            max_accrual_ratio=request.max_accrual_ratio
+        )
+        return {
+            'total_screened': len(results),
+            'symbols_analyzed': len(request.symbols),
+            'results': results,
+            'filters_applied': {
+                'min_f_score': request.min_f_score,
+                'min_z_score': request.max_z_score,  # Note: This is actually min threshold
+                'max_accrual_ratio': request.max_accrual_ratio
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error screening stocks with VQ+ strategy: {e}")
+        raise HTTPException(status_code=500, detail=f"Error screening stocks: {str(e)}")
+
+@app.post("/api/fundamental/full-analysis/{symbol}", tags=["Fundamental Screening"])
+async def get_full_fundamental_analysis(
+    symbol: str,
+    exchange: str = 'US',
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Get complete fundamental analysis for a symbol (all metrics).
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Fundamental data
+    - F-Score with breakdown
+    - Z-Score with risk assessment
+    - Magic Formula metrics
+    - Accrual Ratio with quality assessment
+    - Overall recommendation
+    """
+    try:
+        # Get all metrics
+        fundamental_data = fundamental_screening_service.get_fundamental_data(symbol, exchange)
+        f_score = fundamental_screening_service.calculate_piotroski_f_score(symbol, fundamental_data)
+        z_score = fundamental_screening_service.calculate_altman_z_score(symbol, fundamental_data)
+        magic_formula = fundamental_screening_service.calculate_magic_formula_metrics(symbol, financial_data=fundamental_data)
+        accrual = fundamental_screening_service.calculate_accrual_ratio(symbol, fundamental_data)
+        
+        # Determine overall recommendation
+        passes_filters = (
+            f_score.get('score', 0) >= 7 and
+            z_score.get('z_score', 0) > 3.0 and
+            accrual.get('accrual_ratio', 999) < 5.0
+        )
+        
+        return {
+            'symbol': symbol,
+            'fundamental_data': fundamental_data,
+            'f_score': f_score,
+            'z_score': z_score,
+            'magic_formula': magic_formula,
+            'accrual_ratio': accrual,
+            'overall_recommendation': 'STRONG BUY' if passes_filters else 'REVIEW',
+            'passes_vq_plus_filters': passes_filters,
+            'summary': {
+                'f_score_value': f_score.get('score', 0),
+                'z_score_value': z_score.get('z_score', 0),
+                'z_score_risk': z_score.get('risk_level', 'unknown'),
+                'roic': magic_formula.get('roic', 0),
+                'ebit_ev': magic_formula.get('ebit_ev', 0),
+                'accrual_ratio_value': accrual.get('accrual_ratio', 0),
+                'accrual_quality': accrual.get('quality_flag', 'unknown')
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error performing full fundamental analysis for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error performing analysis: {str(e)}")
+
 @app.post("/api/backtesting/run", tags=["Backtesting"])
 async def run_backtest(
     request: BacktestRequest,
