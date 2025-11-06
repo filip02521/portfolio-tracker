@@ -630,6 +630,16 @@ function App() {
                   } 
                 />
                 <Route 
+                  path="/fundamental-screening" 
+                  element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <FundamentalScreening />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
                   path="/admin/metrics" 
                   element={
                     <ProtectedRoute>
