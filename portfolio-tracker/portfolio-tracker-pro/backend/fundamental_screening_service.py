@@ -1350,22 +1350,44 @@ class FundamentalScreeningService:
         
         if frequency == 'quarterly':
             # Rebalance every 3 months
-            while current <= end_date:
-                dates.append(current)
-                # Add 3 months
-                if current.month <= 9:
-                    current = current.replace(month=current.month + 3)
-                elif current.month == 10:
-                    current = current.replace(year=current.year + 1, month=1)
-                elif current.month == 11:
-                    current = current.replace(year=current.year + 1, month=2)
-                elif current.month == 12:
-                    current = current.replace(year=current.year + 1, month=3)
+            from dateutil.relativedelta import relativedelta
+            try:
+                while current <= end_date:
+                    dates.append(current)
+                    current = current + relativedelta(months=3)
+                    if current > end_date:
+                        break
+            except ImportError:
+                # Fallback if dateutil not available
+                while current <= end_date:
+                    dates.append(current)
+                    # Add 3 months manually
+                    new_month = current.month + 3
+                    new_year = current.year
+                    if new_month > 12:
+                        new_year += 1
+                        new_month -= 12
+                    try:
+                        current = current.replace(year=new_year, month=new_month)
+                    except ValueError:
+                        # Handle invalid date (e.g., Feb 30)
+                        if new_month == 2:
+                            current = current.replace(year=new_year, month=3, day=1)
+                        else:
+                            current = current.replace(year=new_year, month=new_month, day=1)
+                    if current > end_date:
+                        break
         elif frequency == 'yearly':
             # Rebalance every year
             while current <= end_date:
                 dates.append(current)
-                current = current.replace(year=current.year + 1)
+                try:
+                    current = current.replace(year=current.year + 1)
+                except ValueError:
+                    # Handle leap year (Feb 29)
+                    current = current.replace(year=current.year + 1, month=3, day=1)
+                if current > end_date:
+                    break
         else:
             # Default: quarterly
             return self._generate_rebalance_dates(start_date, end_date, 'quarterly')
