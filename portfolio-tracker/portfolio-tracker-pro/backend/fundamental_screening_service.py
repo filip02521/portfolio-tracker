@@ -968,4 +968,568 @@ class FundamentalScreeningService:
             result['rank'] = i
         
         return results
+    
+    def backtest_vq_plus_strategy(
+        self,
+        symbols: List[str] = None,
+        start_date: str = None,
+        end_date: str = None,
+        initial_capital: float = 100000.0,
+        rebalance_frequency: str = 'quarterly',  # 'quarterly' or 'yearly'
+        max_positions: int = 20,
+        min_f_score: int = 7,
+        max_z_score: float = 3.0,
+        max_accrual_ratio: float = 5.0,
+        auto_universe: bool = False,
+        universe_index: str = 'SP500',
+        value_percentile: float = 0.2
+    ) -> Dict:
+        """
+        Backtest the VQ+ Strategy on historical data.
+        
+        Strategy:
+        1. Screen stocks using VQ+ filters at each rebalance date
+        2. Select top N stocks (by combined_score)
+        3. Allocate equal weights to each position
+        4. Hold positions until next rebalance or until filters fail
+        5. Rebalance quarterly or yearly
+        
+        Args:
+            symbols: List of symbols to test (or None for auto_universe)
+            start_date: Start date (ISO format 'YYYY-MM-DD')
+            end_date: End date (ISO format 'YYYY-MM-DD')
+            initial_capital: Initial capital (default: $100,000)
+            rebalance_frequency: 'quarterly' or 'yearly' (default: 'quarterly')
+            max_positions: Maximum number of positions in portfolio (default: 20)
+            min_f_score: Minimum F-Score filter (default: 7)
+            max_z_score: Minimum Z-Score threshold (default: 3.0)
+            max_accrual_ratio: Maximum Accrual Ratio (default: 5.0)
+            auto_universe: Auto-select universe if symbols is None
+            universe_index: Index for universe selection (default: 'SP500')
+            value_percentile: Value percentile for screening (default: 0.2)
+            
+        Returns:
+            Dict with backtest results:
+            - total_return: Total return percentage
+            - cagr: Compound Annual Growth Rate
+            - sharpe_ratio: Sharpe Ratio
+            - max_drawdown: Maximum drawdown percentage
+            - win_rate: Percentage of profitable positions
+            - profit_factor: Profit factor
+            - total_trades: Total number of trades
+            - winning_trades: Number of winning trades
+            - equity_curve: List of portfolio values over time
+            - trade_history: List of all trades
+            - portfolio_compositions: Portfolio at each rebalance
+        """
+        try:
+            # Parse dates
+            if not start_date or not end_date:
+                end_dt = datetime.now()
+                start_dt = end_dt - timedelta(days=365 * 2)  # Default: 2 years
+            else:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            
+            # Generate rebalance dates
+            rebalance_dates = self._generate_rebalance_dates(start_dt, end_dt, rebalance_frequency)
+            
+            if not rebalance_dates:
+                return {
+                    'status': 'error',
+                    'error': 'No rebalance dates generated'
+                }
+            
+            # Initialize backtest state
+            cash = initial_capital
+            positions = {}  # {symbol: {'shares': float, 'entry_price': float, 'entry_date': str}}
+            equity_curve = []
+            trade_history = []
+            portfolio_compositions = []
+            
+            # Track metrics
+            portfolio_values = [initial_capital]
+            dates = [start_dt]
+            peak_value = initial_capital
+            max_drawdown = 0.0
+            total_profit = 0.0
+            total_loss = 0.0
+            winning_trades_count = 0
+            losing_trades_count = 0
+            
+            # Process each rebalance period
+            for rebalance_idx, rebalance_date in enumerate(rebalance_dates):
+                self.logger.info(f"Rebalance {rebalance_idx + 1}/{len(rebalance_dates)}: {rebalance_date.strftime('%Y-%m-%d')}")
+                
+                # Step 1: Screen stocks at rebalance date
+                screened_stocks = self.screen_vq_plus_strategy(
+                    symbols=symbols,
+                    min_f_score=min_f_score,
+                    max_z_score=max_z_score,
+                    max_accrual_ratio=max_accrual_ratio,
+                    auto_universe=auto_universe,
+                    universe_index=universe_index,
+                    value_percentile=value_percentile
+                )
+                
+                if not screened_stocks:
+                    self.logger.warning(f"No stocks passed screening at {rebalance_date.strftime('%Y-%m-%d')}")
+                    # Close all positions if no stocks pass
+                    for symbol, position in list(positions.items()):
+                        exit_price = self._get_historical_price(symbol, rebalance_date)
+                        if exit_price:
+                            cash_added, profit = self._close_position(
+                                symbol, position, exit_price, rebalance_date,
+                                positions, trade_history, 'No stocks pass screening'
+                            )
+                            cash += cash_added
+                            if profit > 0:
+                                total_profit += profit
+                                winning_trades_count += 1
+                            else:
+                                total_loss += abs(profit)
+                                losing_trades_count += 1
+                    portfolio_compositions.append({
+                        'date': rebalance_date.strftime('%Y-%m-%d'),
+                        'positions': [],
+                        'cash': cash,
+                        'total_value': cash
+                    })
+                    portfolio_values.append(cash)
+                    dates.append(rebalance_date)
+                    continue
+                
+                # Step 2: Select top N stocks
+                top_stocks = screened_stocks[:max_positions]
+                target_symbols = [stock['symbol'] for stock in top_stocks]
+                
+                # Step 3: Close positions that no longer pass filters
+                for symbol, position in list(positions.items()):
+                    if symbol not in target_symbols:
+                        exit_price = self._get_historical_price(symbol, rebalance_date)
+                        if exit_price:
+                            cash_added, profit = self._close_position(
+                                symbol, position, exit_price, rebalance_date,
+                                positions, trade_history, 'Filter failed at rebalance'
+                            )
+                            cash += cash_added
+                            if profit > 0:
+                                total_profit += profit
+                                winning_trades_count += 1
+                            else:
+                                total_loss += abs(profit)
+                                losing_trades_count += 1
+                
+                # Step 4: Calculate total portfolio value
+                portfolio_value = cash
+                for symbol, position in positions.items():
+                    current_price = self._get_historical_price(symbol, rebalance_date)
+                    if current_price:
+                        portfolio_value += position['shares'] * current_price
+                
+                # Step 5: Rebalance to equal weights
+                # Calculate target position value for each symbol
+                target_position_value = portfolio_value / len(target_symbols) if target_symbols else 0
+                
+                # First, close all existing positions to free up cash
+                existing_symbols = list(positions.keys())
+                for symbol in existing_symbols:
+                    exit_price = self._get_historical_price(symbol, rebalance_date)
+                    if exit_price:
+                        old_position = positions.pop(symbol)
+                        cash_added, profit = self._close_position(
+                            symbol, old_position, exit_price, rebalance_date,
+                            {}, trade_history, 'Rebalance'  # Empty dict since we already popped
+                        )
+                        cash += cash_added
+                        if profit > 0:
+                            total_profit += profit
+                            winning_trades_count += 1
+                        else:
+                            total_loss += abs(profit)
+                            losing_trades_count += 1
+                
+                # Recalculate portfolio value after closing positions
+                portfolio_value = cash
+                
+                # Now open new positions with equal weights
+                for symbol in target_symbols:
+                    entry_price = self._get_historical_price(symbol, rebalance_date)
+                    if entry_price and entry_price > 0:
+                        shares = target_position_value / entry_price
+                        position_value = shares * entry_price
+                        
+                        # Only buy if we have enough cash
+                        if position_value <= cash:
+                            positions[symbol] = {
+                                'shares': shares,
+                                'entry_price': entry_price,
+                                'entry_date': rebalance_date.strftime('%Y-%m-%d')
+                            }
+                            cash -= position_value
+                            
+                            trade_history.append({
+                                'date': rebalance_date.strftime('%Y-%m-%d'),
+                                'action': 'buy',
+                                'symbol': symbol,
+                                'price': entry_price,
+                                'shares': shares,
+                                'value': position_value,
+                                'reason': 'VQ+ rebalance'
+                            })
+                        else:
+                            # If not enough cash, buy what we can
+                            shares = cash / entry_price
+                            if shares > 0:
+                                position_value = shares * entry_price
+                                positions[symbol] = {
+                                    'shares': shares,
+                                    'entry_price': entry_price,
+                                    'entry_date': rebalance_date.strftime('%Y-%m-%d')
+                                }
+                                cash -= position_value
+                                
+                                trade_history.append({
+                                    'date': rebalance_date.strftime('%Y-%m-%d'),
+                                    'action': 'buy',
+                                    'symbol': symbol,
+                                    'price': entry_price,
+                                    'shares': shares,
+                                    'value': position_value,
+                                    'reason': 'VQ+ rebalance (partial)'
+                                })
+                
+                # Recalculate portfolio value after rebalancing
+                portfolio_value = cash
+                for symbol, position in positions.items():
+                    current_price = self._get_historical_price(symbol, rebalance_date)
+                    if current_price:
+                        portfolio_value += position['shares'] * current_price
+                
+                # Step 6: Update portfolio composition
+                current_positions = []
+                for symbol, position in positions.items():
+                    current_price = self._get_historical_price(symbol, rebalance_date)
+                    if current_price:
+                        current_positions.append({
+                            'symbol': symbol,
+                            'shares': position['shares'],
+                            'entry_price': position['entry_price'],
+                            'current_price': current_price,
+                            'value': position['shares'] * current_price,
+                            'return_pct': ((current_price - position['entry_price']) / position['entry_price']) * 100 if position['entry_price'] > 0 else 0
+                        })
+                
+                portfolio_compositions.append({
+                    'date': rebalance_date.strftime('%Y-%m-%d'),
+                    'positions': current_positions,
+                    'cash': cash,
+                    'total_value': portfolio_value
+                })
+                
+                # Update metrics
+                portfolio_values.append(portfolio_value)
+                dates.append(rebalance_date)
+                
+                if portfolio_value > peak_value:
+                    peak_value = portfolio_value
+                
+                drawdown = ((peak_value - portfolio_value) / peak_value) * 100 if peak_value > 0 else 0
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
+                
+                # Log daily portfolio value (for equity curve)
+                equity_curve.append({
+                    'date': rebalance_date.strftime('%Y-%m-%d'),
+                    'value': portfolio_value
+                })
+            
+            # Close all positions at end
+            final_date = end_dt
+            for symbol, position in list(positions.items()):
+                exit_price = self._get_historical_price(symbol, final_date)
+                if exit_price:
+                    cash_added, profit = self._close_position(
+                        symbol, position, exit_price, final_date,
+                        positions, trade_history, 'End of backtest'
+                    )
+                    cash += cash_added
+                    if profit > 0:
+                        total_profit += profit
+                        winning_trades_count += 1
+                    else:
+                        total_loss += abs(profit)
+                        losing_trades_count += 1
+            
+            # Calculate final portfolio value
+            final_portfolio_value = cash
+            for symbol, position in positions.items():
+                exit_price = self._get_historical_price(symbol, final_date)
+                if exit_price:
+                    final_portfolio_value += position['shares'] * exit_price
+            
+            portfolio_values.append(final_portfolio_value)
+            dates.append(final_date)
+            equity_curve.append({
+                'date': final_date.strftime('%Y-%m-%d'),
+                'value': final_portfolio_value
+            })
+            
+            # Calculate performance metrics
+            total_return = ((final_portfolio_value - initial_capital) / initial_capital) * 100 if initial_capital > 0 else 0
+            
+            # Calculate CAGR
+            years = (end_dt - start_dt).days / 365.0
+            if years > 0 and initial_capital > 0:
+                cagr = (((final_portfolio_value / initial_capital) ** (1.0 / years)) - 1) * 100
+            else:
+                cagr = 0.0
+            
+            # Calculate Sharpe Ratio (simplified - assumes risk-free rate = 0)
+            if len(portfolio_values) > 1:
+                returns = []
+                for i in range(1, len(portfolio_values)):
+                    if portfolio_values[i-1] > 0:
+                        ret = ((portfolio_values[i] - portfolio_values[i-1]) / portfolio_values[i-1]) * 100
+                        returns.append(ret)
+                
+                if returns:
+                    avg_return = sum(returns) / len(returns)
+                    variance = sum([(r - avg_return) ** 2 for r in returns]) / len(returns)
+                    std_dev = variance ** 0.5
+                    sharpe_ratio = (avg_return / std_dev) if std_dev > 0 else 0.0
+                else:
+                    sharpe_ratio = 0.0
+            else:
+                sharpe_ratio = 0.0
+            
+            # Calculate Win Rate
+            total_trades_count = winning_trades_count + losing_trades_count
+            win_rate = (winning_trades_count / total_trades_count * 100) if total_trades_count > 0 else 0.0
+            
+            # Calculate Profit Factor
+            profit_factor = (total_profit / total_loss) if total_loss > 0 else (total_profit if total_profit > 0 else 0.0)
+            
+            return {
+                'status': 'success',
+                'total_return': round(total_return, 2),
+                'cagr': round(cagr, 2),
+                'sharpe_ratio': round(sharpe_ratio, 3),
+                'max_drawdown': round(max_drawdown, 2),
+                'win_rate': round(win_rate, 2),
+                'profit_factor': round(profit_factor, 2),
+                'total_trades': total_trades_count,
+                'winning_trades': winning_trades_count,
+                'losing_trades': losing_trades_count,
+                'initial_capital': initial_capital,
+                'final_value': round(final_portfolio_value, 2),
+                'equity_curve': equity_curve,
+                'trade_history': trade_history,
+                'portfolio_compositions': portfolio_compositions,
+                'rebalance_dates': [d.strftime('%Y-%m-%d') for d in rebalance_dates],
+                'parameters': {
+                    'rebalance_frequency': rebalance_frequency,
+                    'max_positions': max_positions,
+                    'min_f_score': min_f_score,
+                    'max_z_score': max_z_score,
+                    'max_accrual_ratio': max_accrual_ratio
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in VQ+ backtest: {e}", exc_info=True)
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+    
+    def _generate_rebalance_dates(self, start_date: datetime, end_date: datetime, frequency: str) -> List[datetime]:
+        """Generate rebalance dates based on frequency"""
+        dates = []
+        current = start_date
+        
+        if frequency == 'quarterly':
+            # Rebalance every 3 months
+            while current <= end_date:
+                dates.append(current)
+                # Add 3 months
+                if current.month <= 9:
+                    current = current.replace(month=current.month + 3)
+                elif current.month == 10:
+                    current = current.replace(year=current.year + 1, month=1)
+                elif current.month == 11:
+                    current = current.replace(year=current.year + 1, month=2)
+                elif current.month == 12:
+                    current = current.replace(year=current.year + 1, month=3)
+        elif frequency == 'yearly':
+            # Rebalance every year
+            while current <= end_date:
+                dates.append(current)
+                current = current.replace(year=current.year + 1)
+        else:
+            # Default: quarterly
+            return self._generate_rebalance_dates(start_date, end_date, 'quarterly')
+        
+        return dates
+    
+    def _get_historical_price(self, symbol: str, date: datetime) -> Optional[float]:
+        """Get historical price for a symbol on a specific date"""
+        if not self.market_data_service:
+            return None
+        
+        try:
+            # Get historical data
+            historical_data, _ = self.market_data_service.get_symbol_history(symbol, days=365)
+            
+            if not historical_data:
+                return None
+            
+            # Find closest price to date
+            target_date = date.date()
+            closest_price = None
+            min_diff = timedelta(days=365)
+            
+            for candle in historical_data:
+                candle_date_str = candle.get('timestamp', candle.get('date', ''))
+                if candle_date_str:
+                    try:
+                        candle_dt = datetime.fromisoformat(candle_date_str.replace('Z', '+00:00'))
+                        diff = abs(candle_dt.date() - target_date)
+                        if diff < min_diff:
+                            min_diff = diff
+                            closest_price = float(candle.get('close', 0))
+                    except Exception:
+                        continue
+            
+            return closest_price if closest_price and closest_price > 0 else None
+            
+        except Exception as e:
+            self.logger.warning(f"Error getting historical price for {symbol} on {date}: {e}")
+            return None
+    
+    def _close_position(
+        self,
+        symbol: str,
+        position: Dict,
+        exit_price: float,
+        exit_date: datetime,
+        positions: Dict,
+        trade_history: List,
+        reason: str
+    ) -> Tuple[float, float]:
+        """
+        Close a position and update trade history.
+        
+        Returns:
+            Tuple of (cash_added, profit)
+        """
+        if symbol not in positions:
+            return 0.0, 0.0
+        
+        shares = position['shares']
+        entry_price = position['entry_price']
+        entry_date = position['entry_date']
+        
+        exit_value = shares * exit_price
+        profit = (exit_price - entry_price) * shares
+        return_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+        
+        positions.pop(symbol)
+        
+        trade_history.append({
+            'date': exit_date.strftime('%Y-%m-%d') if isinstance(exit_date, datetime) else exit_date,
+            'action': 'sell',
+            'symbol': symbol,
+            'price': exit_price,
+            'shares': shares,
+            'value': exit_value,
+            'return_pct': round(return_pct, 2),
+            'profit': round(profit, 2),
+            'reason': reason,
+            'entry_price': entry_price,
+            'entry_date': entry_date
+        })
+        
+        return exit_value, profit
+    
+    def get_universe_symbols(self, index: str = 'SP500') -> List[str]:
+        """
+        Get list of symbols for a given index/universe.
+        
+        Args:
+            index: Index name ('SP500' or 'RUSSELL2000')
+            
+        Returns:
+            List of stock symbols
+        """
+        # For now, return common symbols as placeholder
+        # In production, this should fetch from index provider or use saved list
+        if index == 'SP500':
+            # Common S&P 500 stocks (top 50 for testing)
+            return [
+                'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B',
+                'V', 'JNJ', 'WMT', 'JPM', 'MA', 'PG', 'UNH', 'HD', 'DIS', 'PYPL',
+                'BAC', 'VZ', 'ADBE', 'CMCSA', 'NFLX', 'NKE', 'MRK', 'PFE', 'T',
+                'INTC', 'PEP', 'CSCO', 'TMO', 'AVGO', 'COST', 'ABT', 'ACN', 'CVX',
+                'XOM', 'DHR', 'MDT', 'WFC', 'ABBV', 'ORCL', 'LLY', 'PM', 'NEE',
+                'TXN', 'HON', 'UNP', 'UPS', 'IBM'
+            ]
+        elif index == 'RUSSELL2000':
+            # Smaller cap stocks (sample for testing)
+            return [
+                'AAL', 'AMD', 'ADSK', 'AKAM', 'ALGN', 'ALXN', 'AMAT', 'AMGN',
+                'AMZN', 'ANSS', 'APH', 'ATVI', 'AVGO', 'BBY', 'BIDU', 'BIIB',
+                'BKNG', 'CDNS', 'CDW', 'CERN', 'CHTR', 'CMCSA', 'COST', 'CSX',
+                'CTAS', 'CTSH', 'CTXS', 'DLTR', 'EA', 'EBAY', 'EXPD', 'FAST',
+                'FB', 'FISV', 'FOX', 'FOXA', 'GILD', 'GOOG', 'GOOGL', 'HAS',
+                'HSIC', 'IDXX', 'ILMN', 'INCY', 'INTC', 'INTU', 'ISRG', 'JBHT',
+                'JD', 'KLAC', 'LBTYA', 'LBTYK', 'LRCX', 'LULU', 'MAR', 'MCHP',
+                'MDLZ', 'MELI', 'MNST', 'MSFT', 'MXIM', 'MYL', 'NFLX', 'NTES',
+                'NTAP', 'NVDA', 'NXPI', 'ORLY', 'PAYX', 'PCAR', 'PEP', 'PYPL',
+                'QCOM', 'REGN', 'ROST', 'SBUX', 'SGEN', 'SIRI', 'SNPS', 'SPLK',
+                'SWKS', 'SYMC', 'TCOM', 'TSLA', 'TTWO', 'TXN', 'ULTA', 'VRSK',
+                'VRSN', 'VRTX', 'WDC', 'WDAY', 'WYNN', 'XEL', 'XLNX', 'ZM'
+            ]
+        else:
+            return []
+    
+    def rank_universe_by_ebit_ev(self, symbols: List[str], percentile: float = 0.2) -> List[Dict]:
+        """
+        Rank universe of symbols by EBIT/EV (Value metric).
+        Returns bottom percentile (highest EBIT/EV = lowest valuation = best value).
+        
+        Args:
+            symbols: List of symbols to rank
+            percentile: Percentile to return (0.2 = bottom 20% = best value)
+            
+        Returns:
+            List of dicts with symbol and EBIT/EV, sorted by EBIT/EV descending
+        """
+        ranked = []
+        
+        for symbol in symbols:
+            try:
+                financial_data = self.get_fundamental_data(symbol)
+                if not financial_data:
+                    continue
+                
+                magic_formula = self.calculate_magic_formula_metrics(symbol, financial_data=financial_data)
+                ebit_ev = magic_formula.get('ebit_ev', 0)
+                
+                if ebit_ev > 0:  # Only include positive EBIT/EV
+                    ranked.append({
+                        'symbol': symbol,
+                        'ebit_ev': ebit_ev,
+                        'company_name': financial_data.get('company_name', symbol)
+                    })
+            except Exception as e:
+                self.logger.debug(f"Error ranking {symbol} by EBIT/EV: {e}")
+                continue
+        
+        # Sort by EBIT/EV descending (highest = best value)
+        ranked.sort(key=lambda x: x['ebit_ev'], reverse=True)
+        
+        # Return bottom percentile
+        num_to_return = max(1, int(len(ranked) * percentile))
+        return ranked[:num_to_return]
 

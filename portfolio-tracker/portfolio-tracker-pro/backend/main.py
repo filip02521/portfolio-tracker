@@ -2935,9 +2935,67 @@ async def screen_vq_plus(
                 'max_accrual_ratio': request.max_accrual_ratio
             }
         }
+
+class VQPlusBacktestRequest(BaseModel):
+    symbols: Optional[List[str]] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    initial_capital: Optional[float] = 100000.0
+    rebalance_frequency: Optional[str] = 'quarterly'  # 'quarterly' or 'yearly'
+    max_positions: Optional[int] = 20
+    min_f_score: Optional[int] = 7
+    max_z_score: Optional[float] = 3.0
+    max_accrual_ratio: Optional[float] = 5.0
+    auto_universe: Optional[bool] = False
+    universe_index: Optional[str] = 'SP500'
+    value_percentile: Optional[float] = 0.2
+
+@app.post("/api/fundamental/backtest/vq-plus", tags=["Fundamental Screening"])
+async def backtest_vq_plus_strategy(
+    request: VQPlusBacktestRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Backtest the VQ+ Strategy on historical data.
+    
+    **Authentication Required:** Yes
+    
+    **Strategy:**
+    - Screens stocks using VQ+ filters (F-Score, Z-Score, Accrual Ratio)
+    - Selects top N stocks by combined_score
+    - Allocates equal weights to each position
+    - Rebalances quarterly or yearly
+    - Closes positions that fail filters
+    
+    **Returns:**
+    - Total return, CAGR, Sharpe ratio
+    - Max drawdown, win rate, profit factor
+    - Equity curve (time series)
+    - Trade history with full details
+    - Portfolio compositions at each rebalance
+    """
+    try:
+        result = fundamental_screening_service.backtest_vq_plus_strategy(
+            symbols=request.symbols,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            initial_capital=request.initial_capital,
+            rebalance_frequency=request.rebalance_frequency,
+            max_positions=request.max_positions,
+            min_f_score=request.min_f_score,
+            max_z_score=request.max_z_score,
+            max_accrual_ratio=request.max_accrual_ratio,
+            auto_universe=request.auto_universe,
+            universe_index=request.universe_index,
+            value_percentile=request.value_percentile
+        )
+        return result
     except Exception as e:
-        logger.error(f"Error screening stocks with VQ+ strategy: {e}")
-        raise HTTPException(status_code=500, detail=f"Error screening stocks: {str(e)}")
+        error_type = type(e).__name__
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error ({error_type}): {str(e)}"
+        )
 
 @app.post("/api/fundamental/full-analysis/{symbol}", tags=["Fundamental Screening"])
 async def get_full_fundamental_analysis(
