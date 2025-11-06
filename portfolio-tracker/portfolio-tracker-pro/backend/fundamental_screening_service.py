@@ -88,6 +88,115 @@ class FundamentalScreeningService:
         
         return fundamental_data
     
+    def get_fundamental_data_historical(self, symbol: str, year_offset: int = 1, exchange: str = 'US') -> Optional[Dict]:
+        """
+        Fetch fundamental financial data from a previous year.
+        
+        Args:
+            symbol: Stock symbol
+            year_offset: Number of years back (1 = previous year, 2 = 2 years ago, etc.)
+            exchange: Exchange code (default: 'US')
+            
+        Returns:
+            Dict with financial data from the specified year or None if unavailable
+        """
+        if year_offset < 1:
+            year_offset = 1
+        
+        # Try Alpha Vantage first (has historical data in annualReports array)
+        if self.alpha_vantage_api_key:
+            try:
+                return self._fetch_from_alpha_vantage_historical(symbol, year_offset)
+            except Exception as e:
+                self.logger.warning(f"Alpha Vantage historical data error for {symbol}: {e}")
+        
+        # Try Finnhub
+        if self.finnhub_api_key:
+            try:
+                return self._fetch_from_finnhub_historical(symbol, year_offset)
+            except Exception as e:
+                self.logger.warning(f"Finnhub historical data error for {symbol}: {e}")
+        
+        return None
+    
+    def _fetch_from_alpha_vantage_historical(self, symbol: str, year_offset: int = 1) -> Optional[Dict]:
+        """Fetch historical fundamental data from Alpha Vantage API"""
+        try:
+            # Income statement
+            income_url = f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            income_response = requests.get(income_url, timeout=10)
+            if income_response.status_code != 200:
+                return None
+            income_data = income_response.json()
+            
+            # Balance sheet
+            balance_url = f"https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            balance_response = requests.get(balance_url, timeout=10)
+            if balance_response.status_code != 200:
+                return None
+            balance_data = balance_response.json()
+            
+            # Cash flow
+            cashflow_url = f"https://www.alphavantage.co/query?function=CASH_FLOW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            cashflow_response = requests.get(cashflow_url, timeout=10)
+            if cashflow_response.status_code != 200:
+                return None
+            cashflow_data = cashflow_response.json()
+            
+            # Get overview for symbol info
+            overview_url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            overview_response = requests.get(overview_url, timeout=10)
+            overview_data = overview_response.json() if overview_response.status_code == 200 else {}
+            
+            # Extract data from year_offset position (0 = latest, 1 = previous year, etc.)
+            annual_income = income_data.get('annualReports', [])
+            annual_balance = balance_data.get('annualReports', [])
+            annual_cashflow = cashflow_data.get('annualReports', [])
+            
+            if len(annual_income) <= year_offset or len(annual_balance) <= year_offset:
+                return None
+            
+            # Use overview for current market cap (historical market cap not available)
+            return self._parse_alpha_vantage_data(
+                overview_data,
+                {'annualReports': [annual_income[year_offset]]},
+                {'annualReports': [annual_balance[year_offset]]},
+                {'annualReports': [annual_cashflow[year_offset]] if len(annual_cashflow) > year_offset else []}
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching historical data from Alpha Vantage: {e}")
+            return None
+    
+    def _fetch_from_finnhub_historical(self, symbol: str, year_offset: int = 1) -> Optional[Dict]:
+        """Fetch historical fundamental data from Finnhub API"""
+        try:
+            # Financials (income statement, balance sheet, cash flow)
+            financials_url = f"https://finnhub.io/api/v1/stock/financials-reported?symbol={symbol}&token={self.finnhub_api_key}"
+            financials_response = requests.get(financials_url, timeout=10)
+            
+            if financials_response.status_code != 200:
+                return None
+            
+            financials_data = financials_response.json()
+            
+            # Get data from year_offset position
+            if financials_data.get('data') and len(financials_data['data']) > year_offset:
+                historical_data = financials_data['data'][year_offset]
+                
+                # Get company profile for basic info
+                profile_url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={self.finnhub_api_key}"
+                profile_response = requests.get(profile_url, timeout=10)
+                profile_data = profile_response.json() if profile_response.status_code == 200 else {}
+                
+                return self._parse_finnhub_data(profile_data, {'data': [historical_data]})
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching historical data from Finnhub: {e}")
+            return None
+    
     def _fetch_from_finnhub(self, symbol: str) -> Optional[Dict]:
         """Fetch fundamental data from Finnhub API"""
         try:
