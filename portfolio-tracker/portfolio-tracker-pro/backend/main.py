@@ -2935,6 +2935,13 @@ async def screen_vq_plus(
                 'max_accrual_ratio': request.max_accrual_ratio
             }
         }
+    except Exception as e:
+        error_type = type(e).__name__
+        logger.error(f"Error screening VQ+ strategy: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error ({error_type}): {str(e)}"
+        )
 
 class VQPlusBacktestRequest(BaseModel):
     symbols: Optional[List[str]] = None
