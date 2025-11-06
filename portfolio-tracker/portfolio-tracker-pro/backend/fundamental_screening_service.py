@@ -799,30 +799,63 @@ class FundamentalScreeningService:
                     self.logger.debug(f"Error getting current price for {symbol}: {e}")
                     pass
             
+            # Helper function to safely convert to float
+            def safe_float(value, default=0.0):
+                if value is None:
+                    return default
+                if isinstance(value, dict):
+                    return default
+                if isinstance(value, (int, float)):
+                    return float(value)
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
+            
             if not current_price or current_price <= 0:
                 # Estimate from market cap and shares
-                market_cap = financial_data.get('market_cap', 0)
-                shares = financial_data.get('shares_outstanding', 1)
+                market_cap = safe_float(financial_data.get('market_cap', 0))
+                shares = safe_float(financial_data.get('shares_outstanding', 1))
                 if market_cap and shares and shares > 0:
                     current_price = market_cap / shares
                 else:
                     current_price = 0
         
+        # Helper function to safely convert to float (reuse if already defined, otherwise define)
+        try:
+            safe_float
+        except NameError:
+            def safe_float(value, default=0.0):
+                if value is None:
+                    return default
+                if isinstance(value, dict):
+                    return default
+                if isinstance(value, (int, float)):
+                    return float(value)
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
+        
+        # Ensure current_price is a float
+        current_price = safe_float(current_price, 0.0)
+        
         # Calculate ROIC
         # ROIC = EBIT / (Total Assets - Current Liabilities - Cash) - TRUE formula from report
-        ebit = financial_data.get('ebit', 0)
-        total_assets = financial_data.get('total_assets', 1)
-        current_liabilities = financial_data.get('current_liabilities', 0)
-        cash = financial_data.get('cash_and_cash_equivalents', 0)
+        ebit = safe_float(financial_data.get('ebit', 0))
+        total_assets = safe_float(financial_data.get('total_assets', 1))
+        current_liabilities = safe_float(financial_data.get('current_liabilities', 0))
+        cash = safe_float(financial_data.get('cash_and_cash_equivalents', 0))
         # TRUE Invested Capital: Assets - Current Liabilities - Cash
         invested_capital = total_assets - current_liabilities - cash
         roic = (ebit / invested_capital) * 100 if invested_capital > 0 else 0
         
         # Calculate EBIT/EV (Earnings Yield)
         # EV = Market Cap + Total Debt - Cash - TRUE formula from report
-        market_cap = financial_data.get('market_cap', 0)
-        total_debt = financial_data.get('long_term_debt', 0) + current_liabilities
-        cash = financial_data.get('cash_and_cash_equivalents', 0)
+        market_cap = safe_float(financial_data.get('market_cap', 0))
+        long_term_debt = safe_float(financial_data.get('long_term_debt', 0))
+        total_debt = long_term_debt + current_liabilities
+        cash = safe_float(financial_data.get('cash_and_cash_equivalents', 0))
         # TRUE Enterprise Value: Market Cap + Debt - Cash
         enterprise_value = market_cap + total_debt - cash
         ebit_ev = (ebit / enterprise_value) * 100 if enterprise_value > 0 else 0
@@ -831,15 +864,14 @@ class FundamentalScreeningService:
         # Simple average for now (in production, use proper ranking)
         combined_score = (roic + ebit_ev) / 2
         
-        # Ensure current_price is a number
-        if not isinstance(current_price, (int, float)):
-            current_price = float(current_price) if current_price else 0.0
+        # Ensure current_price is a float (already done above, but double-check)
+        current_price = safe_float(current_price, 0.0)
         
         return {
             'roic': round(roic, 2),
             'ebit_ev': round(ebit_ev, 2),
             'combined_score': round(combined_score, 2),
-            'current_price': round(float(current_price), 2) if current_price else 0.0,
+            'current_price': round(current_price, 2) if current_price > 0 else 0.0,
             'enterprise_value': round(enterprise_value, 0),
             'invested_capital': round(invested_capital, 0)
         }
