@@ -603,168 +603,169 @@ const ConfluenceStrategyDashboard: React.FC = () => {
             {backtestResult.status === 'error' ? (
               <Alert severity="error">{backtestResult.error}</Alert>
             ) : (
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Total Return</Typography>
-                    <Typography variant="h5" color={backtestResult.total_return && backtestResult.total_return > 0 ? 'success.main' : 'error.main'}>
-                      {backtestResult.total_return?.toFixed(2)}%
-                    </Typography>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">CAGR</Typography>
-                    <Typography variant="h5">
-                      {backtestResult.cagr?.toFixed(2)}%
-                    </Typography>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Sharpe Ratio</Typography>
-                    <Typography variant="h5">
-                      {backtestResult.sharpe_ratio?.toFixed(3)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Win Rate</Typography>
-                    <Typography variant="h5">
-                      {backtestResult.win_rate?.toFixed(2)}%
-                    </Typography>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Profit Factor</Typography>
-                    <Typography variant="h5">
-                      {backtestResult.profit_factor?.toFixed(2)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
-                    <Typography variant="h5" color="error">
-                      {backtestResult.max_drawdown?.toFixed(2)}%
-                    </Typography>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Total Trades</Typography>
-                    <Typography variant="h5">
-                      {backtestResult.total_trades || 0}
-                    </Typography>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Winning Trades</Typography>
-                    <Typography variant="h5" color="success.main">
-                      {backtestResult.winning_trades || 0}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-              
-              {backtestResult.equity_curve && backtestResult.equity_curve.length > 0 && (
-                <Box sx={{ mt: 2 }}>
+              <Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
                   <Card>
                     <CardContent>
-                      <Typography variant="h6" gutterBottom>Equity Curve</Typography>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={backtestResult.equity_curve}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 12 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={80}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => `$${value.toFixed(0)}`}
-                          />
-                          <Tooltip 
-                            formatter={(value: number) => `$${value.toFixed(2)}`}
-                            labelFormatter={(label) => `Date: ${label}`}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="value" 
-                            stroke="#2563eb" 
-                            strokeWidth={2}
-                            dot={false}
-                            name="Portfolio Value"
-                          />
-                          <ReferenceLine 
-                            y={backtestResult.initial_capital} 
-                            stroke="#666" 
-                            strokeDasharray="3 3"
-                            label="Initial Capital"
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
+                      <Typography variant="body2" color="text.secondary">Total Return</Typography>
+                      <Typography variant="h5" color={backtestResult.total_return && backtestResult.total_return > 0 ? 'success.main' : 'error.main'}>
+                        {backtestResult.total_return?.toFixed(2)}%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">CAGR</Typography>
+                      <Typography variant="h5">
+                        {backtestResult.cagr?.toFixed(2)}%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">Sharpe Ratio</Typography>
+                      <Typography variant="h5">
+                        {backtestResult.sharpe_ratio?.toFixed(3)}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">Win Rate</Typography>
+                      <Typography variant="h5">
+                        {backtestResult.win_rate?.toFixed(2)}%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">Profit Factor</Typography>
+                      <Typography variant="h5">
+                        {backtestResult.profit_factor?.toFixed(2)}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
+                      <Typography variant="h5" color="error">
+                        {backtestResult.max_drawdown?.toFixed(2)}%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">Total Trades</Typography>
+                      <Typography variant="h5">
+                        {backtestResult.total_trades || 0}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">Winning Trades</Typography>
+                      <Typography variant="h5" color="success.main">
+                        {backtestResult.winning_trades || 0}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Box>
-              )}
-              
-              {backtestResult.trade_history && backtestResult.trade_history.length > 0 && (
-                <Box sx={{ mt: 2 }}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>Trade History</Typography>
-                      <TableContainer>
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Date</TableCell>
-                              <TableCell>Action</TableCell>
-                              <TableCell>Price</TableCell>
-                              <TableCell>Shares</TableCell>
-                              <TableCell>Value</TableCell>
-                              <TableCell>Return %</TableCell>
-                              <TableCell>Reason</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {backtestResult.trade_history.slice(0, 20).map((trade: any, idx: number) => (
-                              <TableRow key={idx}>
-                                <TableCell>{trade.date}</TableCell>
-                                <TableCell>
-                                  <Chip
-                                    label={trade.action}
-                                    color={trade.action === 'buy' ? 'primary' : 'secondary'}
-                                    size="small"
-                                  />
-                                </TableCell>
-                                <TableCell>${trade.price?.toFixed(2)}</TableCell>
-                                <TableCell>{trade.shares?.toFixed(4)}</TableCell>
-                                <TableCell>${trade.value?.toFixed(2)}</TableCell>
-                                <TableCell>
-                                  {trade.return_pct ? (
-                                    <Typography
-                                      color={trade.return_pct > 0 ? 'success.main' : 'error.main'}
-                                    >
-                                      {trade.return_pct.toFixed(2)}%
-                                    </Typography>
-                                  ) : '-'}
-                                </TableCell>
-                                <TableCell>{trade.reason || '-'}</TableCell>
+                
+                {backtestResult.equity_curve && backtestResult.equity_curve.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>Equity Curve</Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <LineChart data={backtestResult.equity_curve}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="date" 
+                              tick={{ fontSize: 12 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                            />
+                            <YAxis 
+                              tick={{ fontSize: 12 }}
+                              tickFormatter={(value) => `$${value.toFixed(0)}`}
+                            />
+                            <Tooltip 
+                              formatter={(value: number) => `$${value.toFixed(2)}`}
+                              labelFormatter={(label) => `Date: ${label}`}
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="value" 
+                              stroke="#2563eb" 
+                              strokeWidth={2}
+                              dot={false}
+                              name="Portfolio Value"
+                            />
+                            <ReferenceLine 
+                              y={backtestResult.initial_capital} 
+                              stroke="#666" 
+                              strokeDasharray="3 3"
+                              label="Initial Capital"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Box>
+                )}
+                
+                {backtestResult.trade_history && backtestResult.trade_history.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>Trade History</Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Date</TableCell>
+                                <TableCell>Action</TableCell>
+                                <TableCell>Price</TableCell>
+                                <TableCell>Shares</TableCell>
+                                <TableCell>Value</TableCell>
+                                <TableCell>Return %</TableCell>
+                                <TableCell>Reason</TableCell>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </CardContent>
-                  </Card>
-                </Box>
-              )}
+                            </TableHead>
+                            <TableBody>
+                              {backtestResult.trade_history.slice(0, 20).map((trade: any, idx: number) => (
+                                <TableRow key={idx}>
+                                  <TableCell>{trade.date}</TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={trade.action}
+                                      color={trade.action === 'buy' ? 'primary' : 'secondary'}
+                                      size="small"
+                                    />
+                                  </TableCell>
+                                  <TableCell>${trade.price?.toFixed(2)}</TableCell>
+                                  <TableCell>{trade.shares?.toFixed(4)}</TableCell>
+                                  <TableCell>${trade.value?.toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    {trade.return_pct ? (
+                                      <Typography
+                                        color={trade.return_pct > 0 ? 'success.main' : 'error.main'}
+                                      >
+                                        {trade.return_pct.toFixed(2)}%
+                                      </Typography>
+                                    ) : '-'}
+                                  </TableCell>
+                                  <TableCell>{trade.reason || '-'}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Box>
+                )}
               </Box>
             )}
           </Box>
