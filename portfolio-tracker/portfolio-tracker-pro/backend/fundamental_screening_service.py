@@ -474,32 +474,25 @@ class FundamentalScreeningService:
         
         # Revenue should already be extracted from ic_items above
         
-        # Market Cap from Finnhub is in millions USD - convert to full USD
+        # Market Cap from Finnhub is in millions USD - ALWAYS convert to full USD
+        # Finnhub API documentation states marketCapitalization is in millions
         market_cap_raw = profile_data.get('marketCapitalization', profile_data.get('market_cap', 0))
-        # Finnhub returns market cap in millions USD
-        # Check if value is reasonable - if less than 1 trillion (1,000,000), it's in millions
         if market_cap_raw and market_cap_raw > 0:
             market_cap_val = safe_value(market_cap_raw)
-            # If market cap is less than 1 trillion (1,000,000 million), it's in millions
-            # Typical large cap stocks have market caps in trillions (1000+ million)
-            if market_cap_val < 1000000:  # Less than 1 trillion in millions = needs conversion
-                market_cap = market_cap_val * 1000000
-            else:
-                # Already in full units (very large number)
-                market_cap = market_cap_val
+            # Finnhub always returns market cap in millions, so always multiply by 1,000,000
+            # Exception: if the value is already huge (trillions), it might be in full units
+            # But based on API docs, it's always in millions, so convert
+            market_cap = market_cap_val * 1000000
         else:
             market_cap = 0
         
-        # Share Outstanding from Finnhub is also in millions
+        # Share Outstanding from Finnhub is also in millions - ALWAYS convert
+        # Finnhub API documentation states shareOutstanding is in millions
         shares_outstanding_raw = profile_data.get('shareOutstanding', profile_data.get('sharesOutstanding', 0))
         if shares_outstanding_raw and shares_outstanding_raw > 0:
             shares_val = safe_value(shares_outstanding_raw)
-            # If less than 1 billion shares (1000 million), it's in millions
-            if shares_val < 1000:  # Less than 1 billion = needs conversion
-                shares_outstanding = shares_val * 1000000
-            else:
-                # Already in full units
-                shares_outstanding = shares_val
+            # Finnhub always returns shares in millions, so always multiply by 1,000,000
+            shares_outstanding = shares_val * 1000000
         else:
             shares_outstanding = 0
         
