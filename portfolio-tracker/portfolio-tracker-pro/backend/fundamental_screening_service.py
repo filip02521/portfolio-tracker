@@ -1344,7 +1344,8 @@ class FundamentalScreeningService:
                 if not screened_stocks:
                     self.logger.warning(f"No stocks passed screening at {rebalance_date.strftime('%Y-%m-%d')}")
                     # Close all positions if no stocks pass
-                    for symbol, position in list(positions.items()):
+                    positions_to_close = list(positions.items())
+                    for symbol, position in positions_to_close:
                         exit_price = self._get_historical_price(symbol, rebalance_date)
                         if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
                             cash_added, profit = self._close_position(
@@ -1355,9 +1356,10 @@ class FundamentalScreeningService:
                             if profit > 0:
                                 total_profit += profit
                                 winning_trades_count += 1
-                            else:
+                            elif profit < 0:
                                 total_loss += abs(profit)
                                 losing_trades_count += 1
+                            # Note: profit == 0 is neither winning nor losing
                     portfolio_compositions.append({
                         'date': rebalance_date.strftime('%Y-%m-%d'),
                         'positions': [],
@@ -1373,7 +1375,8 @@ class FundamentalScreeningService:
                 target_symbols = [stock['symbol'] for stock in top_stocks]
                 
                 # Step 3: Close positions that no longer pass filters
-                for symbol, position in list(positions.items()):
+                positions_to_check = list(positions.items())
+                for symbol, position in positions_to_check:
                     if symbol not in target_symbols:
                         exit_price = self._get_historical_price(symbol, rebalance_date)
                         if exit_price and exit_price > 0:
@@ -1385,7 +1388,7 @@ class FundamentalScreeningService:
                             if profit > 0:
                                 total_profit += profit
                                 winning_trades_count += 1
-                            else:
+                            elif profit < 0:
                                 total_loss += abs(profit)
                                 losing_trades_count += 1
                 
@@ -1401,22 +1404,26 @@ class FundamentalScreeningService:
                 target_position_value = portfolio_value / len(target_symbols) if target_symbols else 0
                 
                 # First, close all existing positions to free up cash
+                # IMPORTANT: Don't pop before calling _close_position - let it handle removal
                 existing_symbols = list(positions.keys())
                 for symbol in existing_symbols:
                     exit_price = self._get_historical_price(symbol, rebalance_date)
                     if exit_price and exit_price > 0:
-                        old_position = positions.pop(symbol)
-                        cash_added, profit = self._close_position(
-                            symbol, old_position, exit_price, rebalance_date,
-                            {}, trade_history, 'Rebalance'  # Empty dict since we already popped
-                        )
-                        cash += cash_added
-                        if profit > 0:
-                            total_profit += profit
-                            winning_trades_count += 1
-                        else:
-                            total_loss += abs(profit)
-                            losing_trades_count += 1
+                        # Get position data before closing
+                        old_position = positions.get(symbol)
+                        if old_position:
+                            cash_added, profit = self._close_position(
+                                symbol, old_position, exit_price, rebalance_date,
+                                positions, trade_history, 'Rebalance'
+                            )
+                            cash += cash_added
+                            if profit > 0:
+                                total_profit += profit
+                                winning_trades_count += 1
+                            elif profit < 0:
+                                total_loss += abs(profit)
+                                losing_trades_count += 1
+                            # Note: profit == 0 is neither winning nor losing
                 
                 # Recalculate portfolio value after closing positions
                 portfolio_value = cash
@@ -1515,7 +1522,8 @@ class FundamentalScreeningService:
             
             # Close all positions at end
             final_date = end_dt
-            for symbol, position in list(positions.items()):
+            final_positions_list = list(positions.items())  # Create copy before iteration
+            for symbol, position in final_positions_list:
                 exit_price = self._get_historical_price(symbol, final_date)
                 if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
                     cash_added, profit = self._close_position(
@@ -1526,16 +1534,22 @@ class FundamentalScreeningService:
                     if profit > 0:
                         total_profit += profit
                         winning_trades_count += 1
-                    else:
+                    elif profit < 0:
                         total_loss += abs(profit)
                         losing_trades_count += 1
+                    # Note: profit == 0 is neither winning nor losing
             
             # Calculate final portfolio value
+            # After closing all positions, final value is just the cash
+            # (positions dict should be empty now, but double-check)
             final_portfolio_value = cash
-            for symbol, position in positions.items():
-                exit_price = self._get_historical_price(symbol, final_date)
-                if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
-                    final_portfolio_value += position['shares'] * exit_price
+            if positions:
+                # If there are any remaining positions (shouldn't happen, but safety check)
+                self.logger.warning(f"Remaining positions after closing: {list(positions.keys())}")
+                for symbol, position in positions.items():
+                    exit_price = self._get_historical_price(symbol, final_date)
+                    if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
+                        final_portfolio_value += position['shares'] * exit_price
             
             portfolio_values.append(final_portfolio_value)
             dates.append(final_date)
@@ -1546,6 +1560,14 @@ class FundamentalScreeningService:
             
             # Calculate performance metrics
             total_return = ((final_portfolio_value - initial_capital) / initial_capital) * 100 if initial_capital > 0 else 0
+            
+            # Log final metrics for debugging
+            self.logger.info(
+                f"Backtest completed - Initial: ${initial_capital:,.2f}, Final: ${final_portfolio_value:,.2f}, "
+                f"Return: {total_return:.2f}%, Trades: {len(trade_history)}, "
+                f"Winners: {winning_trades_count}, Losers: {losing_trades_count}, "
+                f"Total Profit: ${total_profit:,.2f}, Total Loss: ${total_loss:,.2f}"
+            )
             
             # Calculate CAGR
             years = (end_dt - start_dt).days / 365.0
@@ -1761,22 +1783,43 @@ class FundamentalScreeningService:
         """
         Close a position and update trade history.
         
+        Args:
+            symbol: Symbol of the position to close
+            position: Position dict with 'shares', 'entry_price', 'entry_date'
+            exit_price: Price at which to close the position
+            exit_date: Date of closing
+            positions: Dict of open positions (will be modified - symbol removed)
+            trade_history: List to append trade record to
+            reason: Reason for closing the position
+        
         Returns:
             Tuple of (cash_added, profit)
         """
-        if symbol not in positions:
+        # Extract position data
+        shares = position.get('shares', 0)
+        entry_price = position.get('entry_price', 0)
+        entry_date = position.get('entry_date', '')
+        
+        if shares <= 0 or entry_price <= 0:
+            self.logger.warning(f"Invalid position data for {symbol}: shares={shares}, entry_price={entry_price}")
             return 0.0, 0.0
         
-        shares = position['shares']
-        entry_price = position['entry_price']
-        entry_date = position['entry_date']
-        
+        # Calculate exit value and profit
         exit_value = shares * exit_price
         profit = (exit_price - entry_price) * shares
         return_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
         
-        positions.pop(symbol)
+        # Remove position from positions dict (if it exists)
+        if symbol in positions:
+            positions.pop(symbol)
         
+        # Log the trade for debugging
+        self.logger.debug(
+            f"Closing position: {symbol} - Entry: ${entry_price:.2f}, Exit: ${exit_price:.2f}, "
+            f"Shares: {shares:.4f}, Profit: ${profit:.2f}, Return: {return_pct:.2f}%"
+        )
+        
+        # Record trade in history
         trade_history.append({
             'date': exit_date.strftime('%Y-%m-%d') if isinstance(exit_date, datetime) else exit_date,
             'action': 'sell',
