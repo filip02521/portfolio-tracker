@@ -1622,21 +1622,12 @@ class FundamentalScreeningService:
                                             'transaction_cost': round(transaction_cost_amount, 2),
                                             'reason': 'VQ+ rebalance (proportional)'
                                         })
-                                    
-                                    trade_history.append({
-                                        'date': rebalance_date.strftime('%Y-%m-%d'),
-                                        'action': 'buy',
-                                        'symbol': symbol,
-                                        'price': entry_price,
-                                        'shares': shares,
-                                        'value': position_value,
-                                        'reason': 'VQ+ rebalance (proportional fallback)'
-                                    })
                 
                 # Recalculate portfolio value after rebalancing
+                # Use trading_date (already calculated in Step 1)
                 portfolio_value = cash
                 for symbol, position in positions.items():
-                    current_price = self._get_historical_price(symbol, rebalance_date)
+                    current_price = self._get_historical_price(symbol, trading_date)
                     if current_price and isinstance(current_price, (int, float)) and current_price > 0:
                         portfolio_value += position['shares'] * current_price
                 
