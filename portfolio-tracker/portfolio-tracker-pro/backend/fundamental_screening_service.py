@@ -1498,9 +1498,10 @@ class FundamentalScreeningService:
                 # to maintain equal weighting (better than partial positions)
                 if target_symbols:
                     # Get entry prices for all target symbols first
+                    # Use trading_date (already calculated in Step 3)
                     symbol_prices = {}
                     for symbol in target_symbols:
-                        entry_price = self._get_historical_price(symbol, rebalance_date)
+                        entry_price = self._get_historical_price(symbol, trading_date)
                         if entry_price and isinstance(entry_price, (int, float)) and entry_price > 0:
                             symbol_prices[symbol] = entry_price
                     
