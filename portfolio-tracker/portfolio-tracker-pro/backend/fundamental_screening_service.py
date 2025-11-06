@@ -322,26 +322,49 @@ class FundamentalScreeningService:
         if gross_profit == 0 and revenue > 0 and cogs > 0:
             gross_profit = revenue - cogs
         
+        # Helper to safely convert values
+        def safe_value(value, default=0):
+            if value is None:
+                return default
+            if isinstance(value, dict):
+                return default
+            try:
+                return float(value) if value else default
+            except (ValueError, TypeError):
+                return default
+        
+        # Extract revenue from financials if not in profile
+        if revenue == 0:
+            # Try to find revenue in financials reports
+            revenue_concepts = ['revenue', 'totalrevenue', 'sales', 'netsales']
+            for report in report_data:
+                if isinstance(report, dict):
+                    concept = report.get('concept', '').lower()
+                    if any(rc in concept for rc in revenue_concepts):
+                        revenue = safe_value(report.get('value', 0))
+                        if revenue > 0:
+                            break
+        
         return {
-            'symbol': profile_data.get('ticker', ''),
-            'company_name': profile_data.get('name', ''),
-            'market_cap': profile_data.get('marketCapitalization', 0),
-            'total_assets': latest_financials.get('total_assets', profile_data.get('totalAssets', 0)),
-            'total_liabilities': latest_financials.get('total_liabilities', profile_data.get('totalLiabilities', 0)),
-            'net_income': latest_financials.get('net_income', 0),
-            'operating_cash_flow': latest_financials.get('operating_cash_flow', 0),
-            'revenue': revenue,
-            'ebit': profile_data.get('ebit', 0),
-            'current_assets': profile_data.get('currentAssets', 0),
-            'current_liabilities': profile_data.get('currentLiabilities', 0),
-            'long_term_debt': profile_data.get('longTermDebt', 0),
-            'book_value': profile_data.get('bookValue', 0),
-            'shares_outstanding': profile_data.get('shareOutstanding', 0),
-            'cogs': cogs,
-            'gross_profit': gross_profit,
-            'retained_earnings': latest_financials.get('retained_earnings', 0),
-            'cash_and_cash_equivalents': latest_financials.get('cash_and_cash_equivalents', 0),
-            'total_stockholders_equity': latest_financials.get('total_stockholders_equity', 0),
+            'symbol': profile_data.get('ticker', profile_data.get('symbol', '')),
+            'company_name': profile_data.get('name', profile_data.get('companyName', '')),
+            'market_cap': safe_value(profile_data.get('marketCapitalization', profile_data.get('market_cap', 0))),
+            'total_assets': safe_value(latest_financials.get('total_assets', profile_data.get('totalAssets', 0))),
+            'total_liabilities': safe_value(latest_financials.get('total_liabilities', profile_data.get('totalLiabilities', 0))),
+            'net_income': safe_value(latest_financials.get('net_income', 0)),
+            'operating_cash_flow': safe_value(latest_financials.get('operating_cash_flow', 0)),
+            'revenue': safe_value(revenue),
+            'ebit': safe_value(profile_data.get('ebit', latest_financials.get('ebit', 0))),
+            'current_assets': safe_value(profile_data.get('currentAssets', latest_financials.get('current_assets', 0))),
+            'current_liabilities': safe_value(profile_data.get('currentLiabilities', latest_financials.get('current_liabilities', 0))),
+            'long_term_debt': safe_value(profile_data.get('longTermDebt', latest_financials.get('long_term_debt', 0))),
+            'book_value': safe_value(profile_data.get('bookValue', profile_data.get('book_value', 0))),
+            'shares_outstanding': safe_value(profile_data.get('shareOutstanding', profile_data.get('sharesOutstanding', 0))),
+            'cogs': safe_value(cogs),
+            'gross_profit': safe_value(gross_profit),
+            'retained_earnings': safe_value(latest_financials.get('retained_earnings', 0)),
+            'cash_and_cash_equivalents': safe_value(latest_financials.get('cash_and_cash_equivalents', 0)),
+            'total_stockholders_equity': safe_value(latest_financials.get('total_stockholders_equity', 0)),
             'source': 'finnhub'
         }
     
