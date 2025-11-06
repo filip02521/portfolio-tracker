@@ -38,6 +38,7 @@ import TaxIcon from '@mui/icons-material/ReceiptLong';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
@@ -61,6 +62,7 @@ const TaxOptimizer = lazy(() => import('./components/TaxOptimizer'));
 const AdminMetrics = lazy(() => import('./components/AdminMetrics'));
 const AIInsights = lazy(() => import('./components/AIInsights'));
 const ConfluenceStrategyDashboard = lazy(() => import('./components/ConfluenceStrategyDashboard'));
+const FundamentalScreening = lazy(() => import('./components/FundamentalScreening'));
 const Login = lazy(() => import('./components/Login'));
 const Register = lazy(() => import('./components/Register'));
 
