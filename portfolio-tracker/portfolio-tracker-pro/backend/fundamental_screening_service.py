@@ -33,7 +33,7 @@ class FundamentalScreeningService:
         
         # API Keys for fundamental data
         Config.init()  # Initialize Config to load environment variables
-        self.finnhub_api_key = os.getenv('FINNHUB_API_KEY', '')
+        self.finnhub_api_key = Config.FINNHUB_API_KEY or os.getenv('FINNHUB_API_KEY', '')
         self.alpha_vantage_api_key = Config.ALPHA_VANTAGE_API_KEY or os.getenv('ALPHA_VANTAGE_API_KEY', '')
         
         # Cache for fundamental data

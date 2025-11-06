@@ -44,6 +44,9 @@ class Config:
     # Polygon.io
     POLYGON_API_KEY = ''
     
+    # Finnhub
+    FINNHUB_API_KEY = ''
+    
     @classmethod
     def init(cls):
         """Initialize configuration - load values when accessed"""
@@ -59,6 +62,7 @@ class Config:
         cls.KRAKEN_SECRET_KEY = cls._get_env('KRAKEN_SECRET_KEY')
         cls.ALPHA_VANTAGE_API_KEY = cls._get_env('ALPHA_VANTAGE_API_KEY')
         cls.POLYGON_API_KEY = cls._get_env('POLYGON_API_KEY')
+        cls.FINNHUB_API_KEY = cls._get_env('FINNHUB_API_KEY')
     
     @classmethod
     def validate(cls):
