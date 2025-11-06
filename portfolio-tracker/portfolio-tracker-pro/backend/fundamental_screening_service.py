@@ -1172,6 +1172,11 @@ class FundamentalScreeningService:
                 if not financial_data:
                     continue
                 
+                # Validate fundamental data
+                if not self._validate_fundamental_data(financial_data):
+                    self.logger.debug(f"Skipping {symbol} due to invalid fundamental data")
+                    continue
+                
                 # Calculate all metrics
                 f_score_result = self.calculate_piotroski_f_score(symbol, financial_data)
                 z_score_result = self.calculate_altman_z_score(symbol, financial_data)
@@ -1252,7 +1257,8 @@ class FundamentalScreeningService:
         auto_universe: bool = False,
         universe_index: str = 'SP500',
         value_percentile: float = 0.2,
-        transaction_cost: float = 0.001  # 0.1% per trade (default)
+        transaction_cost: float = 0.001,  # 0.1% per trade (default)
+        min_daily_volume: float = 1000000.0  # Minimum daily volume in USD (default: $1M)
     ) -> Dict:
         """
         Backtest the VQ+ Strategy on historical data.
@@ -1278,6 +1284,7 @@ class FundamentalScreeningService:
             universe_index: Index for universe selection (default: 'SP500')
             value_percentile: Value percentile for screening (default: 0.2)
             transaction_cost: Transaction cost as decimal (default: 0.001 = 0.1% per trade)
+            min_daily_volume: Minimum daily volume in USD for liquidity filter (default: $1,000,000)
             
         Returns:
             Dict with backtest results:
@@ -1402,7 +1409,10 @@ class FundamentalScreeningService:
                 self.logger.info(f"Rebalance {rebalance_idx + 1}/{len(rebalance_dates)}: {rebalance_date.strftime('%Y-%m-%d')}")
                 
                 # Step 1: Screen stocks at rebalance date
-                screened_stocks = self.screen_vq_plus_strategy(
+                # Adjust rebalance_date to trading day for price lookup
+                trading_date = self._adjust_to_trading_day(rebalance_date)
+                
+                screened_stocks_raw = self.screen_vq_plus_strategy(
                     symbols=symbols,
                     min_f_score=min_f_score,
                     max_z_score=max_z_score,
@@ -1412,11 +1422,21 @@ class FundamentalScreeningService:
                     value_percentile=value_percentile
                 )
                 
+                # Apply liquidity filter to screened stocks
+                screened_stocks = []
+                for stock in screened_stocks_raw:
+                    symbol = stock.get('symbol')
+                    if symbol:
+                        # Check liquidity for this rebalance date
+                        if self._check_liquidity(symbol, trading_date, min_daily_volume):
+                            screened_stocks.append(stock)
+                        else:
+                            self.logger.debug(f"Excluding {symbol} from backtest due to insufficient liquidity")
+                
                 if not screened_stocks:
                     self.logger.warning(f"No stocks passed screening at {rebalance_date.strftime('%Y-%m-%d')}")
                     # Close all positions if no stocks pass
-                    # Adjust rebalance_date to trading day for price lookup
-                    trading_date = self._adjust_to_trading_day(rebalance_date)
+                    # trading_date already calculated above
                     positions_to_close = list(positions.items())
                     for symbol, position in positions_to_close:
                         exit_price = self._get_historical_price(symbol, trading_date)
@@ -1450,8 +1470,7 @@ class FundamentalScreeningService:
                 target_symbols = [stock['symbol'] for stock in top_stocks]
                 
                 # Step 3: Close positions that no longer pass filters
-                # Adjust rebalance_date to trading day for price lookup
-                trading_date = self._adjust_to_trading_day(rebalance_date)
+                # trading_date already calculated in Step 1
                 positions_to_check = list(positions.items())
                 for symbol, position in positions_to_check:
                     if symbol not in target_symbols:
@@ -1490,11 +1509,13 @@ class FundamentalScreeningService:
                         # Get position data before closing
                         old_position = positions.get(symbol)
                         if old_position:
-                            cash_added, profit = self._close_position(
+                            cash_added, profit, transaction_cost_incurred = self._close_position(
                                 symbol, old_position, exit_price, rebalance_date,
-                                positions, trade_history, 'Rebalance'
+                                positions, trade_history, 'Rebalance',
+                                transaction_cost
                             )
                             cash += cash_added
+                            total_transaction_costs += transaction_cost_incurred
                             if profit > 0:
                                 total_profit += profit
                                 winning_trades_count += 1
@@ -1620,9 +1641,10 @@ class FundamentalScreeningService:
                         portfolio_value += position['shares'] * current_price
                 
                 # Step 6: Update portfolio composition
+                # Use trading_date (already calculated in Step 1)
                 current_positions = []
                 for symbol, position in positions.items():
-                    current_price = self._get_historical_price(symbol, rebalance_date)
+                    current_price = self._get_historical_price(symbol, trading_date)
                     if current_price and isinstance(current_price, (int, float)) and current_price > 0:
                         current_positions.append({
                             'symbol': symbol,
@@ -1856,6 +1878,149 @@ class FundamentalScreeningService:
         while adjusted.weekday() >= 5:  # Saturday = 5, Sunday = 6
             adjusted -= timedelta(days=1)
         return adjusted
+    
+    def _validate_fundamental_data(self, data: Dict) -> bool:
+        """
+        Validate fundamental data for sanity checks.
+        
+        Args:
+            data: Fundamental data dictionary
+            
+        Returns:
+            True if data is valid, False otherwise
+        """
+        if not data or not isinstance(data, dict):
+            return False
+        
+        # Check for negative total assets (shouldn't happen)
+        total_assets = data.get('total_assets', 0)
+        if total_assets is not None and total_assets < 0:
+            self.logger.warning(f"Invalid fundamental data: negative total_assets ({total_assets})")
+            return False
+        
+        # Check for unrealistic revenue (negative is sometimes valid for losses, but very negative is suspicious)
+        revenue = data.get('revenue', 0)
+        if revenue is not None and revenue < -1e10:  # More than -$10 billion is suspicious
+            self.logger.warning(f"Invalid fundamental data: unrealistic revenue ({revenue})")
+            return False
+        
+        # Check for unrealistic market cap
+        market_cap = data.get('market_cap', 0)
+        if market_cap is not None and market_cap < 0:
+            self.logger.warning(f"Invalid fundamental data: negative market_cap ({market_cap})")
+            return False
+        
+        # Check for unrealistic shares outstanding
+        shares = data.get('shares_outstanding', 0)
+        if shares is not None and (shares < 0 or shares > 1e15):  # More than 1 quadrillion shares is unrealistic
+            self.logger.warning(f"Invalid fundamental data: unrealistic shares_outstanding ({shares})")
+            return False
+        
+        # Check for division by zero risks (total_assets should be positive for most calculations)
+        if total_assets is not None and total_assets == 0:
+            # Zero assets might be valid for some companies, but skip for screening
+            self.logger.debug(f"Fundamental data has zero total_assets, skipping for screening")
+            return False
+        
+        return True
+    
+    def _check_liquidity(self, symbol: str, date: datetime, min_volume: float = 1000000.0) -> bool:
+        """
+        Check if symbol has sufficient liquidity (daily volume).
+        
+        Args:
+            symbol: Stock symbol
+            date: Date to check liquidity
+            min_volume: Minimum daily volume in USD
+            
+        Returns:
+            True if liquidity is sufficient, False otherwise
+        """
+        if not self.market_data_service:
+            # If no market data service, assume liquidity is OK (can't check)
+            return True
+        
+        try:
+            # Get historical data for the date (use a small window around the date)
+            historical_data = self.market_data_service.get_symbol_history(symbol, days=30)
+            
+            if not historical_data or not isinstance(historical_data, list):
+                # If we can't get data, assume liquidity is OK to avoid false negatives
+                self.logger.debug(f"Could not fetch volume data for {symbol} on {date}, assuming liquidity OK")
+                return True
+            
+            # Find volume for the target date or closest date
+            target_date = date.date() if isinstance(date, datetime) else date
+            closest_volume = None
+            min_diff = timedelta(days=30)
+            
+            for candle in historical_data:
+                if not isinstance(candle, dict):
+                    continue
+                
+                candle_date_str = candle.get('timestamp', candle.get('date', ''))
+                if not candle_date_str:
+                    continue
+                
+                try:
+                    if isinstance(candle_date_str, str):
+                        if 'T' in candle_date_str:
+                            candle_dt = datetime.fromisoformat(candle_date_str.replace('Z', '+00:00'))
+                        else:
+                            try:
+                                candle_dt = datetime.strptime(candle_date_str, '%Y-%m-%d')
+                            except ValueError:
+                                continue
+                    else:
+                        continue
+                    
+                    candle_date = candle_dt.date()
+                    volume_value = candle.get('volume', 0)
+                    price_value = candle.get('close', candle.get('price', 0))
+                    
+                    if not volume_value or not price_value:
+                        continue
+                    
+                    try:
+                        volume = float(volume_value)
+                        price = float(price_value)
+                        
+                        # Calculate volume in USD (volume * price)
+                        volume_usd = volume * price if volume > 0 and price > 0 else 0
+                        
+                        # Check if this is the target date or closest
+                        diff = abs(candle_date - target_date)
+                        if diff < min_diff:
+                            min_diff = diff
+                            closest_volume = volume_usd
+                    except (ValueError, TypeError):
+                        continue
+                except Exception:
+                    continue
+            
+            # Check if closest volume meets minimum
+            if closest_volume is not None:
+                if min_diff <= timedelta(days=5):  # Within 5 days is acceptable
+                    liquidity_ok = closest_volume >= min_volume
+                    if not liquidity_ok:
+                        self.logger.debug(
+                            f"Insufficient liquidity for {symbol} on {target_date}: "
+                            f"${closest_volume:,.0f} < ${min_volume:,.0f}"
+                        )
+                    return liquidity_ok
+                else:
+                    # Date is too far, assume OK
+                    self.logger.debug(f"Volume data for {symbol} is too far from {target_date}, assuming liquidity OK")
+                    return True
+            else:
+                # No volume data found, assume OK to avoid false negatives
+                self.logger.debug(f"No volume data found for {symbol} on {target_date}, assuming liquidity OK")
+                return True
+        
+        except Exception as e:
+            self.logger.warning(f"Error checking liquidity for {symbol} on {date}: {e}")
+            # On error, assume liquidity is OK to avoid false negatives
+            return True
     
     def _get_historical_price(self, symbol: str, date: datetime) -> Optional[float]:
         """
