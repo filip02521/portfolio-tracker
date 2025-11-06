@@ -176,7 +176,11 @@ const FundamentalScreening: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/fundamental/full-analysis/${symbol}`, {
+      const url = `${API_URL}/api/fundamental/full-analysis/${symbol}`;
+      console.log('Fetching:', url);
+      console.log('Token present:', !!token);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,10 +188,24 @@ const FundamentalScreening: React.FC = () => {
         },
         body: JSON.stringify({}),  // POST requires body
       });
+      
+      console.log('Response status:', response.status, response.statusText);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to analyze symbol');
+        let errorMessage = 'Failed to analyze symbol';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch (e) {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        console.error('API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: `${API_URL}/api/fundamental/full-analysis/${symbol}`,
+          message: errorMessage
+        });
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
