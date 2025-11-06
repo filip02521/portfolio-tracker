@@ -1400,9 +1400,6 @@ class FundamentalScreeningService:
                         portfolio_value += position['shares'] * current_price
                 
                 # Step 5: Rebalance to equal weights
-                # Calculate target position value for each symbol
-                target_position_value = portfolio_value / len(target_symbols) if target_symbols else 0
-                
                 # First, close all existing positions to free up cash
                 # IMPORTANT: Don't pop before calling _close_position - let it handle removal
                 existing_symbols = list(positions.keys())
@@ -1428,52 +1425,86 @@ class FundamentalScreeningService:
                 # Recalculate portfolio value after closing positions
                 portfolio_value = cash
                 
-                # Now open new positions with equal weights
-                for symbol in target_symbols:
-                    entry_price = self._get_historical_price(symbol, rebalance_date)
-                    if entry_price and isinstance(entry_price, (int, float)) and entry_price > 0:
-                        shares = target_position_value / entry_price
-                        position_value = shares * entry_price
-                        
-                        # Only buy if we have enough cash
-                        if position_value <= cash:
-                            positions[symbol] = {
-                                'shares': shares,
-                                'entry_price': entry_price,
-                                'entry_date': rebalance_date.strftime('%Y-%m-%d')
-                            }
-                            cash -= position_value
+                # Calculate target position value for each symbol (equal weighting)
+                # If we don't have enough cash for all positions, reduce number of positions
+                # to maintain equal weighting (better than partial positions)
+                if target_symbols:
+                    # Get entry prices for all target symbols first
+                    symbol_prices = {}
+                    for symbol in target_symbols:
+                        entry_price = self._get_historical_price(symbol, rebalance_date)
+                        if entry_price and isinstance(entry_price, (int, float)) and entry_price > 0:
+                            symbol_prices[symbol] = entry_price
+                    
+                    # Calculate how many positions we can afford with equal weighting
+                    affordable_count = len(symbol_prices)
+                    if affordable_count > 0:
+                        # Try to allocate equally, reducing positions if needed
+                        for attempt_count in range(affordable_count, 0, -1):
+                            target_position_value = portfolio_value / attempt_count
                             
-                            trade_history.append({
-                                'date': rebalance_date.strftime('%Y-%m-%d'),
-                                'action': 'buy',
-                                'symbol': symbol,
-                                'price': entry_price,
-                                'shares': shares,
-                                'value': position_value,
-                                'reason': 'VQ+ rebalance'
-                            })
-                        else:
-                            # If not enough cash, buy what we can
-                            shares = cash / entry_price
-                            if shares > 0:
+                            # Check if we can afford all positions at this target value
+                            can_afford_all = True
+                            for symbol, entry_price in symbol_prices.items():
+                                shares = target_position_value / entry_price
                                 position_value = shares * entry_price
-                                positions[symbol] = {
-                                    'shares': shares,
-                                    'entry_price': entry_price,
-                                    'entry_date': rebalance_date.strftime('%Y-%m-%d')
-                                }
-                                cash -= position_value
-                                
-                                trade_history.append({
-                                    'date': rebalance_date.strftime('%Y-%m-%d'),
-                                    'action': 'buy',
-                                    'symbol': symbol,
-                                    'price': entry_price,
-                                    'shares': shares,
-                                    'value': position_value,
-                                    'reason': 'VQ+ rebalance (partial)'
-                                })
+                                if position_value > cash:
+                                    can_afford_all = False
+                                    break
+                            
+                            if can_afford_all:
+                                # We can afford all positions, proceed with purchases
+                                affordable_symbols = list(symbol_prices.keys())[:attempt_count]
+                                for symbol in affordable_symbols:
+                                    entry_price = symbol_prices[symbol]
+                                    shares = target_position_value / entry_price
+                                    position_value = shares * entry_price
+                                    
+                                    positions[symbol] = {
+                                        'shares': shares,
+                                        'entry_price': entry_price,
+                                        'entry_date': rebalance_date.strftime('%Y-%m-%d')
+                                    }
+                                    cash -= position_value
+                                    
+                                    trade_history.append({
+                                        'date': rebalance_date.strftime('%Y-%m-%d'),
+                                        'action': 'buy',
+                                        'symbol': symbol,
+                                        'price': entry_price,
+                                        'shares': shares,
+                                        'value': position_value,
+                                        'reason': 'VQ+ rebalance'
+                                    })
+                                break
+                        else:
+                            # If we can't afford even one position at equal weight,
+                            # allocate remaining cash proportionally (fallback)
+                            self.logger.warning(f"Cannot afford equal-weight positions, using proportional allocation")
+                            remaining_cash = cash
+                            for symbol, entry_price in list(symbol_prices.items()):
+                                if remaining_cash <= 0:
+                                    break
+                                shares = remaining_cash / entry_price
+                                if shares > 0:
+                                    position_value = shares * entry_price
+                                    positions[symbol] = {
+                                        'shares': shares,
+                                        'entry_price': entry_price,
+                                        'entry_date': rebalance_date.strftime('%Y-%m-%d')
+                                    }
+                                    cash -= position_value
+                                    remaining_cash -= position_value
+                                    
+                                    trade_history.append({
+                                        'date': rebalance_date.strftime('%Y-%m-%d'),
+                                        'action': 'buy',
+                                        'symbol': symbol,
+                                        'price': entry_price,
+                                        'shares': shares,
+                                        'value': position_value,
+                                        'reason': 'VQ+ rebalance (proportional fallback)'
+                                    })
                 
                 # Recalculate portfolio value after rebalancing
                 portfolio_value = cash
@@ -1853,33 +1884,71 @@ class FundamentalScreeningService:
         Returns:
             List of stock symbols
         """
-        # For now, return common symbols as placeholder
-        # In production, this should fetch from index provider or use saved list
+        # Try to fetch from Wikipedia (most reliable free source)
+        try:
+            if index == 'SP500':
+                import requests
+                from bs4 import BeautifulSoup
+                
+                url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                response = requests.get(url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    table = soup.find('table', {'id': 'constituents'})
+                    if table:
+                        symbols = []
+                        rows = table.find_all('tr')[1:]  # Skip header
+                        for row in rows:
+                            cells = row.find_all('td')
+                            if cells:
+                                symbol = cells[0].get_text(strip=True)
+                                # Replace dots with hyphens for class shares (e.g., BRK.B -> BRK-B)
+                                symbol = symbol.replace('.', '-')
+                                symbols.append(symbol)
+                        
+                        if symbols:
+                            self.logger.info(f"Fetched {len(symbols)} symbols from S&P 500 Wikipedia page")
+                            return symbols
+        except Exception as e:
+            self.logger.warning(f"Error fetching {index} from Wikipedia: {e}. Using fallback list.")
+        
+        # Fallback: Use comprehensive list
         if index == 'SP500':
-            # Common S&P 500 stocks (top 50 for testing)
+            # Fallback: Common S&P 500 stocks (top 100)
             return [
-                'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B',
+                'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B',
                 'V', 'JNJ', 'WMT', 'JPM', 'MA', 'PG', 'UNH', 'HD', 'DIS', 'PYPL',
                 'BAC', 'VZ', 'ADBE', 'CMCSA', 'NFLX', 'NKE', 'MRK', 'PFE', 'T',
                 'INTC', 'PEP', 'CSCO', 'TMO', 'AVGO', 'COST', 'ABT', 'ACN', 'CVX',
                 'XOM', 'DHR', 'MDT', 'WFC', 'ABBV', 'ORCL', 'LLY', 'PM', 'NEE',
-                'TXN', 'HON', 'UNP', 'UPS', 'IBM'
+                'TXN', 'HON', 'UNP', 'UPS', 'IBM', 'BMY', 'AMGN', 'CI', 'SPGI',
+                'RTX', 'DE', 'ADP', 'GS', 'CAT', 'AMAT', 'LMT', 'MU', 'BKNG',
+                'C', 'AXP', 'MMC', 'CB', 'ADI', 'MCD', 'GE', 'ISRG', 'SYK',
+                'EQIX', 'REGN', 'MCHP', 'ELV', 'CDNS', 'SNPS', 'ZTS', 'APH',
+                'CL', 'FTNT', 'ROP', 'KLAC', 'WDAY', 'FANG', 'ODFL', 'CME',
+                'AON', 'ICE', 'EW', 'ETN', 'ITW', 'PH', 'EMR', 'TT', 'APD'
             ]
         elif index == 'RUSSELL2000':
-            # Smaller cap stocks (sample for testing)
+            # Russell 2000: Full implementation would require API access (e.g., FTSE Russell API)
+            # For now, use a representative sample of smaller-cap stocks
+            self.logger.info("Russell 2000: Using sample list (full implementation requires API access)")
             return [
                 'AAL', 'AMD', 'ADSK', 'AKAM', 'ALGN', 'ALXN', 'AMAT', 'AMGN',
-                'AMZN', 'ANSS', 'APH', 'ATVI', 'AVGO', 'BBY', 'BIDU', 'BIIB',
-                'BKNG', 'CDNS', 'CDW', 'CERN', 'CHTR', 'CMCSA', 'COST', 'CSX',
+                'ANSS', 'APH', 'ATVI', 'AVGO', 'BBY', 'BIDU', 'BIIB',
+                'BKNG', 'CDNS', 'CDW', 'CERN', 'CHTR', 'COST', 'CSX',
                 'CTAS', 'CTSH', 'CTXS', 'DLTR', 'EA', 'EBAY', 'EXPD', 'FAST',
-                'FB', 'FISV', 'FOX', 'FOXA', 'GILD', 'GOOG', 'GOOGL', 'HAS',
-                'HSIC', 'IDXX', 'ILMN', 'INCY', 'INTC', 'INTU', 'ISRG', 'JBHT',
-                'JD', 'KLAC', 'LBTYA', 'LBTYK', 'LRCX', 'LULU', 'MAR', 'MCHP',
-                'MDLZ', 'MELI', 'MNST', 'MSFT', 'MXIM', 'MYL', 'NFLX', 'NTES',
-                'NTAP', 'NVDA', 'NXPI', 'ORLY', 'PAYX', 'PCAR', 'PEP', 'PYPL',
+                'FISV', 'FOX', 'FOXA', 'GILD', 'HAS',
+                'HSIC', 'IDXX', 'ILMN', 'INCY', 'INTU', 'ISRG', 'JBHT',
+                'KLAC', 'LRCX', 'LULU', 'MAR', 'MCHP',
+                'MDLZ', 'MELI', 'MNST', 'MXIM', 'NFLX', 'NTES',
+                'NTAP', 'NXPI', 'ORLY', 'PAYX', 'PCAR', 'PYPL',
                 'QCOM', 'REGN', 'ROST', 'SBUX', 'SGEN', 'SIRI', 'SNPS', 'SPLK',
-                'SWKS', 'SYMC', 'TCOM', 'TSLA', 'TTWO', 'TXN', 'ULTA', 'VRSK',
-                'VRSN', 'VRTX', 'WDC', 'WDAY', 'WYNN', 'XEL', 'XLNX', 'ZM'
+                'SWKS', 'TCOM', 'TXN', 'ULTA', 'VRSK',
+                'VRSN', 'VRTX', 'WDC', 'WDAY', 'WYNN', 'XEL', 'ZM'
             ]
         else:
             return []

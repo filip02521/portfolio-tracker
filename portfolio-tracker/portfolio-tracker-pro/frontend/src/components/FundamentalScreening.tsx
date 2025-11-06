@@ -27,7 +27,18 @@ import {
   Checkbox,
   FormControlLabel,
   FormControl,
+  useTheme,
 } from '@mui/material';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
 import {
   TrendingUp,
   TrendingDown,
@@ -1220,16 +1231,62 @@ const BacktestTab: React.FC<BacktestTabProps> = ({ getToken, loading, setLoading
                     <Typography variant="h6" gutterBottom>
                       Equity Curve
                     </Typography>
-                    <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1, minHeight: 300 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Equity curve visualization would go here
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    <Box sx={{ mt: 2, height: 400 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={backtestResult.equity_curve.map((point) => ({
+                            ...point,
+                            date: new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                            fullDate: point.date,
+                          }))}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 60 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="date"
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                            tick={{ fontSize: 12 }}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                          />
+                          <Tooltip
+                            formatter={(value: number) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Portfolio Value']}
+                            labelFormatter={(label) => `Date: ${label}`}
+                            contentStyle={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                              border: '1px solid #ccc',
+                              borderRadius: '4px',
+                            }}
+                          />
+                          <ReferenceLine
+                            y={backtestResult.initial_capital || backtestResult.equity_curve[0]?.value}
+                            stroke="#666"
+                            strokeDasharray="3 3"
+                            label={{ value: 'Initial Capital', position: 'right' }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#2563eb"
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 6 }}
+                            name="Portfolio Value"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </Box>
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">
                         Data points: {backtestResult.equity_curve.length}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        Start: ${backtestResult.equity_curve[0]?.value.toLocaleString()} | 
-                        End: ${backtestResult.equity_curve[backtestResult.equity_curve.length - 1]?.value.toLocaleString()}
+                      <Typography variant="caption" color="text.secondary">
+                        Start: ${backtestResult.equity_curve[0]?.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | 
+                        End: ${backtestResult.equity_curve[backtestResult.equity_curve.length - 1]?.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Typography>
                     </Box>
                   </CardContent>
