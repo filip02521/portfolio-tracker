@@ -1606,6 +1606,14 @@ class FundamentalScreeningService:
                 'value': final_portfolio_value
             })
             
+            # Clean up backtest state variables
+            if hasattr(self, '_backtest_start_date'):
+                delattr(self, '_backtest_start_date')
+            if hasattr(self, '_backtest_end_date'):
+                delattr(self, '_backtest_end_date')
+            if hasattr(self, '_backtest_required_days'):
+                delattr(self, '_backtest_required_days')
+            
             # Calculate performance metrics
             total_return = ((final_portfolio_value - initial_capital) / initial_capital) * 100 if initial_capital > 0 else 0
             
