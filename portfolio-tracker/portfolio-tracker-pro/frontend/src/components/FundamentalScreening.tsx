@@ -303,30 +303,26 @@ const FundamentalScreening: React.FC = () => {
       {activeTab === 0 && (
         <Box>
           <Paper sx={{ p: 3, mb: 3 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={8}>
-                <TextField
-                  fullWidth
-                  label="Stock Symbol"
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                  placeholder="e.g., AAPL, TSLA, MSFT"
-                  onKeyPress={(e) => e.key === 'Enter' && handleAnalyze()}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  onClick={handleAnalyze}
-                  disabled={loading}
-                  startIcon={loading ? <CircularProgress size={20} /> : <Search />}
-                >
-                  Analyze
-                </Button>
-              </Grid>
-            </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' }, gap: 2, alignItems: 'center' }}>
+              <TextField
+                fullWidth
+                label="Stock Symbol"
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                placeholder="e.g., AAPL, TSLA, MSFT"
+                onKeyPress={(e) => e.key === 'Enter' && handleAnalyze()}
+              />
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                onClick={handleAnalyze}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <Search />}
+              >
+                Analyze
+              </Button>
+            </Box>
           </Paper>
 
           {analysisResult && (
@@ -597,12 +593,74 @@ const FundamentalScreening: React.FC = () => {
           </Paper>
 
           {screeningResults.length > 0 && (
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Screening Results ({screeningResults.length} stocks passed filters)
-                </Typography>
-                <TableContainer>
+            <Box>
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Screening Results ({screeningResults.length} stocks passed filters)
+                  </Typography>
+                  
+                  {/* Capital Allocation Section */}
+                  <Box sx={{ mt: 3, mb: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Capital Allocation (Equal Weights)
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr auto' }, gap: 2, alignItems: 'center' }}>
+                      <TextField
+                        fullWidth
+                        label="Total Capital ($)"
+                        type="number"
+                        value={capitalAllocation || ''}
+                        onChange={(e) => setCapitalAllocation(parseFloat(e.target.value) || null)}
+                        InputProps={{ startAdornment: <Typography sx={{ mr: 1 }}>$</Typography> }}
+                      />
+                      <Button
+                        variant="outlined"
+                        onClick={async () => {
+                          if (!capitalAllocation || capitalAllocation <= 0) {
+                            setError('Please enter a valid capital amount');
+                            return;
+                          }
+                          try {
+                            const response = await fetch(`${API_URL}/api/fundamental/allocate-capital`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${getToken()}`,
+                              },
+                              body: JSON.stringify({
+                                screened_stocks: screeningResults,
+                                total_capital: capitalAllocation,
+                                method: 'equal_weights',
+                              }),
+                            });
+                            if (!response.ok) throw new Error('Failed to allocate capital');
+                            const data = await response.json();
+                            setAllocatedStocks(data.allocated_stocks || []);
+                          } catch (err: any) {
+                            setError(err.message || 'Error allocating capital');
+                          }
+                        }}
+                        disabled={!capitalAllocation || capitalAllocation <= 0}
+                      >
+                        Allocate Capital
+                      </Button>
+                    </Box>
+                  </Box>
+                  
+                  {allocatedStocks.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Allocation per stock: ${((capitalAllocation || 0) / allocatedStocks.length).toFixed(2)}
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent>
+                  <TableContainer>
                   <Table>
                     <TableHead>
                       <TableRow>

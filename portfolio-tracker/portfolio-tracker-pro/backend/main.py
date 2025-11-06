@@ -2927,7 +2927,7 @@ async def screen_vq_plus(
             )
         return {
             'total_screened': len(results),
-            'symbols_analyzed': len(request.symbols),
+            'symbols_analyzed': len(request.symbols) if request.symbols else 0,
             'results': results,
             'filters_applied': {
                 'min_f_score': request.min_f_score,
