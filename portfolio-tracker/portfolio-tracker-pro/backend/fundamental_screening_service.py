@@ -1300,6 +1300,58 @@ class FundamentalScreeningService:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d')
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d')
             
+            # Validate dates
+            if start_dt >= end_dt:
+                return {
+                    'status': 'error',
+                    'error': f'start_date ({start_date}) must be before end_date ({end_date})'
+                }
+            
+            # Validate backtest period (max 10 years = 3650 days)
+            max_period_days = 3650
+            period_days = (end_dt - start_dt).days
+            if period_days > max_period_days:
+                return {
+                    'status': 'error',
+                    'error': f'Backtest period ({period_days} days) cannot exceed {max_period_days} days (10 years)'
+                }
+            
+            # Validate symbols
+            if symbols is not None:
+                if not isinstance(symbols, list):
+                    return {
+                        'status': 'error',
+                        'error': 'symbols must be a list'
+                    }
+                if len(symbols) == 0:
+                    return {
+                        'status': 'error',
+                        'error': 'symbols list cannot be empty'
+                    }
+            
+            # Validate parameters
+            if initial_capital <= 0:
+                return {
+                    'status': 'error',
+                    'error': f'initial_capital must be positive, got {initial_capital}'
+                }
+            
+            if max_positions <= 0:
+                return {
+                    'status': 'error',
+                    'error': f'max_positions must be positive, got {max_positions}'
+                }
+            
+            if rebalance_frequency not in ['quarterly', 'yearly']:
+                return {
+                    'status': 'error',
+                    'error': f'rebalance_frequency must be "quarterly" or "yearly", got "{rebalance_frequency}"'
+                }
+            
+            # Adjust dates to trading days (skip weekends)
+            start_dt = self._adjust_to_trading_day(start_dt)
+            end_dt = self._adjust_to_trading_day(end_dt)
+            
             # Generate rebalance dates
             rebalance_dates = self._generate_rebalance_dates(start_dt, end_dt, rebalance_frequency)
             
@@ -1354,9 +1406,11 @@ class FundamentalScreeningService:
                 if not screened_stocks:
                     self.logger.warning(f"No stocks passed screening at {rebalance_date.strftime('%Y-%m-%d')}")
                     # Close all positions if no stocks pass
+                    # Adjust rebalance_date to trading day for price lookup
+                    trading_date = self._adjust_to_trading_day(rebalance_date)
                     positions_to_close = list(positions.items())
                     for symbol, position in positions_to_close:
-                        exit_price = self._get_historical_price(symbol, rebalance_date)
+                        exit_price = self._get_historical_price(symbol, trading_date)
                         if exit_price and isinstance(exit_price, (int, float)) and exit_price > 0:
                             cash_added, profit = self._close_position(
                                 symbol, position, exit_price, rebalance_date,
@@ -1385,10 +1439,12 @@ class FundamentalScreeningService:
                 target_symbols = [stock['symbol'] for stock in top_stocks]
                 
                 # Step 3: Close positions that no longer pass filters
+                # Adjust rebalance_date to trading day for price lookup
+                trading_date = self._adjust_to_trading_day(rebalance_date)
                 positions_to_check = list(positions.items())
                 for symbol, position in positions_to_check:
                     if symbol not in target_symbols:
-                        exit_price = self._get_historical_price(symbol, rebalance_date)
+                        exit_price = self._get_historical_price(symbol, trading_date)
                         if exit_price and exit_price > 0:
                             cash_added, profit = self._close_position(
                                 symbol, position, exit_price, rebalance_date,
@@ -1403,18 +1459,20 @@ class FundamentalScreeningService:
                                 losing_trades_count += 1
                 
                 # Step 4: Calculate total portfolio value
+                # Use trading_date (already calculated in Step 3)
                 portfolio_value = cash
                 for symbol, position in positions.items():
-                    current_price = self._get_historical_price(symbol, rebalance_date)
+                    current_price = self._get_historical_price(symbol, trading_date)
                     if current_price and current_price > 0:
                         portfolio_value += position['shares'] * current_price
                 
                 # Step 5: Rebalance to equal weights
                 # First, close all existing positions to free up cash
                 # IMPORTANT: Don't pop before calling _close_position - let it handle removal
+                # Use trading_date (already calculated in Step 3)
                 existing_symbols = list(positions.keys())
                 for symbol in existing_symbols:
-                    exit_price = self._get_historical_price(symbol, rebalance_date)
+                    exit_price = self._get_historical_price(symbol, trading_date)
                     if exit_price and exit_price > 0:
                         # Get position data before closing
                         old_position = positions.get(symbol)
@@ -1740,6 +1798,23 @@ class FundamentalScreeningService:
             return self._generate_rebalance_dates(start_date, end_date, 'quarterly')
         
         return dates
+    
+    def _adjust_to_trading_day(self, date: datetime) -> datetime:
+        """
+        Adjust date to nearest trading day (skip weekends).
+        
+        Args:
+            date: Date to adjust
+            
+        Returns:
+            Adjusted date (weekday, or previous Friday if weekend)
+        """
+        # Simple implementation: skip weekends
+        # If Saturday (5) or Sunday (6), move to previous Friday
+        adjusted = date
+        while adjusted.weekday() >= 5:  # Saturday = 5, Sunday = 6
+            adjusted -= timedelta(days=1)
+        return adjusted
     
     def _get_historical_price(self, symbol: str, date: datetime) -> Optional[float]:
         """
