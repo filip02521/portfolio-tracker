@@ -1519,6 +1519,13 @@ class FundamentalScreeningService:
                     'date': rebalance_date.strftime('%Y-%m-%d'),
                     'value': portfolio_value
                 })
+                
+                # Log rebalance summary for debugging
+                self.logger.debug(
+                    f"Rebalance {rebalance_idx + 1} complete - Portfolio Value: ${portfolio_value:,.2f}, "
+                    f"Cash: ${cash:,.2f}, Positions: {len(positions)}, "
+                    f"Total Profit so far: ${total_profit:,.2f}, Total Loss so far: ${total_loss:,.2f}"
+                )
             
             # Close all positions at end
             final_date = end_dt
