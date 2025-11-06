@@ -169,12 +169,20 @@ const FundamentalScreening: React.FC = () => {
     setError(null);
 
     try {
+      const token = getToken();
+      if (!token) {
+        setError('Authentication required. Please login.');
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/fundamental/full-analysis/${symbol}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
+          'Authorization': `Bearer ${token}`,
         },
+        body: JSON.stringify({}),  // POST requires body
       });
 
       if (!response.ok) {
