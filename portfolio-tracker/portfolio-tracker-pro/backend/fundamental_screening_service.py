@@ -434,9 +434,12 @@ class FundamentalScreeningService:
         
         # Get previous year data if not provided
         if previous_data is None:
-            # In a real implementation, fetch previous year's data
-            # For now, we'll use simplified assumptions
-            previous_data = self._estimate_previous_year_data(current_data)
+            # Fetch actual previous year data from API
+            previous_data = self.get_fundamental_data_historical(symbol, year_offset=1)
+            # Fallback to estimation if historical data not available
+            if not previous_data:
+                self.logger.debug(f"Historical data not available for {symbol}, using estimation")
+                previous_data = self._estimate_previous_year_data(current_data)
         
         score = 0
         breakdown = {}
