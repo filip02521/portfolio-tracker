@@ -39,7 +39,6 @@ import {
   Cancel,
   Warning,
 } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
 
 interface FundamentalData {
   symbol: string;

@@ -5,7 +5,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   Select,
   MenuItem,
   FormControl,
@@ -346,75 +345,67 @@ const ConfluenceStrategyDashboard: React.FC = () => {
         
         {entrySignal && (
           <Box>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Entry Signal
-                    </Typography>
-                    <Typography variant="h4" color={entrySignal.entry_signal === 'buy' ? 'success.main' : 'text.primary'}>
-                      {entrySignal.entry_signal.toUpperCase()}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Entry Signal
+                  </Typography>
+                  <Typography variant="h4" color={entrySignal.entry_signal === 'buy' ? 'success.main' : 'text.primary'}>
+                    {entrySignal.entry_signal.toUpperCase()}
+                  </Typography>
+                </CardContent>
+              </Card>
               
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Confidence
-                    </Typography>
-                    <Typography variant="h4">
-                      {(entrySignal.confidence * 100).toFixed(1)}%
-                    </Typography>
-                    <LinearProgress
-                      variant="determinate"
-                      value={entrySignal.confidence * 100}
-                      sx={{ mt: 1 }}
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Confidence
+                  </Typography>
+                  <Typography variant="h4">
+                    {(entrySignal.confidence * 100).toFixed(1)}%
+                  </Typography>
+                  <LinearProgress
+                    variant="determinate"
+                    value={entrySignal.confidence * 100}
+                    sx={{ mt: 1 }}
+                  />
+                </CardContent>
+              </Card>
               
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Confluence Score
-                    </Typography>
-                    <Typography variant="h4">
-                      {entrySignal.confluence_score}/6
-                    </Typography>
-                    <LinearProgress
-                      variant="determinate"
-                      value={(entrySignal.confluence_score / 6) * 100}
-                      sx={{ mt: 1 }}
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Confluence Score
+                  </Typography>
+                  <Typography variant="h4">
+                    {entrySignal.confluence_score}/6
+                  </Typography>
+                  <LinearProgress
+                    variant="determinate"
+                    value={(entrySignal.confluence_score / 6) * 100}
+                    sx={{ mt: 1 }}
+                  />
+                </CardContent>
+              </Card>
               
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Entry Price
-                    </Typography>
-                    <Typography variant="h4">
-                      ${entrySignal.entry_price.toFixed(2)}
-                    </Typography>
-                    <Chip
-                      label={entrySignal.risk_level}
-                      color={entrySignal.risk_level === 'low' ? 'success' : entrySignal.risk_level === 'medium' ? 'warning' : 'error'}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Entry Price
+                  </Typography>
+                  <Typography variant="h4">
+                    ${entrySignal.entry_price.toFixed(2)}
+                  </Typography>
+                  <Chip
+                    label={entrySignal.risk_level}
+                    color={entrySignal.risk_level === 'low' ? 'success' : entrySignal.risk_level === 'medium' ? 'warning' : 'error'}
+                    size="small"
+                    sx={{ mt: 1 }}
+                  />
+                </CardContent>
+              </Card>
+            </Box>
             
             <Card sx={{ mb: 3 }}>
               <CardContent>
@@ -480,81 +471,67 @@ const ConfluenceStrategyDashboard: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               Position Management
             </Typography>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} sm={6} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Entry Price</Typography>
-                    <Typography variant="h6">${currentPosition.entry_price.toFixed(2)}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">Current Price</Typography>
-                    <Typography variant="h6">
-                      ${exitSignal?.current_price.toFixed(2) || 'N/A'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary">P&L</Typography>
-                    <Typography variant="h6" color={exitSignal?.current_return && exitSignal.current_return > 0 ? 'success.main' : 'error.main'}>
-                      {exitSignal?.current_return ? `${exitSignal.current_return.toFixed(2)}%` : 'N/A'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">Entry Price</Typography>
+                  <Typography variant="h6">${currentPosition.entry_price.toFixed(2)}</Typography>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">Current Price</Typography>
+                  <Typography variant="h6">
+                    ${exitSignal?.current_price.toFixed(2) || 'N/A'}
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">P&L</Typography>
+                  <Typography variant="h6" color={exitSignal?.current_return && exitSignal.current_return > 0 ? 'success.main' : 'error.main'}>
+                    {exitSignal?.current_return ? `${exitSignal.current_return.toFixed(2)}%` : 'N/A'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
             
             {exitSignal && (
               <Box>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Stop Loss</Typography>
-                        <Typography variant="h5" color="error">
-                          ${exitSignal.stop_loss.toFixed(2)}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Take Profit 1 (R:R 1:2)</Typography>
-                        <Typography variant="h5" color="success.main">
-                          ${exitSignal.take_profit_1.toFixed(2)}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Take Profit 2 (R:R 1:3)</Typography>
-                        <Typography variant="h5" color="success.main">
-                          ${exitSignal.take_profit_2.toFixed(2)}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Trailing Stop</Typography>
-                        <Typography variant="h5">
-                          {exitSignal.trailing_stop ? `$${exitSignal.trailing_stop.toFixed(2)}` : 'Not active'}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>Stop Loss</Typography>
+                      <Typography variant="h5" color="error">
+                        ${exitSignal.stop_loss.toFixed(2)}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>Take Profit 1 (R:R 1:2)</Typography>
+                      <Typography variant="h5" color="success.main">
+                        ${exitSignal.take_profit_1.toFixed(2)}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>Take Profit 2 (R:R 1:3)</Typography>
+                      <Typography variant="h5" color="success.main">
+                        ${exitSignal.take_profit_2.toFixed(2)}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>Trailing Stop</Typography>
+                      <Typography variant="h5">
+                        {exitSignal.trailing_stop ? `$${exitSignal.trailing_stop.toFixed(2)}` : 'Not active'}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Box>
                 
                 <Card sx={{ mt: 3 }}>
                   <CardContent>
@@ -626,184 +603,169 @@ const ConfluenceStrategyDashboard: React.FC = () => {
             {backtestResult.status === 'error' ? (
               <Alert severity="error">{backtestResult.error}</Alert>
             ) : (
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">Total Return</Typography>
+                    <Typography variant="h5" color={backtestResult.total_return && backtestResult.total_return > 0 ? 'success.main' : 'error.main'}>
+                      {backtestResult.total_return?.toFixed(2)}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">CAGR</Typography>
+                    <Typography variant="h5">
+                      {backtestResult.cagr?.toFixed(2)}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">Sharpe Ratio</Typography>
+                    <Typography variant="h5">
+                      {backtestResult.sharpe_ratio?.toFixed(3)}
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">Win Rate</Typography>
+                    <Typography variant="h5">
+                      {backtestResult.win_rate?.toFixed(2)}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">Profit Factor</Typography>
+                    <Typography variant="h5">
+                      {backtestResult.profit_factor?.toFixed(2)}
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
+                    <Typography variant="h5" color="error">
+                      {backtestResult.max_drawdown?.toFixed(2)}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">Total Trades</Typography>
+                    <Typography variant="h5">
+                      {backtestResult.total_trades || 0}
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">Winning Trades</Typography>
+                    <Typography variant="h5" color="success.main">
+                      {backtestResult.winning_trades || 0}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Box>
+              
+              {backtestResult.equity_curve && backtestResult.equity_curve.length > 0 && (
+                <Box sx={{ mt: 2 }}>
                   <Card>
                     <CardContent>
-                      <Typography variant="body2" color="text.secondary">Total Return</Typography>
-                      <Typography variant="h5" color={backtestResult.total_return && backtestResult.total_return > 0 ? 'success.main' : 'error.main'}>
-                        {backtestResult.total_return?.toFixed(2)}%
-                      </Typography>
+                      <Typography variant="h6" gutterBottom>Equity Curve</Typography>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={backtestResult.equity_curve}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => `$${value.toFixed(0)}`}
+                          />
+                          <Tooltip 
+                            formatter={(value: number) => `$${value.toFixed(2)}`}
+                            labelFormatter={(label) => `Date: ${label}`}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke="#2563eb" 
+                            strokeWidth={2}
+                            dot={false}
+                            name="Portfolio Value"
+                          />
+                          <ReferenceLine 
+                            y={backtestResult.initial_capital} 
+                            stroke="#666" 
+                            strokeDasharray="3 3"
+                            label="Initial Capital"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
                     </CardContent>
                   </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                </Box>
+              )}
+              
+              {backtestResult.trade_history && backtestResult.trade_history.length > 0 && (
+                <Box sx={{ mt: 2 }}>
                   <Card>
                     <CardContent>
-                      <Typography variant="body2" color="text.secondary">CAGR</Typography>
-                      <Typography variant="h5">
-                        {backtestResult.cagr?.toFixed(2)}%
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="body2" color="text.secondary">Sharpe Ratio</Typography>
-                      <Typography variant="h5">
-                        {backtestResult.sharpe_ratio?.toFixed(3)}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="body2" color="text.secondary">Win Rate</Typography>
-                      <Typography variant="h5">
-                        {backtestResult.win_rate?.toFixed(2)}%
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="body2" color="text.secondary">Profit Factor</Typography>
-                      <Typography variant="h5">
-                        {backtestResult.profit_factor?.toFixed(2)}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
-                      <Typography variant="h5" color="error">
-                        {backtestResult.max_drawdown?.toFixed(2)}%
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="body2" color="text.secondary">Total Trades</Typography>
-                      <Typography variant="h5">
-                        {backtestResult.total_trades || 0}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="body2" color="text.secondary">Winning Trades</Typography>
-                      <Typography variant="h5" color="success.main">
-                        {backtestResult.winning_trades || 0}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {backtestResult.equity_curve && backtestResult.equity_curve.length > 0 && (
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Equity Curve</Typography>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <LineChart data={backtestResult.equity_curve}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis 
-                              dataKey="date" 
-                              tick={{ fontSize: 12 }}
-                              angle={-45}
-                              textAnchor="end"
-                              height={80}
-                            />
-                            <YAxis 
-                              tick={{ fontSize: 12 }}
-                              tickFormatter={(value) => `$${value.toFixed(0)}`}
-                            />
-                            <Tooltip 
-                              formatter={(value: number) => `$${value.toFixed(2)}`}
-                              labelFormatter={(label) => `Date: ${label}`}
-                            />
-                            <Line 
-                              type="monotone" 
-                              dataKey="value" 
-                              stroke="#2563eb" 
-                              strokeWidth={2}
-                              dot={false}
-                              name="Portfolio Value"
-                            />
-                            <ReferenceLine 
-                              y={backtestResult.initial_capital} 
-                              stroke="#666" 
-                              strokeDasharray="3 3"
-                              label="Initial Capital"
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                )}
-                
-                {backtestResult.trade_history && backtestResult.trade_history.length > 0 && (
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Trade History</Typography>
-                        <TableContainer>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Date</TableCell>
-                                <TableCell>Action</TableCell>
-                                <TableCell>Price</TableCell>
-                                <TableCell>Shares</TableCell>
-                                <TableCell>Value</TableCell>
-                                <TableCell>Return %</TableCell>
-                                <TableCell>Reason</TableCell>
+                      <Typography variant="h6" gutterBottom>Trade History</Typography>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Date</TableCell>
+                              <TableCell>Action</TableCell>
+                              <TableCell>Price</TableCell>
+                              <TableCell>Shares</TableCell>
+                              <TableCell>Value</TableCell>
+                              <TableCell>Return %</TableCell>
+                              <TableCell>Reason</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {backtestResult.trade_history.slice(0, 20).map((trade: any, idx: number) => (
+                              <TableRow key={idx}>
+                                <TableCell>{trade.date}</TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={trade.action}
+                                    color={trade.action === 'buy' ? 'primary' : 'secondary'}
+                                    size="small"
+                                  />
+                                </TableCell>
+                                <TableCell>${trade.price?.toFixed(2)}</TableCell>
+                                <TableCell>{trade.shares?.toFixed(4)}</TableCell>
+                                <TableCell>${trade.value?.toFixed(2)}</TableCell>
+                                <TableCell>
+                                  {trade.return_pct ? (
+                                    <Typography
+                                      color={trade.return_pct > 0 ? 'success.main' : 'error.main'}
+                                    >
+                                      {trade.return_pct.toFixed(2)}%
+                                    </Typography>
+                                  ) : '-'}
+                                </TableCell>
+                                <TableCell>{trade.reason || '-'}</TableCell>
                               </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {backtestResult.trade_history.slice(0, 20).map((trade: any, idx: number) => (
-                                <TableRow key={idx}>
-                                  <TableCell>{trade.date}</TableCell>
-                                  <TableCell>
-                                    <Chip
-                                      label={trade.action}
-                                      color={trade.action === 'buy' ? 'primary' : 'secondary'}
-                                      size="small"
-                                    />
-                                  </TableCell>
-                                  <TableCell>${trade.price?.toFixed(2)}</TableCell>
-                                  <TableCell>{trade.shares?.toFixed(4)}</TableCell>
-                                  <TableCell>${trade.value?.toFixed(2)}</TableCell>
-                                  <TableCell>
-                                    {trade.return_pct ? (
-                                      <Typography
-                                        color={trade.return_pct > 0 ? 'success.main' : 'error.main'}
-                                      >
-                                        {trade.return_pct.toFixed(2)}%
-                                      </Typography>
-                                    ) : '-'}
-                                  </TableCell>
-                                  <TableCell>{trade.reason || '-'}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                )}
-              </Grid>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </CardContent>
+                  </Card>
+                </Box>
+              )}
+              </Box>
             )}
           </Box>
         )}
