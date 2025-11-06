@@ -2732,10 +2732,29 @@ class FundamentalAnalysisRequest(BaseModel):
     exchange: Optional[str] = 'US'
 
 class ScreeningRequest(BaseModel):
-    symbols: List[str]
+    symbols: Optional[List[str]] = None
     min_f_score: Optional[int] = 7
     max_z_score: Optional[float] = 3.0  # We want > 3.0, so this is a min threshold
     max_accrual_ratio: Optional[float] = 5.0
+    auto_universe: Optional[bool] = False
+    universe_index: Optional[str] = 'SP500'
+    value_percentile: Optional[float] = 0.2
+
+class UniverseRankingRequest(BaseModel):
+    exchange: Optional[str] = 'US'
+    index: Optional[str] = 'SP500'
+    percentile: Optional[float] = 0.2
+
+class CapitalAllocationRequest(BaseModel):
+    screened_stocks: List[Dict]
+    total_capital: float
+    method: Optional[str] = 'equal_weights'
+
+class RebalanceRequest(BaseModel):
+    current_holdings: Dict[str, float]  # {symbol: current_value}
+    target_allocations: List[Dict]
+    rebalance_date: str
+    transaction_cost_percent: Optional[float] = 0.001
 
 @app.get("/api/fundamental/data/{symbol}", tags=["Fundamental Screening"])
 async def get_fundamental_data(
@@ -2896,13 +2915,16 @@ async def screen_vq_plus(
     - Market cap and current price
     - Detailed breakdown for each stock
     """
-    try:
-        results = fundamental_screening_service.screen_vq_plus_strategy(
-            symbols=request.symbols,
-            min_f_score=request.min_f_score,
-            max_z_score=request.max_z_score,  # Actually min threshold (we want > 3.0)
-            max_accrual_ratio=request.max_accrual_ratio
-        )
+        try:
+            results = fundamental_screening_service.screen_vq_plus_strategy(
+                symbols=request.symbols,
+                min_f_score=request.min_f_score,
+                max_z_score=request.max_z_score,  # Actually min threshold (we want > 3.0)
+                max_accrual_ratio=request.max_accrual_ratio,
+                auto_universe=request.auto_universe,
+                universe_index=request.universe_index,
+                value_percentile=request.value_percentile
+            )
         return {
             'total_screened': len(results),
             'symbols_analyzed': len(request.symbols),
@@ -2973,6 +2995,144 @@ async def get_full_fundamental_analysis(
     except Exception as e:
         logger.error(f"Error performing full fundamental analysis for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=f"Error performing analysis: {str(e)}")
+
+@app.post("/api/fundamental/rank-universe", tags=["Fundamental Screening"])
+async def rank_universe_by_value(
+    request: UniverseRankingRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Rank universe of stocks by EBIT/EV (Value screening).
+    
+    **Authentication Required:** Yes
+    
+    According to the report: "Szeroki Skrining Value: Algorytmiczna selekcja uniwersum spółek,
+    które są historycznie nisko wyceniane (np. te znajdujące się w dolnym kwintylu wyceny według wskaźnika EBIT/EV)"
+    
+    **Returns:**
+    - Ranked list of stocks by EBIT/EV (highest EBIT/EV = lowest valuation)
+    - Bottom percentile (e.g., bottom 20% = highest EBIT/EV)
+    """
+    try:
+        # Get universe symbols
+        universe_symbols = fundamental_screening_service.get_universe_symbols(
+            exchange=request.exchange,
+            index=request.index
+        )
+        
+        # Rank by EBIT/EV
+        ranked_stocks = fundamental_screening_service.rank_universe_by_ebit_ev(
+            symbols=universe_symbols,
+            percentile=request.percentile
+        )
+        
+        return {
+            'universe_size': len(universe_symbols),
+            'ranked_count': len(ranked_stocks),
+            'percentile': request.percentile,
+            'ranked_stocks': ranked_stocks
+        }
+    except Exception as e:
+        logger.error(f"Error ranking universe: {e}")
+        raise HTTPException(status_code=500, detail=f"Error ranking universe: {str(e)}")
+
+@app.post("/api/fundamental/allocate-capital", tags=["Fundamental Screening"])
+async def allocate_capital(
+    request: CapitalAllocationRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Allocate capital among screened stocks using equal weights.
+    
+    **Authentication Required:** Yes
+    
+    According to the report: "Budowa Portfela i Rebalansowanie: Mechaniczna alokacja kapitału
+    (np. równe wagi) i rebalansowanie w regularnych, z góry określonych odstępach czasowych"
+    
+    **Returns:**
+    - List of stocks with allocation_amount, allocation_percent, shares_to_buy
+    """
+    try:
+        if request.method != 'equal_weights':
+            raise HTTPException(status_code=400, detail="Only 'equal_weights' method is currently supported")
+        
+        allocated_stocks = fundamental_screening_service.allocate_capital_equal_weights(
+            screened_stocks=request.screened_stocks,
+            total_capital=request.total_capital
+        )
+        
+        return {
+            'method': request.method,
+            'total_capital': request.total_capital,
+            'stocks_count': len(allocated_stocks),
+            'allocation_per_stock': request.total_capital / len(allocated_stocks) if allocated_stocks else 0,
+            'allocated_stocks': allocated_stocks
+        }
+    except Exception as e:
+        logger.error(f"Error allocating capital: {e}")
+        raise HTTPException(status_code=500, detail=f"Error allocating capital: {str(e)}")
+
+@app.post("/api/fundamental/rebalance", tags=["Fundamental Screening"])
+async def rebalance_portfolio(
+    request: RebalanceRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Generate rebalancing recommendations for portfolio.
+    
+    **Authentication Required:** Yes
+    
+    According to the report: "Rebalansowanie w regularnych, z góry określonych odstępach czasowych
+    (np. rocznych), w celu zminimalizowania kosztów transakcyjnych i utrzymania regułowości systemu"
+    
+    **Returns:**
+    - List of rebalance actions (buy/sell for each stock)
+    - Total rebalance amount and transaction costs
+    - Number of transactions
+    """
+    try:
+        rebalance_result = fundamental_screening_service.rebalance_portfolio(
+            current_holdings=request.current_holdings,
+            target_allocations=request.target_allocations,
+            rebalance_date=request.rebalance_date,
+            transaction_cost_percent=request.transaction_cost_percent
+        )
+        
+        return rebalance_result
+    except Exception as e:
+        logger.error(f"Error rebalancing portfolio: {e}")
+        raise HTTPException(status_code=500, detail=f"Error rebalancing portfolio: {str(e)}")
+
+@app.get("/api/fundamental/should-rebalance/{last_rebalance_date}", tags=["Fundamental Screening"])
+async def check_rebalance_status(
+    last_rebalance_date: str,
+    rebalance_frequency: str = 'annual',
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Check if portfolio should be rebalanced based on frequency.
+    
+    **Authentication Required:** Yes
+    
+    **Returns:**
+    - Boolean indicating if rebalancing is due
+    - Days since last rebalance
+    - Required days for frequency
+    """
+    try:
+        should_rebalance = fundamental_screening_service.should_rebalance(
+            last_rebalance_date=last_rebalance_date,
+            rebalance_frequency=rebalance_frequency
+        )
+        
+        return {
+            'should_rebalance': should_rebalance,
+            'last_rebalance_date': last_rebalance_date,
+            'rebalance_frequency': rebalance_frequency
+        }
+    except Exception as e:
+        logger.error(f"Error checking rebalance status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error checking rebalance status: {str(e)}")
 
 @app.post("/api/backtesting/run", tags=["Backtesting"])
 async def run_backtest(

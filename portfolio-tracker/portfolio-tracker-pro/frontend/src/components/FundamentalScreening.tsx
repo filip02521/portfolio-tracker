@@ -25,6 +25,9 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Checkbox,
+  FormControlLabel,
+  FormControl,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -150,7 +153,13 @@ const FundamentalScreening: React.FC = () => {
     min_f_score: 7,
     min_z_score: 3.0,
     max_accrual_ratio: 5.0,
+    auto_universe: false,
+    universe_index: 'SP500',
+    value_percentile: 0.2,
   });
+  const [capitalAllocation, setCapitalAllocation] = useState<number | null>(null);
+  const [allocatedStocks, setAllocatedStocks] = useState<any[]>([]);
+  const [rebalanceResult, setRebalanceResult] = useState<any>(null);
 
   const handleAnalyze = async () => {
     if (!symbol.trim()) {
@@ -211,10 +220,13 @@ const FundamentalScreening: React.FC = () => {
           'Authorization': `Bearer ${getToken()}`,
         },
         body: JSON.stringify({
-          symbols: symbolsList,
+          symbols: filters.auto_universe ? [] : symbolsList,
           min_f_score: filters.min_f_score,
           max_z_score: filters.min_z_score, // Note: API uses max_z_score as min threshold
           max_accrual_ratio: filters.max_accrual_ratio,
+          auto_universe: filters.auto_universe,
+          universe_index: filters.universe_index,
+          value_percentile: filters.value_percentile,
         }),
       });
 
@@ -605,10 +617,16 @@ const FundamentalScreening: React.FC = () => {
                         <TableCell align="right">Combined Score</TableCell>
                         <TableCell align="right">Price</TableCell>
                         <TableCell align="right">Market Cap</TableCell>
+                        {allocatedStocks.length > 0 && (
+                          <>
+                            <TableCell align="right">Allocation ($)</TableCell>
+                            <TableCell align="right">Shares to Buy</TableCell>
+                          </>
+                        )}
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {screeningResults.map((result) => (
+                      {(allocatedStocks.length > 0 ? allocatedStocks : screeningResults).map((result) => (
                         <TableRow key={result.symbol} hover>
                           <TableCell>
                             <Chip label={`#${result.rank}`} color="primary" size="small" />
@@ -675,13 +693,31 @@ const FundamentalScreening: React.FC = () => {
                               ${(result.market_cap / 1e9).toFixed(2)}B
                             </Typography>
                           </TableCell>
+                          {allocatedStocks.length > 0 && (
+                            <>
+                              <TableCell align="right">
+                                <Typography variant="body2" fontWeight="bold">
+                                  ${result.allocation_amount?.toFixed(2) || 'N/A'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {result.allocation_percent?.toFixed(2) || '0'}%
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="body2">
+                                  {result.shares_to_buy?.toFixed(2) || 'N/A'}
+                                </Typography>
+                              </TableCell>
+                            </>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </TableContainer>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Box>
           )}
         </Box>
       )}

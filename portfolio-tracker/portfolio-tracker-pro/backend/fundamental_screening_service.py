@@ -153,14 +153,34 @@ class FundamentalScreeningService:
         if financials_data.get('data') and len(financials_data['data']) > 0:
             latest = financials_data['data'][0]
             for report in latest.get('report', {}):
-                if report.get('concept') == 'NetIncomeLoss':
-                    latest_financials['net_income'] = float(report.get('value', 0))
-                elif report.get('concept') == 'Assets':
-                    latest_financials['total_assets'] = float(report.get('value', 0))
-                elif report.get('concept') == 'Liabilities':
-                    latest_financials['total_liabilities'] = float(report.get('value', 0))
-                elif report.get('concept') == 'OperatingCashFlow':
-                    latest_financials['operating_cash_flow'] = float(report.get('value', 0))
+                concept = report.get('concept', '').lower()
+                value = float(report.get('value', 0)) if report.get('value') else 0
+                
+                if 'netincomeloss' in concept or 'netincome' in concept:
+                    latest_financials['net_income'] = value
+                elif concept == 'assets':
+                    latest_financials['total_assets'] = value
+                elif 'liabilit' in concept:
+                    latest_financials['total_liabilities'] = value
+                elif 'operatingcashflow' in concept or 'operatingcash' in concept:
+                    latest_financials['operating_cash_flow'] = value
+                elif 'costofrevenue' in concept or 'costofgoodssold' in concept or 'cogs' in concept:
+                    latest_financials['cogs'] = value
+                elif 'grossprofit' in concept or 'grossincome' in concept:
+                    latest_financials['gross_profit'] = value
+                elif 'retainedearnings' in concept:
+                    latest_financials['retained_earnings'] = value
+                elif 'cashandcashequivalents' in concept or 'cashandshortterminvestments' in concept:
+                    latest_financials['cash_and_cash_equivalents'] = value
+                elif 'stockholdersequity' in concept or 'totalequity' in concept:
+                    latest_financials['total_stockholders_equity'] = value
+        
+        revenue = profile_data.get('revenue', 0) or latest_financials.get('revenue', 0)
+        cogs = latest_financials.get('cogs', 0)
+        gross_profit = latest_financials.get('gross_profit', 0)
+        # Calculate gross profit if not available but we have revenue and COGS
+        if gross_profit == 0 and revenue > 0 and cogs > 0:
+            gross_profit = revenue - cogs
         
         return {
             'symbol': profile_data.get('ticker', ''),
@@ -170,13 +190,18 @@ class FundamentalScreeningService:
             'total_liabilities': latest_financials.get('total_liabilities', profile_data.get('totalLiabilities', 0)),
             'net_income': latest_financials.get('net_income', 0),
             'operating_cash_flow': latest_financials.get('operating_cash_flow', 0),
-            'revenue': profile_data.get('revenue', 0),
+            'revenue': revenue,
             'ebit': profile_data.get('ebit', 0),
             'current_assets': profile_data.get('currentAssets', 0),
             'current_liabilities': profile_data.get('currentLiabilities', 0),
             'long_term_debt': profile_data.get('longTermDebt', 0),
             'book_value': profile_data.get('bookValue', 0),
             'shares_outstanding': profile_data.get('shareOutstanding', 0),
+            'cogs': cogs,
+            'gross_profit': gross_profit,
+            'retained_earnings': latest_financials.get('retained_earnings', 0),
+            'cash_and_cash_equivalents': latest_financials.get('cash_and_cash_equivalents', 0),
+            'total_stockholders_equity': latest_financials.get('total_stockholders_equity', 0),
             'source': 'finnhub'
         }
     
@@ -187,21 +212,51 @@ class FundamentalScreeningService:
         latest_balance = balance.get('annualReports', [{}])[0] if balance.get('annualReports') else {}
         latest_cashflow = cashflow.get('annualReports', [{}])[0] if cashflow.get('annualReports') else {}
         
+        def safe_float(value, default=0.0):
+            """Safely convert value to float, handling 'None' strings"""
+            if value is None or value == 'None' or value == '':
+                return default
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+        
+        revenue = safe_float(latest_income.get('totalRevenue', 0))
+        cogs = safe_float(latest_income.get('costOfRevenue', 0))
+        gross_profit = safe_float(latest_income.get('grossProfit', 0))
+        # Calculate gross profit if not available but we have revenue and COGS
+        if gross_profit == 0 and revenue > 0 and cogs > 0:
+            gross_profit = revenue - cogs
+        
+        retained_earnings = safe_float(latest_balance.get('retainedEarnings', 0))
+        cash = safe_float(latest_balance.get('cashAndCashEquivalentsAtCarryingValue', 0))
+        total_equity = safe_float(latest_balance.get('totalStockholdersEquity', 0))
+        
+        # Fallback for retained earnings: if not available, estimate from total equity
+        if retained_earnings == 0 and total_equity > 0:
+            # Simplified: assume most of equity is retained earnings (common stock is usually small)
+            retained_earnings = total_equity * 0.8  # Conservative estimate
+        
         return {
             'symbol': overview.get('Symbol', ''),
             'company_name': overview.get('Name', ''),
-            'market_cap': float(overview.get('MarketCapitalization', 0)) if overview.get('MarketCapitalization') != 'None' else 0,
-            'total_assets': float(latest_balance.get('totalAssets', 0)) if latest_balance.get('totalAssets') != 'None' else 0,
-            'total_liabilities': float(latest_balance.get('totalLiabilities', 0)) if latest_balance.get('totalLiabilities') != 'None' else 0,
-            'net_income': float(latest_income.get('netIncome', 0)) if latest_income.get('netIncome') != 'None' else 0,
-            'operating_cash_flow': float(latest_cashflow.get('operatingCashflow', 0)) if latest_cashflow.get('operatingCashflow') != 'None' else 0,
-            'revenue': float(latest_income.get('totalRevenue', 0)) if latest_income.get('totalRevenue') != 'None' else 0,
-            'ebit': float(latest_income.get('ebit', 0)) if latest_income.get('ebit') != 'None' else 0,
-            'current_assets': float(latest_balance.get('totalCurrentAssets', 0)) if latest_balance.get('totalCurrentAssets') != 'None' else 0,
-            'current_liabilities': float(latest_balance.get('totalCurrentLiabilities', 0)) if latest_balance.get('totalCurrentLiabilities') != 'None' else 0,
-            'long_term_debt': float(latest_balance.get('longTermDebt', 0)) if latest_balance.get('longTermDebt') != 'None' else 0,
-            'book_value': float(overview.get('BookValue', 0)) if overview.get('BookValue') != 'None' else 0,
-            'shares_outstanding': float(overview.get('SharesOutstanding', 0)) if overview.get('SharesOutstanding') != 'None' else 0,
+            'market_cap': safe_float(overview.get('MarketCapitalization', 0)),
+            'total_assets': safe_float(latest_balance.get('totalAssets', 0)),
+            'total_liabilities': safe_float(latest_balance.get('totalLiabilities', 0)),
+            'net_income': safe_float(latest_income.get('netIncome', 0)),
+            'operating_cash_flow': safe_float(latest_cashflow.get('operatingCashflow', 0)),
+            'revenue': revenue,
+            'ebit': safe_float(latest_income.get('ebit', 0)),
+            'current_assets': safe_float(latest_balance.get('totalCurrentAssets', 0)),
+            'current_liabilities': safe_float(latest_balance.get('totalCurrentLiabilities', 0)),
+            'long_term_debt': safe_float(latest_balance.get('longTermDebt', 0)),
+            'book_value': safe_float(overview.get('BookValue', 0)),
+            'shares_outstanding': safe_float(overview.get('SharesOutstanding', 0)),
+            'cogs': cogs,
+            'gross_profit': gross_profit,
+            'retained_earnings': retained_earnings,
+            'cash_and_cash_equivalents': cash,
+            'total_stockholders_equity': total_equity,
             'source': 'alpha_vantage'
         }
     
@@ -212,6 +267,9 @@ class FundamentalScreeningService:
         
         base_assets = 1000000000  # $1B base
         assets = base_assets * (0.5 + np.random.random())
+        revenue = assets * (0.5 + np.random.random() * 0.5)
+        cogs = revenue * (0.4 + np.random.random() * 0.2)  # COGS typically 40-60% of revenue
+        gross_profit = revenue - cogs
         
         return {
             'symbol': symbol,
@@ -221,13 +279,18 @@ class FundamentalScreeningService:
             'total_liabilities': assets * (0.3 + np.random.random() * 0.3),
             'net_income': assets * (0.05 + np.random.random() * 0.1),
             'operating_cash_flow': assets * (0.08 + np.random.random() * 0.12),
-            'revenue': assets * (0.5 + np.random.random() * 0.5),
+            'revenue': revenue,
             'ebit': assets * (0.1 + np.random.random() * 0.1),
             'current_assets': assets * (0.2 + np.random.random() * 0.2),
             'current_liabilities': assets * (0.15 + np.random.random() * 0.15),
             'long_term_debt': assets * (0.1 + np.random.random() * 0.2),
             'book_value': assets * (0.4 + np.random.random() * 0.2),
             'shares_outstanding': 100000000 + np.random.randint(-50000000, 50000000),
+            'cogs': cogs,
+            'gross_profit': gross_profit,
+            'retained_earnings': assets * (0.2 + np.random.random() * 0.2),
+            'cash_and_cash_equivalents': assets * (0.05 + np.random.random() * 0.1),
+            'total_stockholders_equity': assets * (0.4 + np.random.random() * 0.3),
             'source': 'mock'
         }
     
@@ -479,9 +542,17 @@ class FundamentalScreeningService:
         working_capital = current_assets - current_liabilities
         A = (working_capital / total_assets) if total_assets > 0 else 0
         
-        # B: Retained Earnings / Total Assets (simplified - use net income as proxy)
-        # In production, fetch actual retained earnings from balance sheet
-        retained_earnings = net_income  # Simplified assumption
+        # B: Retained Earnings / Total Assets (TRUE Retained Earnings from balance sheet)
+        retained_earnings = financial_data.get('retained_earnings', 0)
+        if retained_earnings == 0:
+            # Fallback: Retained Earnings = Total Equity - Common Stock (if available)
+            total_equity = financial_data.get('total_stockholders_equity', 0)
+            if total_equity > 0:
+                # Simplified: assume most of equity is retained earnings (common stock is usually small)
+                retained_earnings = total_equity * 0.8  # Conservative estimate
+            else:
+                # Last resort: use net income as proxy (less accurate)
+                retained_earnings = net_income
         B = (retained_earnings / total_assets) if total_assets > 0 else 0
         
         # C: EBIT / Total Assets
@@ -567,21 +638,22 @@ class FundamentalScreeningService:
                 current_price = market_cap / shares if shares > 0 else 0
         
         # Calculate ROIC
-        # ROIC = EBIT / (Total Assets - Current Liabilities - Cash)
-        # Simplified: ROIC = EBIT / Invested Capital
+        # ROIC = EBIT / (Total Assets - Current Liabilities - Cash) - TRUE formula from report
         ebit = financial_data.get('ebit', 0)
         total_assets = financial_data.get('total_assets', 1)
         current_liabilities = financial_data.get('current_liabilities', 0)
-        # Estimate invested capital (simplified)
-        invested_capital = total_assets - current_liabilities
+        cash = financial_data.get('cash_and_cash_equivalents', 0)
+        # TRUE Invested Capital: Assets - Current Liabilities - Cash
+        invested_capital = total_assets - current_liabilities - cash
         roic = (ebit / invested_capital) * 100 if invested_capital > 0 else 0
         
         # Calculate EBIT/EV (Earnings Yield)
-        # EV = Market Cap + Total Debt - Cash
+        # EV = Market Cap + Total Debt - Cash - TRUE formula from report
         market_cap = financial_data.get('market_cap', 0)
         total_debt = financial_data.get('long_term_debt', 0) + current_liabilities
-        # Simplified: EV ≈ Market Cap + Debt (cash assumed minimal)
-        enterprise_value = market_cap + total_debt
+        cash = financial_data.get('cash_and_cash_equivalents', 0)
+        # TRUE Enterprise Value: Market Cap + Debt - Cash
+        enterprise_value = market_cap + total_debt - cash
         ebit_ev = (ebit / enterprise_value) * 100 if enterprise_value > 0 else 0
         
         # Combined score (normalized, higher is better)
