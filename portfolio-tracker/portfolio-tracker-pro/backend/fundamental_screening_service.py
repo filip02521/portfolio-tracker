@@ -1797,11 +1797,33 @@ class FundamentalScreeningService:
                     self.logger.debug(f"Error parsing candle data for {symbol}: {e}")
                     continue
             
-            # Prefer exact match, otherwise closest
-            result = exact_match if exact_match else closest_price
-            # Ensure result is a float, not None or other type
-            if result and isinstance(result, (int, float)) and result > 0:
-                return float(result)
+            # Return exact match if found
+            if exact_match is not None:
+                return float(exact_match)
+            
+            # Use closest price if within 30 days
+            if closest_price is not None:
+                if min_diff <= timedelta(days=30):
+                    self.logger.debug(f"Using closest price for {symbol} on {target_date} (diff: {min_diff.days} days)")
+                    return float(closest_price)
+                else:
+                    self.logger.warning(f"No price found for {symbol} within 30 days of {target_date}")
+            
+            # Fallback: Use last available price from historical data
+            # This ensures backtest can continue even if exact date not found
+            last_candle = historical_data[-1] if historical_data else None
+            if last_candle:
+                price_value = last_candle.get('close', last_candle.get('price', 0))
+                if price_value:
+                    try:
+                        fallback_price = float(price_value)
+                        if fallback_price > 0:
+                            self.logger.warning(f"No price found for {symbol} on {target_date}, using last available price")
+                            return fallback_price
+                    except (ValueError, TypeError):
+                        pass
+            
+            self.logger.error(f"No price data available for {symbol} on {target_date}")
             return None
             
         except Exception as e:
