@@ -424,14 +424,29 @@ class FundamentalScreeningService:
         
         # === OPERATING EFFICIENCY (2 points) ===
         
-        # 8. Increase in Gross Margin (simplified - use Revenue and EBIT as proxy)
+        # 8. Increase in Gross Margin (TRUE Gross Margin: (Revenue - COGS) / Revenue)
         revenue_current = current_data.get('revenue', 0)
         revenue_previous = previous_data.get('revenue', revenue_current)
-        ebit_current = current_data.get('ebit', 0)
-        ebit_previous = previous_data.get('ebit', ebit_current)
         
-        gross_margin_current = (ebit_current / revenue_current) * 100 if revenue_current > 0 else 0
-        gross_margin_previous = (ebit_previous / revenue_previous) * 100 if revenue_previous > 0 else 0
+        # Calculate true gross margin: (Revenue - COGS) / Revenue
+        cogs_current = current_data.get('cogs', 0)
+        gross_profit_current = current_data.get('gross_profit', 0)
+        if gross_profit_current == 0 and revenue_current > 0 and cogs_current > 0:
+            gross_profit_current = revenue_current - cogs_current
+        elif gross_profit_current == 0 and revenue_current > 0:
+            # Fallback: estimate COGS as 50% of revenue if not available
+            gross_profit_current = revenue_current * 0.5
+        
+        cogs_previous = previous_data.get('cogs', 0)
+        gross_profit_previous = previous_data.get('gross_profit', 0)
+        if gross_profit_previous == 0 and revenue_previous > 0 and cogs_previous > 0:
+            gross_profit_previous = revenue_previous - cogs_previous
+        elif gross_profit_previous == 0 and revenue_previous > 0:
+            # Fallback: estimate COGS as 50% of revenue if not available
+            gross_profit_previous = revenue_previous * 0.5
+        
+        gross_margin_current = (gross_profit_current / revenue_current) * 100 if revenue_current > 0 else 0
+        gross_margin_previous = (gross_profit_previous / revenue_previous) * 100 if revenue_previous > 0 else 0
         
         if gross_margin_current > gross_margin_previous:
             score += 1

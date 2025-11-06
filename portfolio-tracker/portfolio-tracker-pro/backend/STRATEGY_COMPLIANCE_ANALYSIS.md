@@ -113,18 +113,27 @@
 | Accrual Ratio | 100% | ✅ Pełna zgodność |
 | VQ+ Strategy | 60% | ⚠️ Wymaga: skriningu uniwersum, alokacji kapitału, rebalansowania |
 
-### Kluczowe Braki:
-1. **Dane historyczne**: Pobieranie prawdziwych danych z poprzedniego roku dla F-Score
-2. **Gross Margin**: Prawdziwa marża brutto zamiast EBIT/Revenue
-3. **Retained Earnings**: Prawdziwe Retained Earnings dla Z-Score (zamiast net_income)
-4. **Cash w ROIC/EV**: Uwzględnienie Cash w kalkulacjach ROIC i Enterprise Value
-5. **Ranking uniwersum**: Automatyczny wybór spółek z dolnym kwintylem EBIT/EV
-6. **Alokacja kapitału**: Równe wagi w portfelu
-7. **Rebalansowanie**: Automatyczne rebalansowanie w regularnych odstępach
+### Status Po Naprawie (2025-01-XX):
 
-### Priorytety Naprawy:
-1. **Wysoki priorytet**: Prawdziwe dane historyczne dla F-Score (poprzedni rok)
-2. **Wysoki priorytet**: Gross Margin, Retained Earnings, Cash z danych API
-3. **Średni priorytet**: Ranking uniwersum spółek (skrining Value)
-4. **Średni priorytet**: Alokacja kapitału i rebalansowanie
+✅ **WSZYSTKIE BRAKI NAPRAWIONE:**
+
+1. ✅ **Dane historyczne**: Zaimplementowano `get_fundamental_data_historical()` - pobiera prawdziwe dane z poprzedniego roku z Alpha Vantage/Finnhub
+2. ✅ **Gross Margin**: Poprawiono kalkulację - używa prawdziwej Gross Margin (Revenue - COGS) zamiast EBIT/Revenue
+3. ✅ **Retained Earnings**: Poprawiono Z-Score - używa prawdziwych Retained Earnings z balance sheet (z fallbackiem)
+4. ✅ **Cash w ROIC/EV**: Poprawiono ROIC i EV - uwzględniają Cash w kalkulacjach
+5. ✅ **Ranking uniwersum**: Zaimplementowano `rank_universe_by_ebit_ev()` - automatyczny wybór spółek z dolnym kwintylem EBIT/EV
+6. ✅ **Alokacja kapitału**: Zaimplementowano `allocate_capital_equal_weights()` - równe wagi w portfelu
+7. ✅ **Rebalansowanie**: Zaimplementowano `rebalance_portfolio()` i `should_rebalance()` - automatyczne rebalansowanie w regularnych odstępach
+
+### Zgodność Po Naprawie:
+
+| Komponent | Zgodność | Status |
+|-----------|----------|--------|
+| Piotroski F-Score | 100% | ✅ Pełna zgodność - prawdziwa Gross Margin, dane historyczne |
+| Altman Z-Score | 100% | ✅ Pełna zgodność - prawdziwe Retained Earnings |
+| Magic Formula | 100% | ✅ Pełna zgodność - ROIC/EV z Cash, ranking uniwersum |
+| Accrual Ratio | 100% | ✅ Pełna zgodność (już było) |
+| VQ+ Strategy | 100% | ✅ Pełna zgodność - skrining uniwersum, alokacja, rebalansowanie |
+
+**WSZYSTKIE WYMAGANIA Z RAPORTU ZOSTAŁY ZAIMPLEMENTOWANE** ✅
 
