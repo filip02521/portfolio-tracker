@@ -177,3 +177,5 @@ W razie pytań lub problemów, zobacz dokumentację w:
 - `CONFIDENCE_METHODOLOGY.md`
 - `VERIFICATION_REPORT.md`
 
+
+

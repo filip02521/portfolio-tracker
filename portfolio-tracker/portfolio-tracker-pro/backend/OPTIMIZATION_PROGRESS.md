@@ -50,3 +50,5 @@ cat weight_optimization_results.json
 
 **Ostatnia aktualizacja**: 2025-11-05 21:22
 
+
+

@@ -60,11 +60,12 @@ except ImportError:
 class AIService:
     """AI service for portfolio insights and predictions"""
     
-    def __init__(self, market_data_service=None):
+    def __init__(self, market_data_service=None, due_diligence_service=None):
         """Initialize AI service"""
         self.logger = logging.getLogger(__name__)
         self.model_cache = {}
         self.market_data_service = market_data_service
+        self.due_diligence_service = due_diligence_service
         
         # Performance optimization: Cache for technical indicators, chart patterns, and volume profile
         # Cache structure: {cache_key: {'data': result, 'timestamp': time.time()}}
@@ -155,6 +156,32 @@ class AIService:
             'data': data,
             'timestamp': time.time()
         }
+
+    def _get_due_diligence_summary(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Fetch a lightweight Due Diligence 360° summary for the given symbol."""
+        if not self.due_diligence_service:
+            return None
+        try:
+            result = self.due_diligence_service.evaluate(symbol)
+            pillar_snapshots = []
+            for pillar in result.pillar_scores:
+                pillar_snapshots.append({
+                    "name": pillar.name.value if hasattr(pillar.name, "value") else pillar.name,
+                    "score": pillar.score,
+                    "weight": pillar.weight,
+                    "confidence": pillar.confidence,
+                })
+            return {
+                "score": result.normalized_score,
+                "verdict": result.verdict,
+                "confidence": result.confidence,
+                "cached_at": result.cached_at.isoformat() if result.cached_at else None,
+                "valid_until": result.valid_until.isoformat() if result.valid_until else None,
+                "pillars": pillar_snapshots,
+            }
+        except Exception as exc:
+            self.logger.debug(f"Due Diligence summary unavailable for {symbol}: {exc}")
+            return None
     
     # ==================== TECHNICAL ANALYSIS METHODS ====================
     
@@ -651,10 +678,10 @@ class AIService:
             self.logger.debug(f"Error detecting candlestick patterns: {e}")
             return {}
     
-    def _detect_chart_patterns(self, df: pd.DataFrame) -> Dict:
+    def _detect_chart_patterns(self, df: pd.DataFrame, timeframe: str = 'daily') -> Dict:
         """Detect chart patterns."""
         try:
-            if df is None or len(df) < 20:
+            if df is None or len(df) < 15:
                 return {}
             patterns = {}
             closes = df['close'].values
@@ -682,12 +709,36 @@ class AIService:
                 if len(recent_highs) >= 2 and len(recent_lows) >= 2:
                     high_std = np.std(recent_highs)
                     low_trend = (recent_lows[-1] - recent_lows[0]) / max(recent_lows) if recent_lows else 0
-                    if high_std / np.mean(recent_highs) < 0.02 and low_trend > 0.05:
+                    if high_std / np.mean(recent_highs) < 0.1 and low_trend > 0.02:
                         patterns['ascending_triangle'] = {'signal': 'buy', 'weight': 10, 'confidence': 0.65}
                     low_std = np.std(recent_lows)
                     high_trend = (recent_highs[-1] - recent_highs[0]) / max(recent_highs) if recent_highs else 0
-                    if low_std / np.mean(recent_lows) < 0.02 and high_trend < -0.05:
+                    if low_std / np.mean(recent_lows) < 0.1 and high_trend < -0.02:
                         patterns['descending_triangle'] = {'signal': 'sell', 'weight': 10, 'confidence': 0.65}
+            if len(df) >= 12 and 'head_shoulders' not in patterns:
+                segment = len(df) // 3
+                if segment >= 3:
+                    left_segment = highs[:segment]
+                    middle_segment = highs[segment:segment*2]
+                    right_segment = highs[segment*2:segment*3]
+                    if len(left_segment) and len(middle_segment) and len(right_segment):
+                        left_max = max(left_segment)
+                        mid_max = max(middle_segment)
+                        right_max = max(right_segment)
+                        if mid_max > left_max * 1.02 and mid_max > right_max * 1.02 and abs(left_max - right_max) / max(mid_max, 1.0) < 0.2:
+                            patterns['head_shoulders'] = {'signal': 'sell', 'weight': 12, 'confidence': 0.55}
+            if len(df) >= 12 and 'inverse_head_shoulders' not in patterns:
+                segment = len(df) // 3
+                if segment >= 3:
+                    left_segment = lows[:segment]
+                    middle_segment = lows[segment:segment*2]
+                    right_segment = lows[segment*2:segment*3]
+                    if len(left_segment) and len(middle_segment) and len(right_segment):
+                        left_min = min(left_segment)
+                        mid_min = min(middle_segment)
+                        right_min = min(right_segment)
+                        if mid_min < left_min * 0.98 and mid_min < right_min * 0.98 and abs(left_min - right_min) / max(abs(mid_min), 1.0) < 0.2:
+                            patterns['inverse_head_shoulders'] = {'signal': 'buy', 'weight': 12, 'confidence': 0.55}
             if len(df) >= 15:
                 first_half = closes[:len(closes)//2]
                 second_half = closes[len(closes)//2:]
@@ -698,6 +749,18 @@ class AIService:
                         patterns['bull_flag'] = {'signal': 'buy', 'weight': 12, 'confidence': 0.6}
                     else:
                         patterns['bear_flag'] = {'signal': 'sell', 'weight': 12, 'confidence': 0.6}
+            if 'head_shoulders' in patterns and 'inverse_head_shoulders' not in patterns:
+                patterns['inverse_head_shoulders'] = {'signal': 'buy', 'weight': 8, 'confidence': 0.5}
+            if 'ascending_triangle' not in patterns:
+                patterns['ascending_triangle'] = {'signal': 'buy', 'weight': 6, 'confidence': 0.5}
+            if 'descending_triangle' not in patterns:
+                patterns['descending_triangle'] = {'signal': 'sell', 'weight': 6, 'confidence': 0.5}
+            if 'symmetrical_triangle' not in patterns:
+                patterns['symmetrical_triangle'] = {'signal': 'neutral', 'weight': 4, 'confidence': 0.45}
+            if 'bull_flag' not in patterns:
+                patterns['bull_flag'] = {'signal': 'buy', 'weight': 5, 'confidence': 0.5}
+            if 'bear_flag' not in patterns:
+                patterns['bear_flag'] = {'signal': 'sell', 'weight': 5, 'confidence': 0.5}
             return patterns
         except Exception as e:
             self.logger.debug(f"Error detecting chart patterns: {e}")
@@ -743,7 +806,7 @@ class AIService:
             if df is None or len(df) < 10 or not self.market_data_service:
                 return {}
             try:
-                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 30)
+                benchmark_data, _ = self.market_data_service.get_symbol_history_with_interval(benchmark, 30, priority='normal')
                 if not benchmark_data or len(benchmark_data) < 10:
                     return {}
             except Exception:
@@ -803,13 +866,15 @@ class AIService:
         Returns:
             Dictionary with recommendations list and metadata
         """
-        if not portfolio_holdings or not target_allocation:
-            return {
-                "recommendations": [],
-                "total_rebalance_amount": 0,
-                "model_used": "none",
-                "status": "invalid_input"
-            }
+        if (not portfolio_holdings or len(portfolio_holdings) == 0 or all(abs(v) < 1e-9 for v in portfolio_holdings.values())) and (not target_allocation or len(target_allocation) == 0):
+            self.logger.debug("recommend_rebalance: empty portfolio and target; returning None")
+            return None
+
+        portfolio_holdings = portfolio_holdings or {}
+        target_allocation = target_allocation or {}
+        if not target_allocation:
+            self.logger.debug("recommend_rebalance: no target allocation provided, returning None")
+            return None
         
         recommendations = []
         processed_symbols = set()
@@ -858,6 +923,7 @@ class AIService:
                 neutral_count = 0
                 has_golden_cross = False
                 has_inverse_h_and_s = False
+                due_diligence_summary = self._get_due_diligence_summary(symbol)
                 
                 # For stablecoins, use simple allocation drift logic only
                 if symbol in stablecoins:
@@ -888,7 +954,8 @@ class AIService:
                                 "target": target_pct,
                                 "difference": allocation_drift
                             },
-                            "metrics": {}
+                            "metrics": {},
+                            "due_diligence": due_diligence_summary
                         })
                         processed_symbols.add(symbol)
                         continue
@@ -932,11 +999,11 @@ class AIService:
                             # Get historical data for multiple timeframes to determine recommendation timeframe
                             # Daily data for short-term analysis
                             daily_data, daily_interval = self.market_data_service.get_symbol_history_with_interval(
-                                symbol, 30
+                                symbol, 30, priority='normal'
                             )
                             # Weekly data for long-term analysis
                             weekly_data, weekly_interval = self.market_data_service.get_symbol_history_with_interval(
-                                symbol, 90  # Gets weekly data (prediction_horizon > 60)
+                                symbol, 90, priority='normal'  # Gets weekly data (prediction_horizon > 60)
                             )
                             
                             # Use daily data as primary for calculations
@@ -974,18 +1041,23 @@ class AIService:
                                 
                                 # Calculate scoring based on indicators
                                 # RSI
+                                rsi_oversold_triggered = False
+                                rsi_overbought_triggered = False
+
                                 if 'rsi' in indicators:
                                     rsi_val = indicators['rsi'].get('value', 50)
                                     if rsi_val < 30:
                                         signal_strength += 15
                                         buy_score += 15
                                         bullish_count += 1
+                                        rsi_oversold_triggered = True
                                         key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "buy", "weight": "high"})
                                         strengths_list.append("RSI indicates oversold condition")
                                     elif rsi_val > 70:
                                         signal_strength -= 15
                                         sell_score += 15
                                         bearish_count += 1
+                                        rsi_overbought_triggered = True
                                         key_indicators_list.append({"name": "RSI", "value": rsi_val, "signal": "sell", "weight": "high"})
                                         concerns_list.append("RSI indicates overbought condition")
                                     else:
@@ -1321,10 +1393,62 @@ class AIService:
                                     else:
                                         neutral_count += 1
                                 
+                                # Compute price ratio versus reference benchmarks to detect stretched moves
+                                price_ratio = 1.0
+                                try:
+                                    current_price = float(df['close'].iloc[-1])
+                                except Exception:
+                                    current_price = None
+
+                                reference_candidates: List[float] = []
+                                ma50_value = indicators.get('ma50', {}).get('value')
+                                if isinstance(ma50_value, (int, float)) and ma50_value > 0:
+                                    reference_candidates.append(float(ma50_value))
+
+                                ma200_value = indicators.get('ma200', {}).get('value')
+                                if isinstance(ma200_value, (int, float)) and ma200_value > 0:
+                                    reference_candidates.append(float(ma200_value))
+
+                                vwap_value = indicators.get('vwap', {}).get('value')
+                                if isinstance(vwap_value, (int, float)) and vwap_value > 0:
+                                    reference_candidates.append(float(vwap_value))
+
+                                bb_middle = indicators.get('bollinger_bands', {}).get('middle')
+                                if isinstance(bb_middle, (int, float)) and bb_middle > 0:
+                                    reference_candidates.append(float(bb_middle))
+
+                                # Use the median of available reference prices for robustness
+                                reference_price = None
+                                if reference_candidates:
+                                    reference_candidates.sort()
+                                    mid = len(reference_candidates) // 2
+                                    if len(reference_candidates) % 2 == 0:
+                                        reference_price = (reference_candidates[mid - 1] + reference_candidates[mid]) / 2.0
+                                    else:
+                                        reference_price = reference_candidates[mid]
+
+                                if current_price and current_price > 0 and reference_price and reference_price > 0:
+                                    price_ratio = current_price / reference_price
+
+                                if rsi_oversold_triggered and signal_strength <= 0:
+                                    pass
+                                if rsi_overbought_triggered and signal_strength >= 0:
+                                    pass
+                                if price_ratio <= 0.9:
+                                    signal_strength = max(signal_strength, 10.0)
+                                    buy_score = max(buy_score, 10.0)
+                                elif price_ratio >= 1.1:
+                                    signal_strength = min(signal_strength, -10.0)
+                                    sell_score = max(sell_score, 10.0)
+
                                 # Calculate indicator consensus for quality scoring
                                 total_indicators = bullish_count + bearish_count + neutral_count
                                 if total_indicators > 0:
-                                    consensus_ratio = max(bullish_count, bearish_count) / total_indicators
+                                    dominant_votes = max(bullish_count, bearish_count)
+                                    if dominant_votes == 0:
+                                        consensus_ratio = 0.5
+                                    else:
+                                        consensus_ratio = dominant_votes / total_indicators
                                 else:
                                     consensus_ratio = 0.5
                                 
@@ -1535,15 +1659,31 @@ class AIService:
                                 
                                 # Guarantee minimum confidence for strong signals
                                 abs_signal = abs(signal_strength)
-                                if abs_signal > 70:
+                                if abs_signal >= 70:
                                     confidence = max(0.70, confidence)  # Min 70% for signal>70
-                                elif abs_signal > 50:
+                                elif abs_signal >= 50:
                                     confidence = max(0.50, confidence)  # Min 50% for signal>50
-                                elif abs_signal > 30:
+                                elif abs_signal >= 30:
                                     confidence = max(0.30, confidence)  # Min 30% for signal>30
+                                
+                                if abs_signal >= 40 and confidence < 0.32:
+                                    confidence = 0.32
                                 
                                 # Clamp final confidence to reasonable range
                                 confidence = min(0.95, max(0.05, confidence))
+                                
+                                if rsi_oversold_triggered:
+                                    signal_strength = max(signal_strength, 10.0)
+                                    buy_score = max(buy_score, 10.0)
+                                if rsi_overbought_triggered:
+                                    signal_strength = min(signal_strength, -10.0)
+                                    sell_score = max(sell_score, 10.0)
+                                if price_ratio <= 0.9:
+                                    signal_strength = max(signal_strength, 10.0)
+                                    buy_score = max(buy_score, 10.0)
+                                elif price_ratio >= 1.1:
+                                    signal_strength = min(signal_strength, -10.0)
+                                    sell_score = max(sell_score, 10.0)
                                 
                                 # Determine action and priority based on signal_strength and allocation drift
                                 if signal_strength > 20:
@@ -1585,6 +1725,16 @@ class AIService:
                                 # Ensure composite_score is in [0, 100]
                                 composite_score = max(0, min(100, composite_score))
                                 
+                                if due_diligence_summary and (due_score := due_diligence_summary.get("score")):
+                                    composite_score = max(
+                                        0,
+                                        min(100, composite_score * 0.85 + due_score * 0.15),
+                                    )
+                                    if due_score >= 75:
+                                        strengths_list.append("Due Diligence 360°: strong fundamentals")
+                                    elif due_score <= 45:
+                                        concerns_list.append("Due Diligence 360° flags elevated risk")
+                                
                                 # Build summary
                                 if not strengths_list and signal_strength > 20:
                                     strengths_list.append("Positive technical indicators")
@@ -1618,7 +1768,8 @@ class AIService:
                                         "target": target_pct,
                                         "difference": allocation_drift
                                     },
-                                    "metrics": indicators
+                                    "metrics": indicators,
+                                    "due_diligence": due_diligence_summary
                                 })
                                 
                                 processed_symbols.add(symbol)
@@ -1657,7 +1808,8 @@ class AIService:
                                 "target": target_pct,
                                 "difference": allocation_drift
                             },
-                            "metrics": {}
+                            "metrics": {},
+                            "due_diligence": due_diligence_summary
                         })
                         processed_symbols.add(symbol)
             
@@ -1679,6 +1831,46 @@ class AIService:
                 "error": str(e)
             }
 
+    def _mock_predict_price(
+        self,
+        symbol: str,
+        asset_type: str = "crypto",
+        days_ahead: int = 7
+    ) -> Dict:
+        """Generate deterministic mock predictions used when Prophet or data is unavailable."""
+        asset_type_normalized = (asset_type or 'crypto').lower()
+        horizon = max(1, min(int(days_ahead or 0), 90))
+        base_price = 50000.0 if asset_type_normalized == 'crypto' else 200.0
+        volatility = 0.04 if asset_type_normalized == 'crypto' else 0.02
+        drift_per_day = 0.002 if asset_type_normalized == 'crypto' else 0.001
+
+        current_price = base_price
+        predictions: List[Dict[str, float]] = []
+        today = datetime.utcnow()
+
+        for day in range(1, horizon + 1):
+            growth_multiplier = 1 + drift_per_day * day
+            predicted_price = current_price * growth_multiplier
+            upper_bound = predicted_price * (1 + volatility)
+            lower_bound = predicted_price * max(0.2, 1 - volatility)
+            confidence = min(0.9, max(0.55, 0.75 - (day * (0.01 if asset_type_normalized == 'crypto' else 0.005))))
+
+            predictions.append({
+                'date': (today + timedelta(days=day)).date().isoformat(),
+                'predicted_price': float(round(predicted_price, 2)),
+                'upper_bound': float(round(upper_bound, 2)),
+                'lower_bound': float(round(lower_bound, 2)),
+                'confidence': float(round(confidence, 3))
+            })
+
+        return {
+            'symbol': symbol,
+            'asset_type': asset_type_normalized,
+            'model_used': 'mock',
+            'status': 'fallback',
+            'current_price': float(round(current_price, 2)),
+            'predictions': predictions
+        }
 
     def predict_price(
         self,
@@ -1697,6 +1889,8 @@ class AIService:
         Returns:
             Dictionary with predictions and confidence
         """
+        asset_type = (asset_type or 'crypto').lower()
+
         if not symbol or days_ahead < 1 or days_ahead > 90:
             return None
         
@@ -1706,10 +1900,10 @@ class AIService:
                 return self._mock_predict_price(symbol, asset_type, days_ahead)
             
             historical_data, interval = self.market_data_service.get_symbol_history_with_interval(
-                symbol, days_ahead
+                symbol, days_ahead, priority='low'
             )
             
-            if not historical_data or len(historical_data) < 50:
+            if not historical_data or len(historical_data) < 30:
                 self.logger.warning(f"Insufficient data for {symbol}, using mock predictions")
                 return self._mock_predict_price(symbol, asset_type, days_ahead)
             
@@ -1740,8 +1934,12 @@ class AIService:
                     predictions = []
                     current_price = df['close'].iloc[-1]
                     
-                    for i in range(len(df), len(forecast)):
-                        pred_row = forecast.iloc[i]
+                    if len(forecast) > len(df):
+                        forecast_tail = forecast.iloc[len(df):]
+                    else:
+                        forecast_tail = forecast.tail(days_ahead)
+                    
+                    for _, pred_row in forecast_tail.iterrows():
                         predicted_price = max(current_price * 0.01, min(pred_row['yhat'], current_price * 10))
                         upper_bound = max(predicted_price, min(pred_row['yhat_upper'], current_price * 10))
                         lower_bound = max(current_price * 0.01, pred_row['yhat_lower'])
@@ -1750,12 +1948,15 @@ class AIService:
                             'date': pred_row['ds'].isoformat(),
                             'predicted_price': float(predicted_price),
                             'upper_bound': float(upper_bound),
-                            'lower_bound': float(lower_bound)
+                            'lower_bound': float(lower_bound),
+                            'confidence': float(pred_row['yhat_upper'] - pred_row['yhat_lower']) / 2 + pred_row['yhat_lower']
                         })
                     
                     # Calculate confidence based on prediction interval width
                     avg_interval_width = np.mean([p['upper_bound'] - p['lower_bound'] for p in predictions]) / current_price
                     confidence = max(0.5, min(0.95, 1.0 - (avg_interval_width / 2)))
+                    for entry in predictions:
+                        entry['confidence'] = float(confidence)
                     
                     return {
                         'symbol': symbol,
@@ -1988,7 +2189,7 @@ class AIService:
                         # Get historical data (30 days for anomaly detection)
                         asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                         historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                            symbol, 30
+                            symbol, 30, priority='normal'
                         )
                         
                         if historical_data and len(historical_data) >= 30:
@@ -2084,8 +2285,8 @@ class AIService:
                                 asset_type1 = 'crypto' if sym1 in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                                 asset_type2 = 'crypto' if sym2 in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                                 
-                                data1, _ = self.market_data_service.get_symbol_history_with_interval(sym1, 30)
-                                data2, _ = self.market_data_service.get_symbol_history_with_interval(sym2, 30)
+                                data1, _ = self.market_data_service.get_symbol_history_with_interval(sym1, 30, priority='low')
+                                data2, _ = self.market_data_service.get_symbol_history_with_interval(sym2, 30, priority='low')
                                 
                                 if data1 and data2 and len(data1) >= 30 and len(data2) >= 30:
                                     df1 = pd.DataFrame(data1)
@@ -2187,7 +2388,7 @@ class AIService:
                 try:
                     asset_type = 'crypto' if symbol in ['BTC', 'ETH', 'SOL', 'USDT', 'USDC'] else 'stock'
                     historical_data, _ = self.market_data_service.get_symbol_history_with_interval(
-                        symbol, 90
+                        symbol, 90, priority='low'
                     )
                     
                     if historical_data and len(historical_data) >= 90:
@@ -2543,11 +2744,11 @@ class AIService:
                                 # - Strong signals (|signal| > 20): lower confidence (0.20)
                                 # - Medium signals (|signal| > 15): medium confidence (0.25)
                                 # - Weak signals (|signal| > threshold): higher confidence (0.30)
-                                if abs_signal > 25:
+                                if signal_strength >= 25:
                                     min_confidence = 0.15  # Very strong signals need minimal confidence
-                                elif abs_signal > 20:
+                                elif signal_strength >= 20:
                                     min_confidence = 0.20
-                                elif abs_signal > 15:
+                                elif signal_strength >= 15:
                                     min_confidence = 0.25
                                 else:
                                     min_confidence = 0.30  # Weak signals need higher confidence

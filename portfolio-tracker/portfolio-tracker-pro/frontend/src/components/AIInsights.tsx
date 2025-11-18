@@ -41,6 +41,17 @@ interface AIRecommendation {
     target: number;
     difference: number;
   };
+  due_diligence?: {
+    score?: number;
+    verdict?: string;
+    confidence?: number;
+    pillars?: Array<{
+      name: string;
+      score?: number;
+      weight?: number;
+      confidence?: number;
+    }>;
+  };
 }
 
 interface Prediction {
@@ -70,7 +81,7 @@ const AIInsights: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const token = localStorage.getItem('authToken');
       if (!token) {
         setError('Authentication required. Please log in.');
@@ -103,7 +114,7 @@ const AIInsights: React.FC = () => {
       
       if (data.recommendations && Array.isArray(data.recommendations)) {
         setRecommendations(data.recommendations);
-      } else {
+        } else {
         setRecommendations([]);
       }
     } catch (err) {
@@ -114,13 +125,14 @@ const AIInsights: React.FC = () => {
     }
   }, [riskTolerance]);
 
-  useEffect(() => {
-    fetchRecommendations();
-  }, [fetchRecommendations]);
+  // DISABLED: Automatic data fetching - now manual only via refresh button
+  // useEffect(() => {
+  //   fetchRecommendations();
+  // }, [fetchRecommendations]);
 
   const filteredAndSortedRecommendations = useMemo(() => {
     let filtered = [...recommendations];
-
+    
     // Sort by priority first, then by the selected sort option
     filtered.sort((a, b) => {
       // Priority order: high > medium > low
@@ -142,7 +154,7 @@ const AIInsights: React.FC = () => {
           return 0;
       }
     });
-
+    
     return filtered;
   }, [recommendations, sortBy]);
 
@@ -205,47 +217,47 @@ const AIInsights: React.FC = () => {
           gap: 2, 
           mb: 4 
         }}>
-          <Card>
-            <CardContent>
+                <Card>
+                  <CardContent>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Total Recommendations
-              </Typography>
+                          </Typography>
               <Typography variant="h4" fontWeight={600}>
                 {summary.total}
-              </Typography>
+                          </Typography>
             </CardContent>
           </Card>
           <Card>
             <CardContent>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Buy Signals
-              </Typography>
+                          </Typography>
               <Typography variant="h4" fontWeight={600} color="success.main">
                 {summary.buyCount}
-              </Typography>
-            </CardContent>
-          </Card>
+                          </Typography>
+                  </CardContent>
+                </Card>
           <Card>
-            <CardContent>
+                  <CardContent>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Sell Signals
-              </Typography>
+                    </Typography>
               <Typography variant="h4" fontWeight={600} color="error.main">
                 {summary.sellCount}
               </Typography>
-            </CardContent>
+                  </CardContent>
           </Card>
           <Card>
-            <CardContent>
+                <CardContent>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                High Priority
-              </Typography>
+                          High Priority
+                          </Typography>
               <Typography variant="h4" fontWeight={600} color="warning.main">
                 {summary.highPriority}
-              </Typography>
+                          </Typography>
             </CardContent>
           </Card>
-        </Box>
+                        </Box>
       )}
 
       {/* Performance Metrics Dashboard */}
@@ -263,69 +275,69 @@ const AIInsights: React.FC = () => {
           >
             {/* Total Recommendations */}
             <Card>
-              <CardContent>
+                            <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Total Recommendations
-                </Typography>
+                                Total Recommendations
+                              </Typography>
                 <Typography variant="h4" fontWeight={700}>
                   {recommendations.length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
+                              </Typography>
+                                <Typography variant="caption" color="text.secondary">
                   Active signals
-                </Typography>
-              </CardContent>
-            </Card>
+                                </Typography>
+                            </CardContent>
+                        </Card>
 
             {/* High Confidence Count */}
             <Card>
-              <CardContent>
+                            <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   High Confidence
-                </Typography>
+                              </Typography>
                 <Typography variant="h4" fontWeight={700} color="success.main">
                   {recommendations.filter(r => (r.confidence || 0) > 0.7).length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
                   {(recommendations.filter(r => (r.confidence || 0) > 0.7).length / recommendations.length * 100).toFixed(0)}% of total
-                </Typography>
-              </CardContent>
-            </Card>
+                              </Typography>
+                            </CardContent>
+                        </Card>
 
             {/* Average Signal Strength */}
             <Card>
-              <CardContent>
+                            <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   Avg Signal Strength
-                </Typography>
+                              </Typography>
                 <Typography variant="h4" fontWeight={700} color="primary.main">
                   {recommendations.length > 0
                     ? (recommendations.reduce((sum, r) => sum + Math.abs(r.signal_strength || 0), 0) / recommendations.length).toFixed(0)
                     : '0'}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
                   Absolute average
-                </Typography>
-              </CardContent>
-            </Card>
+                              </Typography>
+                            </CardContent>
+                        </Card>
 
             {/* Buy vs Sell Ratio */}
             <Card>
-              <CardContent>
+                          <CardContent>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   Buy / Sell Ratio
-                </Typography>
+                            </Typography>
                 <Typography variant="h4" fontWeight={700}>
                   {recommendations.filter(r => r.action === 'buy').length} / {recommendations.filter(r => r.action === 'sell').length}
-                </Typography>
+                                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {recommendations.filter(r => r.action === 'buy').length > 0
                     ? (recommendations.filter(r => r.action === 'buy').length / recommendations.length * 100).toFixed(0)
                     : 0}% buys
-                </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-        </Box>
+                                </Typography>
+                          </CardContent>
+                        </Card>
+                          </Box>
+                                </Box>
       )}
 
       {/* Controls */}
@@ -360,7 +372,7 @@ const AIInsights: React.FC = () => {
               <MenuItem value="signal_strength">Signal Strength</MenuItem>
             </Select>
           </FormControl>
-        </Box>
+                              </Box>
       </Paper>
 
       {/* Recommendations List */}
@@ -376,10 +388,10 @@ const AIInsights: React.FC = () => {
               recommendation={recommendation}
               index={index}
               onExpand={() => handleExpandCard(index)}
-            />
-          ))}
-        </Box>
-      )}
+                                            />
+                                          ))}
+                                        </Box>
+                                    )}
     </Container>
   );
 };

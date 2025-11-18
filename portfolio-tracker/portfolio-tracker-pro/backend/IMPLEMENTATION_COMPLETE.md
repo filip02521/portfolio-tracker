@@ -85,3 +85,4 @@
 - Backtest ma teraz pełne logowanie dla debugowania
 - Strategia jest w 100% zgodna z opisem w raporcie
 
+

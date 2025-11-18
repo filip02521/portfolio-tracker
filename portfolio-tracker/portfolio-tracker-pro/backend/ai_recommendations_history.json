@@ -1,0 +1,110 @@
+[
+  {
+    "id": 1,
+    "symbol": "BTC",
+    "action": "buy",
+    "signal_strength": 34.5,
+    "confidence": 0.36,
+    "metrics": {
+      "rsi": {
+        "value": 48.17917233650505,
+        "status": "neutral",
+        "signal": "neutral"
+      },
+      "macd": {
+        "macd": 2849.5622139787447,
+        "signal": 4532.048007628242,
+        "histogram": -1682.4857936494973,
+        "trend": "bearish",
+        "crossover": null
+      },
+      "ma50": {
+        "value": 103057.936,
+        "position": "above",
+        "signal": "buy"
+      },
+      "adx": {
+        "value": 17.55027988132822,
+        "strength": "weak",
+        "direction": "bullish"
+      },
+      "bollinger_bands": {
+        "upper": 122782.16024180592,
+        "lower": 105103.34575819407,
+        "middle": 113942.753,
+        "position": 10.126890824413252,
+        "status": "oversold"
+      },
+      "obv": {
+        "value": 1998993.7629930007,
+        "trend": "decreasing",
+        "signal": "sell"
+      },
+      "ad_line": {
+        "value": 4028268.670900546,
+        "trend": "distributing",
+        "signal": "sell"
+      },
+      "momentum": {
+        "7d": -4.6987378743348405,
+        "30d": 25.492620032768542,
+        "short_term": "bearish",
+        "long_term": "bullish"
+      },
+      "stochastic": {
+        "k": 20.22204471721263,
+        "d": 35.80459701243365,
+        "status": "neutral",
+        "signal": "neutral"
+      },
+      "williams_r": {
+        "value": -79.77795528278736,
+        "status": "neutral",
+        "signal": "neutral"
+      },
+      "cci": {
+        "value": -111.8565918072632,
+        "status": "neutral",
+        "signal": "neutral"
+      },
+      "atr": {
+        "value": 9075.719070009798,
+        "percent": 8.490418486942817,
+        "volatility": "high"
+      },
+      "vwap": {
+        "value": 113815.46009619787,
+        "position": -6.081599187269902,
+        "signal": "sell"
+      },
+      "cmf": {
+        "value": 0.11478566650149234,
+        "status": "accumulation",
+        "signal": "buy"
+      },
+      "volume_roc": {
+        "value": -76.34526841984751,
+        "trend": "decreasing",
+        "signal": "sell"
+      },
+      "psar": {
+        "value": 125241.32465200001,
+        "position": "above",
+        "signal": "sell"
+      },
+      "donchian_channels": {
+        "upper": 126199.63,
+        "lower": 99613.33,
+        "middle": 112906.48000000001,
+        "position": "inside",
+        "signal": "neutral"
+      },
+      "ichimoku": {
+        "tenkan": 114099.815,
+        "kijun": 112199.815,
+        "senkou_a": 90897.1425,
+        "senkou_b": 79294.0,
+        "price_above_cloud": true,
+        "price_below_cloud": false,
+        "cloud_bullish": true,
+        "cloud_color_change": 

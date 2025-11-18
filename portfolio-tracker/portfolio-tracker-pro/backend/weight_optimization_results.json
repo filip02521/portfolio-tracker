@@ -1,0 +1,303 @@
+[
+  {
+    "config_name": "base",
+    "config_description": "Current weights as baseline",
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ],
+    "start_date": "2023-11-06",
+    "end_date": "2025-11-05",
+    "threshold_results": [
+      {
+        "signal_threshold": 5.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 7.5,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 10.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      }
+    ]
+  },
+  {
+    "config_name": "no_double_counting",
+    "config_description": "Fixed double-counting: MACD crossover excludes trend, Golden Cross excludes MA weights",
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ],
+    "start_date": "2023-11-06",
+    "end_date": "2025-11-05",
+    "threshold_results": [
+      {
+        "signal_threshold": 5.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 7.5,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 10.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      }
+    ]
+  },
+  {
+    "config_name": "momentum_focused",
+    "config_description": "Higher weights for momentum/oscillatory indicators",
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ],
+    "start_date": "2023-11-06",
+    "end_date": "2025-11-05",
+    "threshold_results": [
+      {
+        "signal_threshold": 5.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 7.5,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 10.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      }
+    ]
+  },
+  {
+    "config_name": "trend_focused",
+    "config_description": "Higher weights for trend indicators",
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ],
+    "start_date": "2023-11-06",
+    "end_date": "2025-11-05",
+    "threshold_results": [
+      {
+        "signal_threshold": 5.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 7.5,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 10.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      }
+    ]
+  },
+  {
+    "config_name": "volume_focused",
+    "config_description": "Higher weights for volume indicators",
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ],
+    "start_date": "2023-11-06",
+    "end_date": "2025-11-05",
+    "threshold_results": [
+      {
+        "signal_threshold": 5.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 7.5,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 10.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      }
+    ]
+  },
+  {
+    "config_name": "conservative",
+    "config_description": "Higher thresholds, lower weights for fewer but stronger signals",
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ],
+    "start_date": "2023-11-06",
+    "end_date": "2025-11-05",
+    "threshold_results": [
+      {
+        "signal_threshold": 5.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 7.5,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 10.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      }
+    ]
+  },
+  {
+    "config_name": "aggressive",
+    "config_description": "Lower thresholds, higher weights for more signals",
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "AAPL",
+      "MSFT",
+      "TSLA"
+    ],
+    "start_date": "2023-11-06",
+    "end_date": "2025-11-05",
+    "threshold_results": [
+      {
+        "signal_threshold": 5.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 7.5,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      },
+      {
+        "signal_threshold": 10.0,
+        "total_return": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "num_trades": 0
+      }
+    ]
+  }
+]

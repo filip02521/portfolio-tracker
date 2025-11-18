@@ -13,7 +13,7 @@
 Utwórz lub edytuj plik `.env` w folderze `portfolio-tracker-pro/backend/`:
 
 ```bash
-FINNHUB_API_KEY=twoj_api_key_tutaj
+FINNHUB_API_KEY=d46f5d1r01qgc9esi820d46f5d1r01qgc9esi82g
 ```
 
 **UWAGA:** Plik `.env` jest ignorowany przez git (nie powinien być commitowany ze względów bezpieczeństwa).
@@ -23,12 +23,12 @@ Ustaw zmienną środowiskową w systemie operacyjnym:
 
 **Linux/macOS:**
 ```bash
-export FINNHUB_API_KEY="twoj_api_key_tutaj"
+export FINNHUB_API_KEY="d46f5d1r01qgc9esi820d46f5d1r01qgc9esi82g"
 ```
 
 **Windows (PowerShell):**
 ```powershell
-$env:FINNHUB_API_KEY="twoj_api_key_tutaj"
+$env:FINNHUB_API_KEY="d46f5d1r01qgc9esi820d46f5d1r01qgc9esi82g"
 ```
 
 **Windows (CMD):**
@@ -74,7 +74,7 @@ Webhook nie jest wymagany dla backtestu VQ+ Strategy. Jest używany tylko jeśli
 
 ```bash
 # Finnhub API
-FINNHUB_API_KEY=twoj_api_key_z_finnhub
+FINNHUB_API_KEY=d46f5d1r01qgc9esi820d46f5d1r01qgc9esi82g
 
 # Alpha Vantage (backup)
 ALPHA_VANTAGE_API_KEY=twoj_alpha_vantage_key

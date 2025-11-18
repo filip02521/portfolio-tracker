@@ -55,20 +55,46 @@ class PriceAlertWorker:
                     # Get unique symbols from active alerts
                     symbols = list(set([a['symbol'] for a in active_alerts]))
                     
-                    # Fetch current prices
+                    # Fetch current prices and market data
                     current_prices = {}
+                    market_data = {}
+                    dd_scores = {}
                     for symbol in symbols:
                         try:
-                            price_data = self.market_service.get_price(symbol)
+                            # Get price
+                            price_data = self.market_service.get_price(symbol, priority='low')
                             if price_data:
                                 current_prices[symbol] = price_data['price']
+                                # Get extended market data for RSI, volume, etc.
+                                extended_data = self.market_service.get_market_data(symbol)
+                                if extended_data:
+                                    market_data[symbol] = extended_data
                         except Exception as e:
-                            logger.warning(f"Error fetching price for {symbol}: {e}")
+                            logger.warning(f"Error fetching data for {symbol}: {e}")
                             continue
+                    
+                    # Fetch DD scores if needed (check if any alerts require DD scores)
+                    alerts_needing_dd = [a for a in active_alerts if a.get('condition') == 'dd_score_below']
+                    if alerts_needing_dd:
+                        from due_diligence_service import DueDiligenceService
+                        dd_service = DueDiligenceService(market_data_service=self.market_service)
+                        for symbol in symbols:
+                            try:
+                                dd_result = dd_service.evaluate(symbol, force_refresh=False)
+                                if dd_result and dd_result.normalized_score is not None:
+                                    dd_scores[symbol] = dd_result.normalized_score
+                            except Exception as e:
+                                logger.warning(f"Error fetching DD score for {symbol}: {e}")
+                                continue
                     
                     # Check alerts for this user
                     if current_prices:
-                        triggered = self.alert_service.check_alerts(user_id, current_prices)
+                        triggered = self.alert_service.check_alerts(
+                            user_id, 
+                            current_prices,
+                            market_data=market_data if market_data else None,
+                            dd_scores=dd_scores if dd_scores else None
+                        )
                         if triggered:
                             triggered_count += len(triggered)
                             logger.info(f"User {user_id}: {len(triggered)} alert(s) triggered")

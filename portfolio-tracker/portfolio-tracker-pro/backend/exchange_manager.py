@@ -2,6 +2,7 @@
 ExchangeManager for unified multi-exchange portfolio aggregation
 """
 import logging
+import os
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -9,55 +10,94 @@ from exchanges import BinanceClient, BybitClient, CoinbaseClient, KrakenClient, 
 
 logger = logging.getLogger(__name__)
 
+ENABLE_XTB_SYNC = os.getenv("ENABLE_XTB_SYNC", "false").lower() in ("1", "true", "yes")
+ENABLED_LIVE_EXCHANGES = {
+    exch.strip()
+    for exch in os.getenv("ENABLED_LIVE_EXCHANGES", "binance").lower().split(",")
+    if exch.strip()
+}
+
 class ExchangeManager:
     """Manages aggregation of portfolio data from multiple exchanges"""
     
-    def __init__(self):
-        """Initialize ExchangeManager with all available exchange clients"""
-        self.exchanges = {}
+    SUPPORTED_EXCHANGES = ["Binance", "Bybit", "Coinbase", "Kraken", "XTB"]
+
+    def __init__(self, credentials: Optional[Dict[str, Dict[str, str]]] = None):
+        """Initialize ExchangeManager with user-specific exchange clients"""
+        self.credentials = credentials or {}
+        self.exchanges: Dict[str, object] = {}
         self._cache = None
         self._cache_timestamp = None
         self.cache_ttl = 300  # 5 minutes
-        
-        # Initialize all exchange clients
+
+        # Initialize exchange clients using provided credentials (if available)
         self._initialize_exchanges()
     
     def _initialize_exchanges(self):
         """Initialize all exchange clients"""
         # Binance
         try:
-            self.exchanges['Binance'] = BinanceClient()
-            logger.info("✓ Binance initialized")
-        except (ValueError, Exception) as e:
-            logger.warning(f"⚠ Binance not available: {e}")
-        
+            if "binance" in ENABLED_LIVE_EXCHANGES:
+                binance_creds = self.credentials.get("binance", {})
+                self.exchanges["Binance"] = BinanceClient(
+                    api_key=binance_creds.get("api_key"),
+                    secret_key=binance_creds.get("secret_key"),
+                )
+                logger.info("✓ Binance initialized")
+        except (ValueError, Exception) as exc:
+            logger.info("Binance client unavailable: %s", exc)
+
         # Bybit
         try:
-            self.exchanges['Bybit'] = BybitClient()
-            logger.info("✓ Bybit initialized")
-        except (ValueError, Exception) as e:
-            logger.warning(f"⚠ Bybit not available: {e}")
-        
+            if "bybit" in ENABLED_LIVE_EXCHANGES:
+                bybit_creds = self.credentials.get("bybit", {})
+                self.exchanges["Bybit"] = BybitClient(
+                    api_key=bybit_creds.get("api_key"),
+                    secret_key=bybit_creds.get("secret_key"),
+                )
+                logger.info("✓ Bybit initialized")
+        except (ValueError, Exception) as exc:
+            logger.info("Bybit client unavailable: %s", exc)
+
         # Coinbase
         try:
-            self.exchanges['Coinbase'] = CoinbaseClient()
-            logger.info("✓ Coinbase initialized")
-        except (ValueError, Exception) as e:
-            logger.warning(f"⚠ Coinbase not available: {e}")
-        
+            if "coinbase" in ENABLED_LIVE_EXCHANGES:
+                coinbase_creds = self.credentials.get("coinbase", {})
+                self.exchanges["Coinbase"] = CoinbaseClient(
+                    api_key=coinbase_creds.get("api_key"),
+                    api_secret=coinbase_creds.get("secret_key"),
+                )
+                logger.info("✓ Coinbase initialized")
+        except (ValueError, Exception) as exc:
+            logger.info("Coinbase client unavailable: %s", exc)
+
         # Kraken
         try:
-            self.exchanges['Kraken'] = KrakenClient()
-            logger.info("✓ Kraken initialized")
-        except (ValueError, Exception) as e:
-            logger.warning(f"⚠ Kraken not available: {e}")
-        
+            if "kraken" in ENABLED_LIVE_EXCHANGES:
+                kraken_creds = self.credentials.get("kraken", {})
+                self.exchanges["Kraken"] = KrakenClient(
+                    api_key=kraken_creds.get("api_key"),
+                    api_secret=kraken_creds.get("secret_key"),
+                )
+                logger.info("✓ Kraken initialized")
+        except (ValueError, Exception) as exc:
+            logger.info("Kraken client unavailable: %s", exc)
+
         # XTB
-        try:
-            self.exchanges['XTB'] = XTBClient()
-            logger.info("✓ XTB initialized")
-        except (ValueError, Exception) as e:
-            logger.warning(f"⚠ XTB not available: {e}")
+        if ENABLE_XTB_SYNC and "xtb" in ENABLED_LIVE_EXCHANGES:
+            try:
+                xtb_creds = self.credentials.get("xtb", {})
+                self.exchanges["XTB"] = XTBClient(
+                    user_id=xtb_creds.get("username"),
+                    password=xtb_creds.get("password"),
+                )
+                logger.info("✓ XTB initialized")
+            except (ValueError, Exception) as exc:
+                logger.info("XTB client unavailable: %s", exc)
+        elif "xtb" in ENABLED_LIVE_EXCHANGES:
+            logger.info("XTB sync disabled via ENABLE_XTB_SYNC flag")
+        else:
+            logger.info("XTB synchronization disabled; using transaction history fallback")
     
     def normalize_symbol(self, symbol: str, exchange: str) -> str:
         """
@@ -243,8 +283,8 @@ class ExchangeManager:
             List of exchange status dictionaries
         """
         status_list = []
-        
-        for name in ['Binance', 'Bybit', 'Coinbase', 'Kraken', 'XTB']:
+
+        for name in self.SUPPORTED_EXCHANGES:
             if name in self.exchanges:
                 # Try to get portfolio to check connectivity
                 try:
@@ -283,6 +323,10 @@ class ExchangeManager:
                 })
         
         return status_list
+
+
+
+
 
 
 

@@ -1,0 +1,9 @@
+{
+  "demo": {
+    "username": "demo",
+    "email": "demo@example.com",
+    "hashed_password": "$2b$12$ExPc9.t90JDJncm7onVGgesoQUkvS7T8RDOrE0K/PBa9oeybqW7tm",
+    "created_at": "2025-11-10T09:30:15.509296",
+    "is_active": true
+  }
+}

@@ -565,3 +565,5 @@ Weryfikacja wymaga:
    - Weryfikacja na różnych okresach i aktywach
    - Analiza korelacji confidence-skuteczność
 
+
+

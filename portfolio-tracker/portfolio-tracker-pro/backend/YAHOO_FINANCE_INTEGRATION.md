@@ -87,3 +87,5 @@ print(f"History: {len(history)} points, interval: {interval}")
 
 **Data utworzenia**: 2025-11-05
 
+
+

@@ -1,0 +1,47 @@
+{
+  "transaction_validation": {
+    "required_fields": [
+      "id",
+      "exchange",
+      "asset",
+      "amount",
+      "price_usd",
+      "type",
+      "date"
+    ],
+    "amount_min": 1e-06,
+    "amount_max": 1000000,
+    "price_min": 1e-06,
+    "price_max": 1000000,
+    "date_format": "%Y-%m-%d",
+    "valid_types": [
+      "buy",
+      "sell"
+    ],
+    "valid_exchanges": [
+      "Binance",
+      "Bybit",
+      "XTB",
+      "Manual"
+    ]
+  },
+  "portfolio_validation": {
+    "balance_min": 0.0,
+    "balance_max": 10000000,
+    "price_min": 1e-06,
+    "price_max": 1000000
+  },
+  "data_consistency": {
+    "check_duplicates": true,
+    "check_missing_data": true,
+    "check_date_ranges": true,
+    "check_price_anomalies": true,
+    "check_balance_consistency": true
+  },
+  "alert_thresholds": {
+    "price_change_percent": 50.0,
+    "balance_change_percent": 100.0,
+    "duplicate_threshold": 1,
+    "missing_data_threshold": 5
+  }
+}

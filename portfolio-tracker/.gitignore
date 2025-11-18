@@ -43,11 +43,33 @@ Thumbs.db
 # Logs
 *.log
 /tmp/
+portfolio-tracker-pro/backend/*.log
+portfolio-tracker-pro/backend/*.error.log
+portfolio-tracker-pro/frontend/*.log
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+portfolio-tracker-pro/backend/*.db
 
 # Data files (JSON stores)
 portfolio_history.json
 transaction_history.json
 purchase_prices.json
+
+# Node.js dependencies
+portfolio-tracker-pro/frontend/node_modules/
+portfolio-tracker-pro/frontend/build/
+portfolio-tracker-pro/frontend/dist/
+portfolio-tracker-pro/frontend/.pnp
+portfolio-tracker-pro/frontend/.pnp.js
+
+# Python virtual environment
+portfolio-tracker-pro/backend/venv/
+portfolio-tracker-pro/backend/ENV/
+portfolio-tracker-pro/backend/env/
+portfolio-tracker-pro/backend/.venv/
 
 # Binance debug  
 debug_bybit.py

@@ -75,3 +75,5 @@
 **Plik wyników**: `weight_optimization_results.json`
 **Data**: 2025-11-05
 
+
+

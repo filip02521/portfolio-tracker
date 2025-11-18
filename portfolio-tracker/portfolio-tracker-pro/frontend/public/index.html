@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2563EB" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="InsightPort" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <!-- Meta tags for SEO and social sharing -->
+    <meta
+      name="description"
+      content="Professional portfolio tracking with AI-powered insights. Real-time analytics, tax optimization, and smart investment recommendations."
+    />
+    <meta name="keywords" content="portfolio tracker, investment analytics, smart insights, crypto tracker, stock portfolio, financial intelligence" />
+    
+    <!-- Google Fonts with preload and font-display optimization -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
+    
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <title>InsightPort - Smart Portfolio Analytics</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script>
+      // CRITICAL: Unregister Service Workers BEFORE React loads to prevent loops
+      // This runs immediately when HTML is parsed, before any other scripts
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(var registration of registrations) {
+            registration.unregister().then(function(unregistered) {
+              console.log('[PRE-LOAD] Service Worker unregistered:', unregistered);
+            });
+          }
+          // Clear all caches
+          if ('caches' in window) {
+            caches.keys().then(function(cacheNames) {
+              cacheNames.forEach(function(cacheName) {
+                caches.delete(cacheName).then(function(deleted) {
+                  console.log('[PRE-LOAD] Cache deleted:', cacheName, deleted);
+                });
+              });
+            });
+          }
+        });
+        // Block future registrations in development
+        var originalRegister = navigator.serviceWorker.register;
+        navigator.serviceWorker.register = function() {
+          console.warn('[PRE-LOAD] Service Worker registration blocked');
+          return Promise.reject(new Error('Service Worker disabled in development'));
+        };
+      }
+    </script>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>

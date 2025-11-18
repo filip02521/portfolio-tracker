@@ -1,0 +1,28 @@
+{
+  "filip02521": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "AAPL",
+      "CRCL"
+    ],
+    "metadata": {
+      "BTC": {
+        "categories": [],
+        "tags": []
+      },
+      "ETH": {
+        "categories": [],
+        "tags": []
+      },
+      "AAPL": {
+        "categories": [],
+        "tags": []
+      },
+      "CRCL": {
+        "categories": [],
+        "tags": []
+      }
+    }
+  }
+}

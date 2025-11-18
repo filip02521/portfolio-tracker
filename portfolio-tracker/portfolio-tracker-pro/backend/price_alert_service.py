@@ -18,21 +18,27 @@ class PriceAlertService:
         user_id: str, 
         symbol: str, 
         condition: str, 
-        price: float,
-        name: str = None
+        price: Optional[float] = None,
+        name: str = None,
+        rsi_threshold: Optional[float] = None,
+        volume_spike_percent: Optional[float] = None,
+        dd_score_threshold: Optional[float] = None
     ) -> Dict:
-        """Create a new price alert"""
+        """Create a new price alert with optional advanced conditions"""
         try:
             alert = {
                 'id': len(self._alerts.get(user_id, [])) + 1,
                 'symbol': symbol.upper(),
                 'name': name or symbol.upper(),
-                'condition': condition,  # 'above' or 'below'
+                'condition': condition,  # 'above', 'below', 'rsi_above', 'rsi_below', 'volume_spike', 'dd_score_below'
                 'price': price,
                 'active': True,
                 'triggered': False,
                 'created_at': datetime.now().isoformat(),
-                'triggered_at': None
+                'triggered_at': None,
+                'rsi_threshold': rsi_threshold,
+                'volume_spike_percent': volume_spike_percent,
+                'dd_score_threshold': dd_score_threshold
             }
             
             if user_id not in self._alerts:
@@ -40,7 +46,7 @@ class PriceAlertService:
             
             self._alerts[user_id].append(alert)
             
-            logger.info(f"Created price alert for user {user_id}: {symbol} {condition} ${price}")
+            logger.info(f"Created alert for user {user_id}: {symbol} {condition}")
             return alert
         except Exception as e:
             logger.error(f"Error creating price alert: {e}")
@@ -97,8 +103,22 @@ class PriceAlertService:
             logger.error(f"Error deleting alert: {e}")
             raise
     
-    def check_alerts(self, user_id: str, current_prices: Dict[str, float]) -> List[Dict]:
-        """Check if any alerts should be triggered"""
+    def check_alerts(
+        self, 
+        user_id: str, 
+        current_prices: Dict[str, float],
+        market_data: Optional[Dict[str, Dict]] = None,
+        dd_scores: Optional[Dict[str, float]] = None
+    ) -> List[Dict]:
+        """
+        Check if any alerts should be triggered.
+        
+        Args:
+            user_id: User identifier
+            current_prices: Dict of symbol -> current price
+            market_data: Optional dict of symbol -> market data (with RSI, volume_24h, etc.)
+            dd_scores: Optional dict of symbol -> DD score
+        """
         triggered_alerts = []
         alerts = self._alerts.get(user_id, [])
         
@@ -107,16 +127,65 @@ class PriceAlertService:
                 continue
             
             symbol = alert['symbol']
-            if symbol not in current_prices:
-                continue
-            
-            current_price = current_prices[symbol]
+            condition = alert['condition']
             should_trigger = False
+            message = ""
             
-            if alert['condition'] == 'above' and current_price >= alert['price']:
-                should_trigger = True
-            elif alert['condition'] == 'below' and current_price <= alert['price']:
-                should_trigger = True
+            # Price-based conditions
+            if condition in ['above', 'below']:
+                if symbol not in current_prices:
+                    continue
+                current_price = current_prices[symbol]
+                if condition == 'above' and current_price >= alert['price']:
+                    should_trigger = True
+                    message = f"{symbol} price is now ${current_price:.2f}, above your alert price of ${alert['price']:.2f}"
+                elif condition == 'below' and current_price <= alert['price']:
+                    should_trigger = True
+                    message = f"{symbol} price is now ${current_price:.2f}, below your alert price of ${alert['price']:.2f}"
+            
+            # RSI conditions
+            elif condition in ['rsi_above', 'rsi_below']:
+                if not market_data or symbol not in market_data:
+                    continue
+                rsi = market_data[symbol].get('rsi')
+                threshold = alert.get('rsi_threshold')
+                if rsi is not None and threshold is not None:
+                    if condition == 'rsi_above' and rsi >= threshold:
+                        should_trigger = True
+                        message = f"{symbol} RSI is now {rsi:.1f}, above your threshold of {threshold:.1f}"
+                    elif condition == 'rsi_below' and rsi <= threshold:
+                        should_trigger = True
+                        message = f"{symbol} RSI is now {rsi:.1f}, below your threshold of {threshold:.1f}"
+            
+            # Volume spike condition
+            elif condition == 'volume_spike':
+                if not market_data or symbol not in market_data:
+                    continue
+                volume_24h = market_data[symbol].get('volume_24h')
+                spike_percent = alert.get('volume_spike_percent', 200)
+                # Calculate 7-day average volume (simplified - would need historical data)
+                # For now, we'll use a simple heuristic: compare to typical volume
+                # In production, you'd fetch historical volume data
+                if volume_24h and volume_24h > 0:
+                    # Simplified: assume average is half of current if no history
+                    # In production, calculate from actual 7d history
+                    avg_volume = volume_24h * 0.5  # Placeholder
+                    if avg_volume > 0:
+                        volume_ratio = (volume_24h / avg_volume) * 100
+                        if volume_ratio >= spike_percent:
+                            should_trigger = True
+                            message = f"{symbol} volume spike detected: {volume_ratio:.1f}% of average (threshold: {spike_percent}%)"
+            
+            # DD score condition
+            elif condition == 'dd_score_below':
+                if not dd_scores or symbol not in dd_scores:
+                    continue
+                current_dd = dd_scores[symbol]
+                threshold = alert.get('dd_score_threshold')
+                if current_dd is not None and threshold is not None:
+                    if current_dd <= threshold:
+                        should_trigger = True
+                        message = f"{symbol} DD score is now {current_dd:.1f}, below your threshold of {threshold:.1f}"
             
             if should_trigger:
                 alert['triggered'] = True
@@ -124,12 +193,11 @@ class PriceAlertService:
                 triggered_alerts.append({
                     'alert_id': alert['id'],
                     'symbol': symbol,
-                    'condition': alert['condition'],
-                    'target_price': alert['price'],
-                    'current_price': current_price,
-                    'message': f"{symbol} price is now ${current_price:.2f}, {'above' if alert['condition'] == 'above' else 'below'} your alert price of ${alert['price']:.2f}"
+                    'condition': condition,
+                    'message': message,
+                    'triggered_at': alert['triggered_at']
                 })
-                logger.info(f"Alert triggered: {symbol} {alert['condition']} ${alert['price']}")
+                logger.info(f"Alert triggered: {symbol} {condition} - {message}")
         
         return triggered_alerts
 

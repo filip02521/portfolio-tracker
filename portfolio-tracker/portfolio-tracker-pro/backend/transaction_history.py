@@ -1,91 +1,407 @@
 """
 Transaction history tracking and PNL calculation
+Now uses SQLite database instead of JSON file for better performance and persistence
 """
 import json
 import os
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional, Any, Tuple
+from database import get_db, migrate_json_to_db
 
 class TransactionHistory:
     """Manage transaction history and calculate PNL"""
     
     def __init__(self, data_file='transaction_history.json'):
         self.data_file = data_file
+        # Migrate from JSON to database on first init
+        migrate_json_to_db(data_file)
+        # Load transactions from database
         self.transactions = self.load_history()
     
-    def load_history(self):
-        """Load transaction history from file"""
-        if os.path.exists(self.data_file):
-            try:
-                with open(self.data_file, 'r') as f:
-                    return json.load(f)
-            except Exception:
-                return []
-        return []
+    def _row_to_dict(self, row) -> Dict[str, Any]:
+        """Convert database row to transaction dictionary"""
+        # sqlite3.Row supports dict-like access but not .get()
+        return {
+            'id': row['id'],
+            'user_id': row['user_id'] if 'user_id' in row.keys() else None,
+            'exchange': row['exchange'],
+            'asset': row['asset'],
+            'amount': row['amount'],
+            'price_usd': row['price_usd'],
+            'type': row['type'],
+            'date': row['date'],
+            'value_usd': row['value_usd'],
+            'commission': row['commission'] if 'commission' in row.keys() else 0.0,
+            'commission_currency': row['commission_currency'] if 'commission_currency' in row.keys() else 'USD',
+            'isin': row['isin'] if 'isin' in row.keys() and row['isin'] else None,
+            'asset_name': row['asset_name'] if 'asset_name' in row.keys() and row['asset_name'] else None,
+            'exchange_rate_usd_pln': None,
+            'value_pln': None,
+            'linked_buys': [],
+        }
+    
+    def load_history(self, user_id: Optional[str] = None) -> List[Dict]:
+        """Load transaction history from database"""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if user_id:
+                cursor.execute('SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC, id DESC', (user_id,))
+            else:
+                cursor.execute('SELECT * FROM transactions ORDER BY date DESC, id DESC')
+            rows = cursor.fetchall()
+            return [self._row_to_dict(row) for row in rows]
     
     def save_history(self):
-        """Save transaction history to file"""
-        with open(self.data_file, 'w') as f:
-            json.dump(self.transactions, f, indent=2)
+        """No-op: transactions are saved directly to database"""
+        pass
     
-    def add_transaction(self, exchange: str, asset: str, amount: float, 
-                       price_usd: float, transaction_type: str, date: str = None,
-                       commission: float = 0.0, commission_currency: str = 'USD'):
-        """Add a new transaction"""
+    # --- Transaction normalization helpers -----------------------------------------------------
+
+    def _next_transaction_id(self) -> int:
+        """Return the next transaction identifier from database."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT MAX(id) FROM transactions')
+            result = cursor.fetchone()
+            max_id = result[0] if result[0] is not None else 0
+            return max_id + 1
+
+    @staticmethod
+    def _normalize_type(tx_type: str) -> str:
+        normalized = (tx_type or '').strip().lower()
+        if normalized not in ('buy', 'sell'):
+            raise ValueError(f"Unsupported transaction type '{tx_type}'")
+        return normalized
+
+    @staticmethod
+    def _normalize_asset(asset: str) -> str:
+        asset_clean = (asset or '').strip().upper()
+        if not asset_clean:
+            raise ValueError("Asset symbol cannot be empty")
+        return asset_clean
+
+    @staticmethod
+    def _normalize_exchange(exchange: str) -> str:
+        exch_clean = (exchange or '').strip()
+        if not exch_clean:
+            raise ValueError("Exchange name cannot be empty")
+        return exch_clean
+
+    @staticmethod
+    def _normalize_amount(value: Any, field: str) -> float:
+        try:
+            amount = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{field} must be a numeric value")
+        return amount
+
+    @staticmethod
+    def _normalize_date(date_str: Optional[str]) -> str:
+        if not date_str:
+            return datetime.utcnow().isoformat() + "Z"
+        try:
+            # Accept ISO strings or YYYY-MM-DD
+            if 'T' in date_str:
+                datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            else:
+                datetime.strptime(date_str, '%Y-%m-%d')
+            return date_str
+        except ValueError:
+            raise ValueError(f"Unsupported date format '{date_str}'")
+
+    def _build_transaction_payload(
+        self,
+        *,
+        exchange: str,
+        asset: str,
+        amount: float,
+        price_usd: float,
+        transaction_type: str,
+        date: Optional[str] = None,
+        commission: Optional[float] = 0.0,
+        commission_currency: Optional[str] = 'USD',
+        isin: Optional[str] = None,
+        asset_name: Optional[str] = None,
+        transaction_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Normalize and return a transaction dictionary without mutating state."""
+        normalized_exchange = self._normalize_exchange(exchange)
+        normalized_asset = self._normalize_asset(asset)
+        normalized_type = self._normalize_type(transaction_type)
+        normalized_amount = self._normalize_amount(amount, "Amount")
+        normalized_price = self._normalize_amount(price_usd, "Price (USD)")
+        normalized_commission = self._normalize_amount(commission or 0.0, "Commission")
+        normalized_date = self._normalize_date(date)
+
+        if normalized_amount <= 0:
+            raise ValueError("Amount must be greater than zero")
+        if normalized_price <= 0:
+            raise ValueError("Price (USD) must be greater than zero")
+        if normalized_commission < 0:
+            raise ValueError("Commission cannot be negative")
+
+        value_usd = normalized_amount * normalized_price
+
         transaction = {
-            'id': len(self.transactions) + 1,
-            'exchange': exchange,
-            'asset': asset,
-            'amount': amount,
-            'price_usd': price_usd,
-            'type': transaction_type,  # 'buy' or 'sell'
-            'date': date or datetime.now().isoformat(),
-            'value_usd': amount * price_usd,
-            'commission': commission,
-            'commission_currency': commission_currency,
-            'exchange_rate_usd_pln': None,  # Will be filled by migration
-            'value_pln': None,  # Will be calculated
-            'linked_buys': []  # For FIFO tracking
+            'id': transaction_id if transaction_id is not None else self._next_transaction_id(),
+            'exchange': normalized_exchange,
+            'asset': normalized_asset,
+            'amount': normalized_amount,
+            'price_usd': normalized_price,
+            'type': normalized_type,
+            'date': normalized_date,
+            'value_usd': value_usd,
+            'commission': normalized_commission,
+            'commission_currency': (commission_currency or 'USD'),
+            'isin': (isin or '').upper() or None,
+            'asset_name': (asset_name or '').strip() or None,
+            'exchange_rate_usd_pln': None,
+            'value_pln': None,
+            'linked_buys': [],
         }
-        self.transactions.append(transaction)
-        self.save_history()
+        return transaction
+
+    # -------------------------------------------------------------------------------------------
+
+    def build_transaction_key(
+        self,
+        exchange: str,
+        asset: str,
+        transaction_type: str,
+        amount: float,
+        price_usd: float,
+        date: str,
+        precision: Tuple[int, int] = (8, 8)
+    ) -> Tuple:
+        """Return a normalized key used for deduplicating transactions across ingestion paths."""
+        norm_exchange = self._normalize_exchange(exchange).lower()
+        norm_asset = self._normalize_asset(asset)
+        norm_type = self._normalize_type(transaction_type)
+        norm_amount = self._normalize_amount(amount, "Amount")
+        norm_price = self._normalize_amount(price_usd, "Price (USD)")
+        norm_date = self._normalize_date(date)
+
+        amount_precision, price_precision = precision
+        return (
+            norm_exchange,
+            norm_asset,
+            norm_type,
+            round(norm_amount, amount_precision),
+            round(norm_price, price_precision),
+            norm_date[:10],
+        )
+
+    # -------------------------------------------------------------------------------------------
+
+    def add_transaction(self, exchange: str, asset: str, amount: float,
+                        price_usd: float, transaction_type: str, date: str = None,
+                        commission: float = 0.0, commission_currency: str = 'USD',
+                        isin: str = None, asset_name: str = None, user_id: Optional[str] = None):
+        """Add a new transaction with normalized payload and persisted id."""
+        transaction = self._build_transaction_payload(
+            exchange=exchange,
+            asset=asset,
+            amount=amount,
+            price_usd=price_usd,
+            transaction_type=transaction_type,
+            date=date,
+            commission=commission,
+            commission_currency=commission_currency,
+            isin=isin,
+            asset_name=asset_name,
+        )
+        
+        # Save to database
+        with get_db() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO transactions (
+                        id, exchange, asset, amount, price_usd, type, date,
+                        value_usd, commission, commission_currency, isin, asset_name, user_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    transaction['id'],
+                    transaction['exchange'],
+                    transaction['asset'],
+                    transaction['amount'],
+                    transaction['price_usd'],
+                    transaction['type'],
+                    transaction['date'],
+                    transaction['value_usd'],
+                    transaction['commission'],
+                    transaction['commission_currency'],
+                    transaction['isin'],
+                    transaction['asset_name'],
+                    user_id,
+                ))
+                conn.commit()
+            except Exception as e:
+                # If insert fails (e.g., duplicate), try to get existing transaction
+                conn.rollback()
+                cursor.execute('''
+                    SELECT * FROM transactions 
+                    WHERE exchange = ? AND asset = ? AND date = ? AND type = ? 
+                    AND amount = ? AND price_usd = ?
+                ''', (
+                    transaction['exchange'],
+                    transaction['asset'],
+                    transaction['date'],
+                    transaction['type'],
+                    transaction['amount'],
+                    transaction['price_usd'],
+                ))
+                existing = cursor.fetchone()
+                if existing:
+                    return self._row_to_dict(existing)
+                raise
+        
+        # Reload transactions from database
+        self.transactions = self.load_history(user_id)
         return transaction
     
-    def get_transactions_for_asset(self, exchange: str, asset: str):
+    def get_transactions_for_asset(self, exchange: str, asset: str, user_id: Optional[str] = None):
         """Get all transactions for a specific asset"""
-        return [t for t in self.transactions 
-                if t['exchange'] == exchange and t['asset'] == asset]
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if user_id:
+                cursor.execute('''
+                    SELECT * FROM transactions 
+                    WHERE exchange = ? AND asset = ? AND (user_id = ? OR user_id IS NULL)
+                    ORDER BY date DESC, id DESC
+                ''', (exchange, asset, user_id))
+            else:
+                cursor.execute('''
+                    SELECT * FROM transactions 
+                    WHERE exchange = ? AND asset = ?
+                    ORDER BY date DESC, id DESC
+                ''', (exchange, asset))
+            rows = cursor.fetchall()
+            return [self._row_to_dict(row) for row in rows]
     
-    def get_all_transactions(self):
-        """Get all transactions"""
-        return self.transactions
+    def get_all_transactions(self, user_id: Optional[str] = None, limit: Optional[int] = None, offset: int = 0):
+        """Get all transactions from database"""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if user_id:
+                query = 'SELECT * FROM transactions WHERE user_id = ? OR user_id IS NULL ORDER BY date DESC, id DESC'
+                params = (user_id,)
+            else:
+                query = 'SELECT * FROM transactions ORDER BY date DESC, id DESC'
+                params = ()
+            
+            if limit:
+                query += f' LIMIT {limit} OFFSET {offset}'
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            return [self._row_to_dict(row) for row in rows]
     
-    def delete_transaction(self, transaction_id: int):
-        """Delete a transaction by ID"""
-        self.transactions = [t for t in self.transactions if t['id'] != transaction_id]
-        self.save_history()
+    def delete_transaction(self, transaction_id: int, user_id: Optional[str] = None):
+        """Delete a transaction by ID, optionally filtered by user_id"""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if user_id:
+                cursor.execute('DELETE FROM transactions WHERE id = ? AND user_id = ?', (transaction_id, user_id))
+            else:
+                cursor.execute('DELETE FROM transactions WHERE id = ?', (transaction_id,))
+            conn.commit()
+        
+        # Reload transactions from database
+        self.transactions = self.load_history(user_id=user_id)
     
-    def update_transaction(self, transaction_id: int, **kwargs):
-        """Update a transaction by ID"""
-        for i, t in enumerate(self.transactions):
-            if t['id'] == transaction_id:
-                self.transactions[i].update(kwargs)
-                if 'amount' in kwargs or 'price_usd' in kwargs:
-                    self.transactions[i]['value_usd'] = (
-                        self.transactions[i]['amount'] * 
-                        self.transactions[i]['price_usd']
-                    )
-                self.save_history()
-                return True
-        return False
+    def update_transaction(self, transaction_id: int, user_id: Optional[str] = None, **kwargs):
+        """Update a transaction by ID, optionally filtered by user_id"""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Get existing transaction
+            if user_id:
+                cursor.execute('SELECT * FROM transactions WHERE id = ? AND user_id = ?', (transaction_id, user_id))
+            else:
+                cursor.execute('SELECT * FROM transactions WHERE id = ?', (transaction_id,))
+            existing_row = cursor.fetchone()
+            if not existing_row:
+                return False
+            
+            existing = self._row_to_dict(existing_row)
+            
+            # Update with new values
+            updated_payload = existing.copy()
+            updated_payload.update(kwargs or {})
+
+            transaction = self._build_transaction_payload(
+                exchange=updated_payload.get('exchange', existing['exchange']),
+                asset=updated_payload.get('asset', existing['asset']),
+                amount=updated_payload.get('amount', existing['amount']),
+                price_usd=updated_payload.get('price_usd', existing['price_usd']),
+                transaction_type=updated_payload.get('type', existing['type']),
+                date=updated_payload.get('date', existing['date']),
+                commission=updated_payload.get('commission', existing.get('commission', 0.0)),
+                commission_currency=updated_payload.get('commission_currency', existing.get('commission_currency', 'USD')),
+                isin=updated_payload.get('isin', existing.get('isin')),
+                asset_name=updated_payload.get('asset_name', existing.get('asset_name')),
+                transaction_id=transaction_id,
+            )
+
+            # Update in database
+            if user_id:
+                cursor.execute('''
+                    UPDATE transactions SET
+                        exchange = ?, asset = ?, amount = ?, price_usd = ?, type = ?,
+                        date = ?, value_usd = ?, commission = ?, commission_currency = ?,
+                        isin = ?, asset_name = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND user_id = ?
+                ''', (
+                    transaction['exchange'],
+                    transaction['asset'],
+                    transaction['amount'],
+                    transaction['price_usd'],
+                    transaction['type'],
+                    transaction['date'],
+                    transaction['value_usd'],
+                    transaction['commission'],
+                    transaction['commission_currency'],
+                    transaction['isin'],
+                    transaction['asset_name'],
+                    transaction_id,
+                    user_id,
+                ))
+            else:
+                cursor.execute('''
+                    UPDATE transactions SET
+                        exchange = ?, asset = ?, amount = ?, price_usd = ?, type = ?,
+                        date = ?, value_usd = ?, commission = ?, commission_currency = ?,
+                        isin = ?, asset_name = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (
+                    transaction['exchange'],
+                    transaction['asset'],
+                    transaction['amount'],
+                    transaction['price_usd'],
+                    transaction['type'],
+                    transaction['date'],
+                    transaction['value_usd'],
+                    transaction['commission'],
+                    transaction['commission_currency'],
+                    transaction['isin'],
+                    transaction['asset_name'],
+                    transaction_id,
+                ))
+            conn.commit()
+        
+        # Reload transactions from database
+        self.transactions = self.load_history(user_id=user_id)
+        return True
     
-    def get_total_realized_pnl(self):
+    def get_total_realized_pnl(self, user_id: Optional[str] = None):
         """Calculate total realized PNL using true FIFO method"""
+        transactions = self.get_all_transactions(user_id=user_id)
         total_pnl = 0.0
         
         # Group by asset to calculate PNL per asset
         assets = {}
-        for t in self.transactions:
+        for t in transactions:
             key = (t['exchange'], t['asset'])
             if key not in assets:
                 assets[key] = {'buys': [], 'sells': []}
@@ -162,7 +478,7 @@ class TransactionHistory:
         
         return total_pnl
     
-    def calculate_pnl(self, exchange: str, asset: str, current_price: float, current_amount: float):
+    def calculate_pnl(self, exchange: str, asset: str, current_price: float, current_amount: float, user_id: Optional[str] = None):
         """Calculate PNL for an asset
         
         Args:
@@ -170,11 +486,12 @@ class TransactionHistory:
             asset: Asset symbol
             current_price: Current price per unit
             current_amount: Current amount held in portfolio
+            user_id: Optional user ID to filter transactions
             
         Returns:
             dict with PNL data or None if no transactions
         """
-        transactions = self.get_transactions_for_asset(exchange, asset)
+        transactions = self.get_transactions_for_asset(exchange, asset, user_id=user_id)
         
         if not transactions:
             return None
@@ -232,7 +549,7 @@ class TransactionHistory:
             'status': 'profit' if total_pnl > 0 else 'loss' if total_pnl < 0 else 'break_even'
         }
     
-    def get_all_pnl(self, portfolios: List[Dict]):
+    def get_all_pnl(self, portfolios: List[Dict], user_id: Optional[str] = None):
         """Calculate PNL for all assets"""
         pnl_results = []
         
@@ -245,13 +562,13 @@ class TransactionHistory:
                 
                 if amount > 0 and value_usdt > 0:
                     current_price = value_usdt / amount
-                    pnl = self.calculate_pnl(exchange, asset, current_price, amount)
+                    pnl = self.calculate_pnl(exchange, asset, current_price, amount, user_id=user_id)
                     if pnl:
                         pnl_results.append(pnl)
         
         return pnl_results
     
-    def import_from_csv(self, file_path: str, exchange: str):
+    def import_from_csv(self, file_path: str, exchange: str, user_id: Optional[str] = None):
         """Import transactions from CSV file"""
         import pandas as pd
         
@@ -266,11 +583,11 @@ class TransactionHistory:
                     amount=float(row['amount']),
                     price_usd=float(row['price']),
                     transaction_type=row['type'],
-                    date=row.get('date', None)
+                    date=row.get('date', None),
+                    user_id=user_id
                 )
             
             return True
         except Exception as e:
             print(f"Error importing CSV: {e}")
             return False
-

@@ -181,3 +181,9 @@ for symbol, position in positions.items():
 4. **Test 4**: Sprawdzić czy `total_transaction_costs` jest równy sumie wszystkich transaction_cost w trade_history
 5. **Test 5**: Sprawdzić czy `portfolio_value` przy każdym rebalance = `cash + sum(positions * current_price)`
 
+
+
+
+
+
+

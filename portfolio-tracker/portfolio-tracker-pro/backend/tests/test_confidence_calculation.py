@@ -44,7 +44,8 @@ class TestConfidenceCalculation(unittest.TestCase):
         for bullish, bearish, neutral, expected_consensus in test_cases:
             total = bullish + bearish + neutral
             if total > 0:
-                consensus_conf = max(bullish, bearish) / total
+                dominant = max(bullish, bearish)
+                consensus_conf = dominant / total if dominant > 0 else 0.5
             else:
                 consensus_conf = 0.5  # Default
             
@@ -161,11 +162,11 @@ class TestConfidenceCalculation(unittest.TestCase):
             
             # Apply minimum guarantees
             abs_signal = abs(signal_strength)
-            if abs_signal > 70:
+            if abs_signal >= 70:
                 confidence = max(0.70, confidence)
-            elif abs_signal > 50:
+            elif abs_signal >= 50:
                 confidence = max(0.50, confidence)
-            elif abs_signal > 30:
+            elif abs_signal >= 30:
                 confidence = max(0.30, confidence)
             
             # Sprawdzenie że confidence >= expected_min_conf
@@ -286,7 +287,7 @@ class TestConfidenceCalculation(unittest.TestCase):
         
         # Minimum guarantee
         abs_signal = abs(signal_strength)
-        if abs_signal > 70:
+        if abs_signal >= 70:
             confidence = max(0.70, confidence)
         
         # Clamp

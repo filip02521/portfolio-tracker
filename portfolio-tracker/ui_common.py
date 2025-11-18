@@ -5,33 +5,26 @@ import streamlit as st
 import pandas as pd
 
 def _safe_switch_page(page_name: str):
-    """Switch to another page if supported by Streamlit, otherwise fall back.
-
-    If `st.switch_page` is available (newer Streamlit), use it. Otherwise set a
-    query param and rerun to allow manual handling in pages.
+    """Switch to another page using session state.
+    
+    This is a compatibility function that works with all Streamlit versions.
     """
-    try:
-        if hasattr(st, "switch_page"):
-            st.switch_page(page_name)
-        else:
-            # Fallback: set a query param and rerun. Pages can read this if needed.
-            try:
-                st.experimental_set_query_params(_page=page_name)
-            except Exception:
-                # If even experimental_set_query_params isn't available, do nothing
-                pass
-            # Avoid programmatic rerun here (can cause recursion in some
-            # Streamlit/runtime versions). Instead, set a query param so pages
-            # can detect navigation intent, and render a link fallback.
-            try:
-                st.experimental_set_query_params(_page=page_name)
-            except Exception:
-                pass
-            # Provide a clickable link as a last-resort fallback
-            st.markdown(f"[Open {page_name}]()")
-    except Exception:
-        # Prevent any navigation helper from raising inside the UI rendering
-        return
+    # Map page names to session state values
+    page_mapping = {
+        "streamlit_app.py": "dashboard",
+        "pages/portfolio.py": "portfolio", 
+        "pages/transactions.py": "transactions",
+        "pages/analytics.py": "analytics",
+        "pages/goals_alerts.py": "goals",
+        "pages/settings.py": "settings",
+        "pages/1_kryptowaluty.py": "crypto",
+        "pages/2_akcje.py": "stocks"
+    }
+    
+    if page_name in page_mapping:
+        st.session_state.page = page_mapping[page_name]
+    else:
+        st.error(f"Unknown page: {page_name}")
 
 def setup_page_config():
     """Setup page configuration"""
@@ -42,304 +35,481 @@ def setup_page_config():
         initial_sidebar_state="expanded"
     )
 
-def render_navigation_menu():
-    """Render professional navigation menu at the top of the page"""
+def render_main_navigation():
+    """Render modern, minimalist navigation menu"""
     st.markdown("""
     <style>
-    .nav-menu {
-        display: flex;
-        gap: 0;
-        padding: 0;
-        border-bottom: 2px solid #e5e7eb;
+    .main-nav {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
         margin-bottom: 2rem;
-        background: #ffffff;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+    }
+    .nav-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #ffffff;
+        margin-bottom: 1.5rem;
+        text-align: center;
+        letter-spacing: -0.5px;
     }
     .nav-button {
-        padding: 0.75rem 1.5rem;
-        border: none;
-        background: transparent;
-        color: #6b7280;
-        cursor: pointer;
-        text-decoration: none;
-        border-bottom: 3px solid transparent;
-        transition: all 0.2s;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: #ffffff;
         font-weight: 500;
-        font-size: 0.875rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
     }
     .nav-button:hover {
-        color: #111827;
-        background: #f9fafb;
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
     </style>
     """, unsafe_allow_html=True)
     
-    col_nav1, col_nav2, col_nav3, col_nav4 = st.columns(4)
+    st.markdown('<div class="main-nav">', unsafe_allow_html=True)
+    st.markdown('<div class="nav-brand">Portfolio Tracker</div>', unsafe_allow_html=True)
     
-    with col_nav1:
-        if st.button("Dashboard", key="nav_main", use_container_width=True):
-            _safe_switch_page("streamlit_app.py")
+    # Navigation buttons with modern styling
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
-    with col_nav2:
-        if st.button("Cryptocurrencies", key="nav_crypto", use_container_width=True):
-            _safe_switch_page("pages/1_kryptowaluty.py")
+    with col1:
+        if st.button("Dashboard", use_container_width=True, key="nav_dashboard", help="Main dashboard overview"):
+            st.session_state.page = "dashboard"
     
-    with col_nav3:
-        if st.button("Stocks", key="nav_stocks", use_container_width=True):
-            _safe_switch_page("pages/2_akcje.py")
+    with col2:
+        if st.button("Portfolio", use_container_width=True, key="nav_portfolio", help="Portfolio composition"):
+            st.session_state.page = "portfolio"
+    
+    with col3:
+        if st.button("Transactions", use_container_width=True, key="nav_transactions", help="Transaction history"):
+            st.session_state.page = "transactions"
+    
+    with col4:
+        if st.button("Analytics", use_container_width=True, key="nav_analytics", help="Performance analytics"):
+            st.session_state.page = "analytics"
+    
+    with col5:
+        if st.button("Goals", use_container_width=True, key="nav_goals", help="Goals and alerts"):
+            st.session_state.page = "goals"
+    
+    with col6:
+        if st.button("Settings", use_container_width=True, key="nav_settings", help="Application settings"):
+            st.session_state.page = "settings"
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+def render_navigation_menu():
+    """Legacy function - now redirects to main navigation"""
+    render_main_navigation()
 
 def load_custom_css():
-    """Professional minimalist CSS with 3-color layout"""
+    """Modern minimalist CSS with professional design"""
     st.markdown("""
     <style>
+        /* Global Styles */
         * {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
         }
         
         .main {
-            padding: 2rem;
-            background: #f9fafb;
+            padding: 1rem;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
         }
         
         .block-container {
             background: transparent;
+            padding: 0;
         }
         
-        /* Metrics cards - professional card style */
+        /* Modern Metric Cards */
         [data-testid="stMetricValue"] {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: 700;
-            color: #111827;
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace;
-        }
-        [data-testid="stMetricLabel"] {
-            font-size: 0.875rem;
-            color: #6b7280;
-            font-weight: 500;
-            letter-spacing: 0.3px;
-        }
-        [data-testid="stMetricDelta"] {
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        /* Custom metric card container */
-        .stMetric {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-        .stMetric:hover {
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
-            transform: translateY(-2px);
-            border-color: #2563eb;
+            color: #1a202c;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+            letter-spacing: -0.5px;
         }
         
-        /* Buttons - professional blue */
-        .stButton>button {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        [data-testid="stMetricLabel"] {
+            font-size: 0.9rem;
+            color: #718096;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        [data-testid="stMetricDelta"] {
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+        }
+        
+        /* Card Containers */
+        .stMetric {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            backdrop-filter: blur(10px);
+        }
+        
+        .stMetric:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+            border-color: rgba(102, 126, 234, 0.3);
+        }
+        
+        /* Buttons */
+        .stButton > button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 8px;
-            padding: 0.5rem 1.5rem;
+            border-radius: 12px;
+            padding: 0.75rem 1.5rem;
             font-weight: 600;
-            font-size: 0.875rem;
+            font-size: 0.9rem;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
         
-        .stButton>button:hover {
-            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-            transform: translateY(-1px);
+        .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         }
         
-        .stButton>button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        /* Sidebar */
+        .css-1d391kg {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
         }
         
-        /* Secondary buttons */
-        button[kind="secondary"] {
-            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
-            color: white !important;
+        /* DataFrames */
+        .stDataFrame {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
         
-        /* Dataframes - professional table style */
-        .dataframe {
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid #e5e7eb;
+        /* Charts */
+        .js-plotly-plot {
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
         
-        /* Info boxes */
-        .stAlert {
-            border-radius: 8px;
+        /* Headers */
+        h1, h2, h3 {
+            color: #1a202c;
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
         
         h1 {
-            color: #111827;
-            font-weight: 700;
-            font-size: 2rem;
+            font-size: 2.5rem;
             margin-bottom: 1rem;
         }
         
         h2 {
-            color: #111827;
-            font-weight: 600;
-            font-size: 1.5rem;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-        }
-        
-        h3 {
-            color: #374151;
-            font-weight: 600;
-            font-size: 1.125rem;
-            margin-top: 1.5rem;
+            font-size: 2rem;
             margin-bottom: 0.75rem;
         }
         
-        hr {
-            border: none;
-            height: 1px;
-            background: #e5e7eb;
-            margin: 2rem 0;
-        }
-        
-        .asset-card {
-            background: #ffffff;
-            padding: 1rem;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
+        h3 {
+            font-size: 1.5rem;
             margin-bottom: 0.5rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
         
-        .asset-card-profit {
-            border-left: 3px solid #10b981;
-        }
-        
-        .asset-card-loss {
-            border-left: 3px solid #ef4444;
-        }
-        
-        .asset-card-neutral {
-            border-left: 3px solid #6b7280;
-        }
-        
-        /* Sidebar styling */
-        section[data-testid="stSidebar"] {
-            background: #ffffff;
-        }
-        
-        /* Status badges */
+        /* Status Badges */
         .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .status-success {
-            background: #dcfce7;
-            color: #166534;
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
         }
         
         .status-warning {
-            background: #fef3c7;
-            color: #92400e;
+            background: linear-gradient(135deg, #ed8936, #dd6b20);
+            color: white;
         }
         
         .status-error {
-            background: #fee2e2;
-            color: #991b1b;
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
         }
         
-        /* Data card */
-        .data-card {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 0.5rem 0;
+        /* Info Boxes */
+        .stAlert {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
         
-        /* Scrollbar */
+        /* Scrollbars */
         ::-webkit-scrollbar {
             width: 8px;
         }
         
         ::-webkit-scrollbar-track {
-            background: #f1f5f9;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
         }
         
         ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
+            background: linear-gradient(135deg, #667eea, #764ba2);
             border-radius: 4px;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
+            background: linear-gradient(135deg, #5a67d8, #6b46c1);
         }
         
-        /* Caption styling */
-        .caption-text {
-            color: #6b7280;
-            font-size: 0.875rem;
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main {
+                padding: 0.5rem;
+            }
+            
+            [data-testid="stMetricValue"] {
+                font-size: 1.8rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
         }
     </style>
     """, unsafe_allow_html=True)
 
 def render_sidebar():
-    """Render sidebar with controls"""
+    """Render modern, minimalist sidebar"""
     with st.sidebar:
-        st.header("Controls")
+        st.markdown("""
+        <style>
+        .sidebar-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .sidebar-section {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
-        st.markdown("### Currency")
-        currency = st.selectbox("Select currency", ["USD", "PLN"], index=0, label_visibility="collapsed")
+        st.markdown('<div class="sidebar-header"><h3>Settings</h3></div>', unsafe_allow_html=True)
         
-        st.markdown("---")
+        # Currency selector
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        currency = st.selectbox(
+            "Currency", 
+            ["USD", "PLN"], 
+            index=0,
+            key="sidebar_currency",
+            help="Select display currency"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        st.markdown("### Refresh")
-        auto_refresh = st.checkbox("Auto-refresh", value=False)
-        if auto_refresh:
-            _refresh_interval = st.slider("Interval (sec)", 10, 300, 60)
-        
-        if st.button("Refresh Now", type="primary", use_container_width=True):
+        # Refresh button
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        if st.button("Refresh Data", type="primary", use_container_width=True, help="Reload all portfolio data"):
             st.cache_data.clear()
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # Reset history button
-        add_reset_button()
-        
-        st.markdown("---")
-        
-        st.markdown("### Status giełd")
+        # Exchange status
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.markdown("**Exchange Status**")
         from config import Config
-        missing = Config.validate()
-        
-        exchange_status = {
-            'Binance': 'Binance' not in missing,
-            'Bybit': 'Bybit' not in missing
-        }
-        
-        for exchange, configured in exchange_status.items():
-            if configured:
-                st.success(f"{exchange}")
+        try:
+            missing = Config.validate()
+            
+            if 'Binance' not in missing:
+                st.markdown('<span class="status-badge status-success">Binance ✓</span>', unsafe_allow_html=True)
             else:
-                st.warning(f"{exchange}")
+                st.markdown('<span class="status-badge status-error">Binance ✗</span>', unsafe_allow_html=True)
+            
+            if 'Bybit' not in missing:
+                st.markdown('<span class="status-badge status-success">Bybit ✓</span>', unsafe_allow_html=True)
+            else:
+                st.markdown('<span class="status-badge status-error">Bybit ✗</span>', unsafe_allow_html=True)
+                
+        except Exception as e:
+            st.error(f"Config error: {e}")
         
-        st.markdown("---")
-        import time
-        st.markdown("**Ostatnia aktualizacja:**")
-        st.markdown(f"*{time.strftime('%H:%M:%S')}*")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        return currency
+
+def render_footer():
+    """Render footer according to sitemap"""
+    st.markdown("""
+    <style>
+    .footer {
+        background: #f8fafc;
+        border-top: 1px solid #e5e7eb;
+        padding: 2rem 0;
+        margin-top: 4rem;
+    }
+    .footer-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 2rem;
+    }
+    .footer-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    .footer-section h3 {
+        color: #111827;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+    .footer-section ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .footer-section li {
+        margin-bottom: 0.5rem;
+    }
+    .footer-section a {
+        color: #6b7280;
+        text-decoration: none;
+        font-size: 0.875rem;
+    }
+    .footer-section a:hover {
+        color: #2563eb;
+    }
+    .footer-bottom {
+        border-top: 1px solid #e5e7eb;
+        padding-top: 1rem;
+        text-align: center;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
     
-    return currency
+    /* Mobile Responsive Design */
+    @media (max-width: 768px) {
+        .nav-container {
+            flex-direction: column;
+            padding: 0 1rem;
+        }
+        .nav-links {
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .nav-link {
+            text-align: center;
+            padding: 0.75rem 1rem;
+        }
+        .hero-title {
+            font-size: 2rem !important;
+        }
+        .hero-subtitle {
+            font-size: 1rem !important;
+        }
+        .metric-card {
+            margin-bottom: 1rem;
+        }
+        .footer-content {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .nav-brand {
+            font-size: 1.25rem;
+        }
+        .hero-title {
+            font-size: 1.75rem !important;
+        }
+        .metric-card {
+            padding: 1rem;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="footer">
+        <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>Quick Links</h3>
+                    <ul>
+                        <li><a href="#">Portfolio</a></li>
+                        <li><a href="#">Transactions</a></li>
+                        <li><a href="#">Analytics</a></li>
+                        <li><a href="#">Goals</a></li>
+                        <li><a href="#">Settings</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>Support</h3>
+                    <ul>
+                        <li><a href="#">Help Center</a></li>
+                        <li><a href="#">Contact Support</a></li>
+                        <li><a href="#">Report Bug</a></li>
+                        <li><a href="#">Feature Request</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>Legal</h3>
+                    <ul>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Terms of Service</a></li>
+                        <li><a href="#">Cookie Policy</a></li>
+                        <li><a href="#">Disclaimer</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>Social</h3>
+                    <ul>
+                        <li><a href="#">Newsletter</a></li>
+                        <li><a href="#">Twitter</a></li>
+                        <li><a href="#">LinkedIn</a></li>
+                        <li><a href="#">Mobile App</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Portfolio Tracker. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 def add_reset_button():
     """Dodaje przycisk resetu portfolio history"""

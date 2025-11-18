@@ -15,5 +15,7 @@ python -c "import yfinance; print('✅ yfinance available')" 2>/dev/null || {
 echo "Starting backend with venv Python..."
 echo "Python: $(which python)"
 echo "Port: 8000"
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+
 

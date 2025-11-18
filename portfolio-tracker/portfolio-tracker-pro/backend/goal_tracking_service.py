@@ -1,43 +1,48 @@
 """
 Goal Tracking Service for Portfolio Tracker Pro
 Manages investment goals, progress tracking, and milestones
+Now uses SQLite database instead of JSON file
 """
 import json
-import os
 from datetime import datetime
 from typing import Dict, List, Optional
 import logging
+from database import get_db
 
 logger = logging.getLogger(__name__)
 
 class GoalTrackingService:
     """Service for managing investment goals"""
     
-    GOALS_FILE = "goals.json"
-    
     def __init__(self):
-        self.goals = self._load_goals()
+        # No longer need to load goals on init - they're in database
+        pass
     
-    def _load_goals(self) -> List[Dict]:
-        """Load goals from JSON file"""
-        if os.path.exists(self.GOALS_FILE):
-            try:
-                with open(self.GOALS_FILE, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.warning(f"Error loading goals: {e}")
-                return []
-        return []
-    
-    def _save_goals(self):
-        """Save goals to JSON file"""
+    def _row_to_dict(self, row) -> Dict:
+        """Convert database row to goal dictionary"""
+        milestones = []
         try:
-            with open(self.GOALS_FILE, 'w') as f:
-                json.dump(self.goals, f, indent=2)
-            return True
-        except Exception as e:
-            logger.error(f"Error saving goals: {e}")
-            return False
+            milestones = json.loads(row['milestones'] or '[]')
+        except (json.JSONDecodeError, TypeError):
+            milestones = []
+        
+        return {
+            "id": row['id'],
+            "user_id": row['user_id'],
+            "title": row['title'],
+            "type": row['type'],
+            "target_value": row['target_value'],
+            "target_percentage": row['target_percentage'],
+            "target_date": row['target_date'],
+            "start_date": row['start_date'],
+            "start_value": row['start_value'],
+            "current_value": row['current_value'],
+            "progress": row['progress'],
+            "status": row['status'],
+            "milestones": milestones,
+            "created_at": row['created_at'],
+            "updated_at": row['updated_at']
+        }
     
     def create_goal(self, user_id: str, goal_data: Dict) -> Dict:
         """
@@ -50,42 +55,59 @@ class GoalTrackingService:
         Returns:
             Created goal with ID and progress
         """
-        goal_id = len(self.goals) + 1
+        now = datetime.now().isoformat()
         
-        goal = {
-            "id": goal_id,
-            "user_id": user_id,
-            "title": goal_data.get("title", ""),
-            "type": goal_data.get("type", "value"),  # value, return, diversification
-            "target_value": goal_data.get("target_value", 0),
-            "target_percentage": goal_data.get("target_percentage"),  # For return goals
-            "target_date": goal_data.get("target_date"),
-            "start_date": datetime.now().isoformat(),
-            "start_value": goal_data.get("start_value", 0),  # Starting portfolio value
-            "current_value": goal_data.get("start_value", 0),
-            "progress": 0.0,
-            "status": "active",  # active, completed, cancelled
-            "milestones": [],
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
-        }
-        
-        self.goals.append(goal)
-        self._save_goals()
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO goals (
+                    user_id, title, type, target_value, target_percentage,
+                    target_date, start_date, start_value, current_value,
+                    progress, status, milestones, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                user_id,
+                goal_data.get("title", ""),
+                goal_data.get("type", "value"),
+                goal_data.get("target_value", 0),
+                goal_data.get("target_percentage"),
+                goal_data.get("target_date"),
+                now,
+                goal_data.get("start_value", 0),
+                goal_data.get("start_value", 0),
+                0.0,
+                "active",
+                json.dumps([]),
+                now,
+                now
+            ))
+            goal_id = cursor.lastrowid
+            conn.commit()
         
         logger.info(f"Created goal {goal_id} for user {user_id}")
-        return goal
+        return self.get_goal(goal_id, user_id)
     
     def get_user_goals(self, user_id: str) -> List[Dict]:
-        """Get all goals for a user"""
-        return [g for g in self.goals if g.get("user_id") == user_id and g.get("status") != "cancelled"]
+        """Get all goals for a user (excluding cancelled)"""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM goals 
+                WHERE user_id = ? AND status != 'cancelled'
+                ORDER BY created_at DESC
+            ''', (user_id,))
+            rows = cursor.fetchall()
+            return [self._row_to_dict(row) for row in rows]
     
     def get_goal(self, goal_id: int, user_id: str) -> Optional[Dict]:
         """Get a specific goal by ID"""
-        for goal in self.goals:
-            if goal.get("id") == goal_id and goal.get("user_id") == user_id:
-                return goal
-        return None
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM goals WHERE id = ? AND user_id = ?', (goal_id, user_id))
+            row = cursor.fetchone()
+            if row:
+                return self._row_to_dict(row)
+            return None
     
     def update_goal_progress(self, goal_id: int, user_id: str, current_portfolio_value: float) -> Optional[Dict]:
         """
@@ -120,7 +142,6 @@ class GoalTrackingService:
             # Check if completed
             if current_portfolio_value >= target_value and goal["status"] == "active":
                 goal["status"] = "completed"
-                goal["completed_at"] = datetime.now().isoformat()
         
         elif goal["type"] == "return":
             # Target return percentage
@@ -134,13 +155,11 @@ class GoalTrackingService:
                 # Check if completed
                 if current_return >= target_percentage and goal["status"] == "active":
                     goal["status"] = "completed"
-                    goal["completed_at"] = datetime.now().isoformat()
             else:
                 progress = 0.0
         
         elif goal["type"] == "diversification":
             # Diversification goal (number of assets)
-            # This would need additional data from portfolio
             progress = 0.0
         
         goal["progress"] = max(0.0, min(100.0, progress))  # Clamp between 0 and 100
@@ -148,7 +167,25 @@ class GoalTrackingService:
         # Update milestones
         self._check_milestones(goal)
         
-        self._save_goals()
+        # Save to database
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE goals SET
+                    current_value = ?, progress = ?, status = ?,
+                    milestones = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+            ''', (
+                goal["current_value"],
+                goal["progress"],
+                goal["status"],
+                json.dumps(goal["milestones"]),
+                goal["updated_at"],
+                goal_id,
+                user_id
+            ))
+            conn.commit()
+        
         return goal
     
     def _check_milestones(self, goal: Dict):
@@ -197,9 +234,27 @@ class GoalTrackingService:
         # Recalculate progress if value changed
         if "current_value" in updates:
             goal["current_value"] = updates["current_value"]
-            # Progress will be recalculated on next update_goal_progress call
         
-        self._save_goals()
+        # Save to database
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE goals SET
+                    title = ?, target_value = ?, target_percentage = ?,
+                    target_date = ?, current_value = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+            ''', (
+                goal["title"],
+                goal["target_value"],
+                goal["target_percentage"],
+                goal["target_date"],
+                goal["current_value"],
+                goal["updated_at"],
+                goal_id,
+                user_id
+            ))
+            conn.commit()
+        
         return goal
     
     def delete_goal(self, goal_id: int, user_id: str) -> bool:
@@ -208,10 +263,14 @@ class GoalTrackingService:
         if not goal:
             return False
         
-        goal["status"] = "cancelled"
-        goal["updated_at"] = datetime.now().isoformat()
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE goals SET status = 'cancelled', updated_at = ?
+                WHERE id = ? AND user_id = ?
+            ''', (datetime.now().isoformat(), goal_id, user_id))
+            conn.commit()
         
-        self._save_goals()
         logger.info(f"Cancelled goal {goal_id} for user {user_id}")
         return True
     
@@ -264,5 +323,3 @@ class GoalTrackingService:
                         }
         
         return {"eta_days": None, "required_monthly_growth": None, "feasible": False}
-
-

@@ -1,0 +1,24 @@
+{
+  "auto_backup": true,
+  "backup_frequency": "daily",
+  "backup_location": "backups/",
+  "max_backups": 10,
+  "include_files": [
+    "transaction_history.json",
+    "goals.json",
+    "alert_config.json",
+    "sector_mapping.json",
+    "tax_calendar.json"
+  ],
+  "exclude_files": [
+    "__pycache__",
+    "*.pyc",
+    ".git",
+    ".venv",
+    "node_modules"
+  ],
+  "cloud_sync": false,
+  "cloud_provider": "google_drive",
+  "encryption": false,
+  "compression": true
+}

@@ -1,0 +1,23 @@
+{
+  "portfolio_value": {
+    "target": 15000.0,
+    "current": 3602.314638733313,
+    "start_date": "2025-10-28T18:05:12.363152",
+    "target_date": "2026-10-28T18:05:12.363170",
+    "enabled": true
+  },
+  "monthly_return": {
+    "target": 8.0,
+    "current": 20.277777777777782,
+    "start_date": "2025-10-28T18:05:12.363178",
+    "target_date": "2025-11-27T18:05:12.363179",
+    "enabled": true
+  },
+  "realized_profit": {
+    "target": 2000.0,
+    "current": 494.19456101327626,
+    "start_date": "2025-10-28T18:05:12.363182",
+    "target_date": "2026-04-26T18:05:12.363183",
+    "enabled": true
+  }
+}

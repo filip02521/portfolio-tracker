@@ -43,3 +43,5 @@ Venv/bin/python jest symlinkiem do systemowego Python, ale:
 
 **Data utworzenia**: 2025-11-05
 
+
+

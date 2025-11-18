@@ -408,3 +408,5 @@ Obecna formuła confidence jest **wieloczynnikowa i dobrze przemyślana**, ale *
 - Volatility: 10% (mnożnik)
 - **Historyczna Skuteczność: 15%** (NOWY)
 
+
+

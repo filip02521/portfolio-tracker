@@ -1,0 +1,21 @@
+{
+  "email_alerts": false,
+  "email_settings": {
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "email": "",
+    "password": ""
+  },
+  "alert_thresholds": {
+    "portfolio_change_percent": 3.0,
+    "daily_change_percent": 5.0,
+    "low_balance_threshold": 50.0
+  },
+  "notification_frequency": "daily",
+  "enabled_alerts": [
+    "portfolio_change",
+    "daily_change",
+    "low_balance",
+    "new_transaction"
+  ]
+}

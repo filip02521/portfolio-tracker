@@ -1,23 +1,21 @@
 """
 Authentication module for Portfolio Tracker Pro
 Handles user registration, login, and JWT token management
+Now uses SQLite database instead of JSON file
 """
 import os
-import json
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 import bcrypt
 from jose import jwt, JWTError
 from fastapi import HTTPException, status
 from logging_config import get_logger
+from database import get_db
 
 # JWT configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours default
-
-# Users database file
-USERS_DB_FILE = "users.json"
 
 class AuthManager:
     """Manages authentication and user operations"""
@@ -25,36 +23,22 @@ class AuthManager:
     def __init__(self):
         """Initialize auth manager"""
         self.logger = get_logger(__name__)
-        self.users_db = self._load_users()
         # Seed a demo user in dev if no users exist
         try:
             seed_enabled = os.getenv("SEED_DEMO_USER", "true").lower() == "true"
-            if seed_enabled and not self.users_db:
-                self.logger.info("Seeding demo user 'demo' for development")
-                self.create_user("demo", "demo@example.com", "demo1234")
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT COUNT(*) FROM users')
+                count = cursor.fetchone()[0]
+                if seed_enabled and count == 0:
+                    self.logger.info("Seeding demo user 'demo' for development")
+                    try:
+                        self.create_user("demo", "demo@example.com", "demo1234")
+                    except HTTPException:
+                        # User might already exist
+                        pass
         except Exception as e:
             self.logger.warning(f"Demo user seed skipped: {e}")
-    
-    def _load_users(self) -> Dict:
-        """Load users from JSON file"""
-        if os.path.exists(USERS_DB_FILE):
-            try:
-                with open(USERS_DB_FILE, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                self.logger.warning(f"Error loading users: {e}")
-                return {}
-        return {}
-    
-    def _save_users(self):
-        """Save users to JSON file"""
-        try:
-            with open(USERS_DB_FILE, 'w') as f:
-                json.dump(self.users_db, f, indent=2)
-            return True
-        except Exception as e:
-            self.logger.error(f"Error saving users: {e}")
-            return False
     
     def hash_password(self, password: str) -> str:
         """Hash a password using bcrypt"""
@@ -81,62 +65,60 @@ class AuthManager:
     
     def create_user(self, username: str, email: str, password: str) -> Dict:
         """Create a new user"""
-        # Check if user already exists
-        if username in self.users_db:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already registered"
-            )
-        
-        # Check if email already exists
-        for user in self.users_db.values():
-            if user.get("email") == email:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Check if user already exists
+            cursor.execute('SELECT username FROM users WHERE username = ?', (username,))
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already registered"
+                )
+            
+            # Check if email already exists
+            cursor.execute('SELECT email FROM users WHERE email = ?', (email,))
+            if cursor.fetchone():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already registered"
                 )
-        
-        # Create user
-        user_data = {
-            "username": username,
-            "email": email,
-            "hashed_password": self.hash_password(password),
-            "created_at": datetime.utcnow().isoformat(),
-            "is_active": True
-        }
-        
-        self.users_db[username] = user_data
-        
-        if not self._save_users():
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save user"
-            )
+            
+            # Create user
+            now = datetime.utcnow().isoformat()
+            cursor.execute('''
+                INSERT INTO users (username, email, password_hash, is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (username, email, self.hash_password(password), 1, now, now))
+            conn.commit()
         
         return {
             "username": username,
             "email": email,
-            "created_at": user_data["created_at"]
+            "created_at": now
         }
     
     def authenticate_user(self, username: str, password: str) -> Optional[Dict]:
         """Authenticate a user and return user data"""
-        user = self.users_db.get(username)
-        
-        if not user:
-            return None
-        
-        if not self.verify_password(password, user["hashed_password"]):
-            return None
-        
-        if not user.get("is_active", True):
-            return None
-        
-        return {
-            "username": user["username"],
-            "email": user["email"],
-            "created_at": user["created_at"]
-        }
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT username, email, password_hash, is_active, created_at FROM users WHERE username = ?', (username,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            if not self.verify_password(password, row['password_hash']):
+                return None
+            
+            if not row['is_active']:
+                return None
+            
+            return {
+                "username": row['username'],
+                "email": row['email'],
+                "created_at": row['created_at']
+            }
     
     def create_access_token(self, username: str) -> str:
         """Create a JWT access token"""
@@ -161,14 +143,63 @@ class AuthManager:
     
     def get_user(self, username: str) -> Optional[Dict]:
         """Get user data by username"""
-        user = self.users_db.get(username)
-        if not user:
-            return None
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT username, email, is_active, created_at FROM users WHERE username = ?', (username,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            return {
+                "username": row['username'],
+                "email": row['email'],
+                "created_at": row['created_at'],
+                "is_active": bool(row['is_active'])
+            }
+    
+    def update_user(self, username: str, updates: Dict) -> Optional[Dict]:
+        """Update user data"""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Check if user exists
+            cursor.execute('SELECT username FROM users WHERE username = ?', (username,))
+            if not cursor.fetchone():
+                return None
+            
+            # Build update query
+            update_fields = []
+            update_values = []
+            
+            if "email" in updates:
+                # Check if email is already taken by another user
+                cursor.execute('SELECT username FROM users WHERE email = ? AND username != ?', (updates["email"], username))
+                if cursor.fetchone():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Email already registered"
+                    )
+                update_fields.append("email = ?")
+                update_values.append(updates["email"])
+            
+            if "password" in updates:
+                update_fields.append("password_hash = ?")
+                update_values.append(self.hash_password(updates["password"]))
+            
+            if "is_active" in updates:
+                update_fields.append("is_active = ?")
+                update_values.append(1 if updates["is_active"] else 0)
+            
+            if update_fields:
+                update_fields.append("updated_at = ?")
+                update_values.append(datetime.utcnow().isoformat())
+                update_values.append(username)
+                
+                cursor.execute(f'''
+                    UPDATE users SET {', '.join(update_fields)}
+                    WHERE username = ?
+                ''', update_values)
+                conn.commit()
         
-        return {
-            "username": user["username"],
-            "email": user["email"],
-            "created_at": user["created_at"],
-            "is_active": user.get("is_active", True)
-        }
-
+        return self.get_user(username)

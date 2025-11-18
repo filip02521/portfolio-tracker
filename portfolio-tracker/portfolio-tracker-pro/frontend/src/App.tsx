@@ -24,6 +24,7 @@ import {
   Menu,
   MenuItem,
   Avatar,
+  Stack,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -32,6 +33,7 @@ import PortfolioIcon from '@mui/icons-material/AccountBalanceWallet';
 import TransactionsIcon from '@mui/icons-material/CompareArrows';
 import AnalyticsIcon from '@mui/icons-material/QueryStats';
 import AlertsIcon from '@mui/icons-material/NotificationsActive';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import RiskIcon from '@mui/icons-material/Security';
 import GoalsIcon from '@mui/icons-material/Flag';
 import TaxIcon from '@mui/icons-material/ReceiptLong';
@@ -42,12 +44,18 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import Badge from '@mui/material/Badge';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { portfolioService } from './services/portfolioService';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Logo } from './components/common/Logo';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { CommandPalette } from './components/common/CommandPalette';
+import { useKeyboardShortcuts, COMMON_SHORTCUTS } from './hooks/useKeyboardShortcuts';
+import { NotificationsCenter } from './components/common/NotificationsCenter';
+import { notificationsService } from './services/notificationsService';
 import { createAppTheme } from './theme/themeConfig';
+import { useRoutePrefetch } from './hooks/usePrefetch';
 
 // Lazy load components for better performance
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -63,6 +71,7 @@ const AdminMetrics = lazy(() => import('./components/AdminMetrics'));
 const AIInsights = lazy(() => import('./components/AIInsights'));
 const ConfluenceStrategyDashboard = lazy(() => import('./components/ConfluenceStrategyDashboard'));
 const FundamentalScreening = lazy(() => import('./components/FundamentalScreening'));
+const MarketWatch = lazy(() => import('./components/MarketWatch'));
 const Login = lazy(() => import('./components/Login'));
 const Register = lazy(() => import('./components/Register'));
 
@@ -91,6 +100,8 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [userData, setUserData] = useState<{username?: string, email?: string} | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -98,22 +109,65 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
   const isAuthenticated = portfolioService.isAuthenticated();
   const isDarkMode = theme.palette.mode === 'dark';
 
-  // Fetch user data on mount
+  // Fetch user data once when authenticated (only fetch once, not in loop)
   React.useEffect(() => {
-    if (isAuthenticated) {
+    // Don't fetch if on login/register pages to prevent loops
+    const currentPath = location.pathname;
+    if (currentPath === '/login' || currentPath === '/register') {
+      return;
+    }
+    
+    // Only fetch if authenticated and we don't have user data yet
+    if (isAuthenticated && !userData) {
       portfolioService.getCurrentUser()
         .then(data => {
           setUserData({ username: data?.username, email: data?.email });
         })
-        .catch(() => {
+        .catch((error) => {
+          // If 401, remove token to prevent loops
+          if (error?.response?.status === 401) {
+            localStorage.removeItem('authToken');
+            // Force re-render by triggering auth:logout event
+            window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: 'unauthorized' } }));
+          }
           // Silent fail - user data not critical for navigation
         });
     }
+  }, [isAuthenticated, location.pathname, userData]); // Added userData to deps - only fetch once
+
+  // Subscribe to notifications
+  React.useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const updateUnreadCount = () => {
+      setUnreadCount(notificationsService.getUnreadCount());
+    };
+
+    updateUnreadCount();
+    const unsubscribe = notificationsService.subscribe(() => {
+      updateUnreadCount();
+    });
+
+    return unsubscribe;
   }, [isAuthenticated]);
 
   const handleLogout = async () => {
-    await portfolioService.logout();
-    navigate('/login');
+    try {
+      await portfolioService.logout();
+    } catch (error) {
+      // Even if logout fails, we've cleared local data - continue with redirect
+      console.debug('Logout error (non-critical):', error);
+    }
+    
+    // Always redirect to login, even if logout endpoint failed
+    // Clear any remaining flags just in case
+    sessionStorage.removeItem('auth:invalid_token');
+    localStorage.removeItem('authToken');
+    
+    // Use replace to prevent back button from going to protected route
+    navigate('/login', { replace: true });
   };
 
   const menuSections = [
@@ -134,6 +188,7 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
       title: 'Analiza',
       items: [
         { text: 'Analytics', path: '/analytics', icon: <AnalyticsIcon /> },
+        { text: 'Market Watch', path: '/market-watch', icon: <TrendingUpIcon /> },
         { text: 'Risk Management', path: '/risk-management', icon: <RiskIcon /> },
         { text: 'Price Alerts', path: '/price-alerts', icon: <AlertsIcon /> },
         { text: 'AI Insights', path: '/ai-insights', icon: <AutoAwesomeIcon /> },
@@ -165,6 +220,7 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
 
   const secondaryDesktopItems = [
     { text: 'Transactions', path: '/transactions', icon: <TransactionsIcon /> },
+    { text: 'Market Watch', path: '/market-watch', icon: <TrendingUpIcon /> },
     { text: 'Risk Management', path: '/risk-management', icon: <RiskIcon /> },
     { text: 'Price Alerts', path: '/price-alerts', icon: <AlertsIcon /> },
     { text: 'AI Insights', path: '/ai-insights', icon: <AutoAwesomeIcon /> },
@@ -179,6 +235,123 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  // Menu item component with prefetching
+  const MenuItemWithPrefetch: React.FC<{
+    item: { text: string; path: string; icon?: React.ReactNode };
+    selected: boolean;
+    onClick?: () => void;
+  }> = ({ item, selected, onClick }) => {
+    const { prefetch, cancel } = useRoutePrefetch(item.path, { delay: 200 });
+    return (
+      <ListItemButton
+        component={Link}
+        to={item.path}
+        selected={selected}
+        onClick={onClick}
+        onMouseEnter={prefetch}
+        onFocus={prefetch}
+        onMouseLeave={cancel}
+        onBlur={cancel}
+        sx={{ 
+          py: 1.5,
+          px: 3,
+          '&.Mui-selected': { 
+            backgroundColor: isDarkMode ? 'rgba(37, 99, 235, 0.16)' : 'rgba(37, 99, 235, 0.12)',
+            borderLeft: '3px solid',
+            borderLeftColor: 'primary.main'
+          },
+          '&:hover': {
+            backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'
+          }
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 40, color: 'text.secondary' }}>
+          {item.icon}
+        </ListItemIcon>
+        <ListItemText primary={item.text} primaryTypographyProps={{ fontSize: '0.9375rem' }} />
+      </ListItemButton>
+    );
+  };
+
+  // Desktop button with prefetching
+  const DesktopButtonWithPrefetch: React.FC<{
+    item: { text: string; path: string };
+    selected: boolean;
+  }> = ({ item, selected }) => {
+    const { prefetch, cancel } = useRoutePrefetch(item.path, { delay: 200 });
+    return (
+      <Button
+        color="inherit"
+        component={Link}
+        to={item.path}
+        onMouseEnter={prefetch}
+        onFocus={prefetch}
+        onMouseLeave={cancel}
+        onBlur={cancel}
+        sx={{
+          textTransform: 'none',
+          fontWeight: selected ? 700 : 500,
+          backgroundColor: selected ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+          '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+          borderRadius: '10px',
+        }}
+      >
+        {item.text}
+      </Button>
+    );
+  };
+
+  // Menu item with prefetching
+  const MenuItemWithPrefetchAction: React.FC<{
+    item: { text: string; path: string; icon?: React.ReactNode };
+    selected: boolean;
+    onClick: () => void;
+  }> = ({ item, selected, onClick }) => {
+    const { prefetch, cancel } = useRoutePrefetch(item.path, { delay: 200 });
+    return (
+      <MenuItem
+        onClick={onClick}
+        onMouseEnter={prefetch}
+        onFocus={prefetch}
+        onMouseLeave={cancel}
+        onBlur={cancel}
+        selected={selected}
+        sx={{
+          py: 1.5,
+          px: 2,
+          '&.Mui-selected': {
+            backgroundColor: theme.palette.mode === 'light' 
+              ? 'rgba(37, 99, 235, 0.08)' 
+              : 'rgba(37, 99, 235, 0.2)',
+            '&:hover': {
+              backgroundColor: theme.palette.mode === 'light' 
+                ? 'rgba(37, 99, 235, 0.12)' 
+                : 'rgba(37, 99, 235, 0.25)',
+            },
+          },
+          '&:hover': {
+            backgroundColor: theme.palette.mode === 'light' 
+              ? 'rgba(37, 99, 235, 0.04)' 
+              : 'rgba(255, 255, 255, 0.05)',
+          },
+        }}
+      >
+        {item.icon && (
+          <ListItemIcon sx={{ minWidth: 40 }}>
+            {item.icon}
+          </ListItemIcon>
+        )}
+        <ListItemText 
+          primary={item.text} 
+          primaryTypographyProps={{ 
+            fontSize: '0.9375rem',
+            fontWeight: selected ? 600 : 400,
+          }}
+        />
+      </MenuItem>
+    );
   };
 
   const drawer = (
@@ -213,28 +386,10 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
             </ListSubheader>
             {section.items.map((item) => (
               <ListItem key={item.text} disablePadding>
-                <ListItemButton
-                  component={Link}
-                  to={item.path}
+                <MenuItemWithPrefetch
+                  item={item}
                   selected={location.pathname === item.path}
-                  sx={{ 
-                    py: 1.5,
-                    px: 3,
-                    '&.Mui-selected': { 
-                      backgroundColor: isDarkMode ? 'rgba(37, 99, 235, 0.16)' : 'rgba(37, 99, 235, 0.12)',
-                      borderLeft: '3px solid',
-                      borderLeftColor: 'primary.main'
-                    },
-                    '&:hover': {
-                      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'
-                    }
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 40, color: 'text.secondary' }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText primary={item.text} primaryTypographyProps={{ fontSize: '0.9375rem' }} />
-                </ListItemButton>
+                />
               </ListItem>
             ))}
             {sectionIndex < menuSections.length - 1 && (
@@ -243,6 +398,62 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
           </React.Fragment>
         ))}
       </List>
+      <Divider sx={{ mx: 3, borderColor: isDarkMode ? 'rgba(148,163,184,0.16)' : 'rgba(148,163,184,0.2)' }} />
+      {isAuthenticated && (
+        <Box sx={{ px: 3, py: 1 }}>
+          <Tooltip title="Notifications">
+            <ListItemButton
+              onClick={() => {
+                setNotificationsOpen(true);
+                handleDrawerToggle();
+              }}
+              sx={{
+                borderRadius: 2,
+                '&:hover': {
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'
+                }
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40, color: 'text.secondary' }}>
+                <Badge 
+                  badgeContent={unreadCount > 0 ? unreadCount : 0} 
+                  color="error"
+                  invisible={unreadCount === 0}
+                >
+                  <NotificationsNoneIcon />
+                </Badge>
+              </ListItemIcon>
+              <ListItemText 
+                primary="Notifications" 
+                secondary={unreadCount > 0 ? `${unreadCount} unread` : 'No new notifications'}
+                primaryTypographyProps={{ fontSize: '0.9375rem' }} 
+                secondaryTypographyProps={{ fontSize: '0.75rem' }}
+              />
+            </ListItemButton>
+          </Tooltip>
+        </Box>
+      )}
+      <Box sx={{ px: 3, py: 2 }}>
+        <Tooltip title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+          <ListItemButton
+            onClick={toggleColorMode}
+            sx={{
+              borderRadius: 2,
+              '&:hover': {
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'
+              }
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 40, color: 'text.secondary' }}>
+              {isDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+            </ListItemIcon>
+            <ListItemText 
+              primary={isDarkMode ? 'Light Mode' : 'Dark Mode'} 
+              primaryTypographyProps={{ fontSize: '0.9375rem' }} 
+            />
+          </ListItemButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 
@@ -272,22 +483,36 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
           {!isMobile && isAuthenticated && (
             <Box sx={{ display: 'flex', gap: 1, ml: 2, alignItems: 'center' }}>
               {primaryDesktopItems.map((item) => (
-                <Button
+                <DesktopButtonWithPrefetch
                   key={item.text}
-                  color="inherit"
-                  component={Link}
-                  to={item.path}
-                  sx={{
-                    textTransform: 'none',
-                    fontWeight: location.pathname === item.path ? 700 : 500,
-                    backgroundColor: location.pathname === item.path ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
-                    '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
-                    borderRadius: '10px',
-                  }}
-                >
-                  {item.text}
-                </Button>
+                  item={item}
+                  selected={location.pathname === item.path}
+                />
               ))}
+              <Tooltip title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+                <IconButton 
+                  color="inherit" 
+                  onClick={toggleColorMode}
+                  sx={{ ml: 0.5 }}
+                >
+                  {isDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Notifications">
+                <IconButton 
+                  color="inherit" 
+                  onClick={() => setNotificationsOpen(true)}
+                  sx={{ ml: 0.5 }}
+                >
+                  <Badge 
+                    badgeContent={unreadCount > 0 ? unreadCount : 0} 
+                    color="error"
+                    invisible={unreadCount === 0}
+                  >
+                    <NotificationsNoneIcon />
+                  </Badge>
+                </IconButton>
+              </Tooltip>
               <Tooltip title="Więcej">
                 <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
                   <MoreVertIcon />
@@ -313,43 +538,12 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
                     return <Divider key={`divider-${idx}`} sx={{ my: 0.5 }} />;
                   }
                   return (
-                    <MenuItem
+                    <MenuItemWithPrefetchAction
                       key={item.text}
-                      onClick={() => { setAnchorEl(null); navigate(item.path); }}
+                      item={item}
                       selected={location.pathname === item.path}
-                      sx={{
-                        py: 1.5,
-                        px: 2,
-                        '&.Mui-selected': {
-                          backgroundColor: theme.palette.mode === 'light' 
-                            ? 'rgba(37, 99, 235, 0.08)' 
-                            : 'rgba(37, 99, 235, 0.2)',
-                          '&:hover': {
-                            backgroundColor: theme.palette.mode === 'light' 
-                              ? 'rgba(37, 99, 235, 0.12)' 
-                              : 'rgba(37, 99, 235, 0.25)',
-                          },
-                        },
-                        '&:hover': {
-                          backgroundColor: theme.palette.mode === 'light' 
-                            ? 'rgba(37, 99, 235, 0.04)' 
-                            : 'rgba(255, 255, 255, 0.05)',
-                        },
-                      }}
-                    >
-                      {item.icon && (
-                        <ListItemIcon sx={{ minWidth: 40 }}>
-                          {item.icon}
-                        </ListItemIcon>
-                      )}
-                      <ListItemText 
-                        primary={item.text} 
-                        primaryTypographyProps={{ 
-                          fontSize: '0.9375rem',
-                          fontWeight: location.pathname === item.path ? 600 : 400,
-                        }}
-                      />
-                    </MenuItem>
+                      onClick={() => { setAnchorEl(null); navigate(item.path); }}
+                    />
                   );
                 })}
               </Menu>
@@ -486,17 +680,96 @@ const Navigation: React.FC<NavigationProps> = ({ toggleColorMode }) => {
       >
         {drawer}
       </Drawer>
+      
+      {/* Notifications Center */}
+      {isAuthenticated && (
+        <NotificationsCenter
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+        />
+      )}
     </>
   );
 };
 
 function App() {
-  const [mode, setMode] = useState<ColorMode>('light');
+  // Load theme preference from localStorage or default to 'light'
+  const [mode, setMode] = useState<ColorMode>(() => {
+    try {
+      const saved = localStorage.getItem('themeMode');
+      if (saved === 'light' || saved === 'dark') {
+        return saved;
+      }
+    } catch (error) {
+      // localStorage might not be available (SSR, private browsing, etc.)
+      console.debug('Failed to load theme preference from localStorage:', error);
+    }
+    return 'light';
+  });
+  
   const theme = useMemo(() => createAppTheme(mode), [mode]);
 
   const toggleColorMode = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+    setMode((prevMode) => {
+      const newMode = prevMode === 'light' ? 'dark' : 'light';
+      // Save preference to localStorage
+      try {
+        localStorage.setItem('themeMode', newMode);
+      } catch (error) {
+        console.debug('Failed to save theme preference to localStorage:', error);
+      }
+      return newMode;
+    });
   };
+
+  // Command Palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Global keyboard shortcuts for Command Palette
+  useKeyboardShortcuts({
+    enabled: true,
+    shortcuts: [
+      COMMON_SHORTCUTS.COMMAND_PALETTE(() => {
+        setCommandPaletteOpen(true);
+      }),
+      COMMON_SHORTCUTS.SEARCH(() => {
+        setCommandPaletteOpen(true);
+      }),
+    ],
+  });
+
+  // Listen for auth:logout events to handle redirects properly (prevents redirect loops)
+  React.useEffect(() => {
+    let redirectTimeout: NodeJS.Timeout | null = null;
+    
+    const handleAuthLogout = (event: CustomEvent) => {
+      const currentPath = window.location.pathname;
+      // Only redirect if not already on login/register page
+      if (currentPath !== '/login' && currentPath !== '/register') {
+        // Clear any pending redirects to prevent loops
+        if (redirectTimeout) {
+          clearTimeout(redirectTimeout);
+        }
+        // Use timeout to debounce redirects
+        redirectTimeout = setTimeout(() => {
+          const stillNotOnLogin = window.location.pathname !== '/login' && 
+                                  window.location.pathname !== '/register';
+          if (stillNotOnLogin && !localStorage.getItem('authToken')) {
+            window.location.href = '/login';
+          }
+        }, 200);
+      }
+    };
+
+    window.addEventListener('auth:logout', handleAuthLogout as EventListener);
+
+    return () => {
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+      }
+      window.removeEventListener('auth:logout', handleAuthLogout as EventListener);
+    };
+  }, []);
 
   return (
     <ThemeProvider theme={theme}>
@@ -640,6 +913,16 @@ function App() {
                   } 
                 />
                 <Route 
+                  path="/market-watch" 
+                  element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <MarketWatch />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
                   path="/admin/metrics" 
                   element={
                     <ProtectedRoute>
@@ -653,7 +936,119 @@ function App() {
             </Suspense>
             </ErrorBoundary>
           </Container>
+          <Box
+            component="footer"
+            sx={(theme) => ({
+              borderTop: `1px solid ${theme.palette.divider}`,
+              backgroundColor:
+                theme.palette.mode === 'light'
+                  ? theme.palette.background.paper
+                  : theme.palette.background.default,
+              px: { xs: 2, sm: 3, md: 4 },
+              py: { xs: 2, sm: 3 },
+            })}
+          >
+            <Container maxWidth="xl" sx={{ px: 0 }}>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                alignItems="center"
+                flexWrap="wrap"
+                sx={{
+                  rowGap: 0.75,
+                  columnGap: 0.75,
+                  color: 'text.secondary',
+                  fontSize: '0.875rem',
+                }}
+              >
+                <Box
+                  component="a"
+                  href="http://localhost"
+                  sx={{
+                    color: 'inherit',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    '&:hover': { textDecoration: 'underline' },
+                  }}
+                >
+                  InsightPort
+                </Box>
+                <Typography component="span" variant="body2" color="inherit">
+                  © 2025 by
+                </Typography>
+                <Box
+                  component="a"
+                  href="http://localhost"
+                  sx={{
+                    color: 'inherit',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    '&:hover': { textDecoration: 'underline' },
+                  }}
+                >
+                  Filip Naskręt
+                </Box>
+                <Typography component="span" variant="body2" color="inherit">
+                  is licensed under
+                </Typography>
+                <Box
+                  component="a"
+                  href="https://creativecommons.org/licenses/by-nc-nd/4.0/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{
+                    color: 'inherit',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    '&:hover': { textDecoration: 'underline' },
+                  }}
+                >
+                  CC BY-NC-ND 4.0
+                </Box>
+                <Box
+                  component="span"
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    ml: { xs: 0, sm: 0.5 },
+                    gap: 0.5,
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src="/licenses/cc.svg"
+                    alt="Creative Commons icon"
+                    sx={{ maxWidth: '1em', maxHeight: '1em' }}
+                  />
+                  <Box
+                    component="img"
+                    src="/licenses/by.svg"
+                    alt="Attribution icon"
+                    sx={{ maxWidth: '1em', maxHeight: '1em' }}
+                  />
+                  <Box
+                    component="img"
+                    src="/licenses/nc.svg"
+                    alt="NonCommercial icon"
+                    sx={{ maxWidth: '1em', maxHeight: '1em' }}
+                  />
+                  <Box
+                    component="img"
+                    src="/licenses/nd.svg"
+                    alt="NoDerivatives icon"
+                    sx={{ maxWidth: '1em', maxHeight: '1em' }}
+                  />
+                </Box>
+              </Stack>
+            </Container>
+          </Box>
         </Box>
+        
+        {/* Global Command Palette - must be inside Router */}
+        <CommandPalette
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+        />
       </Router>
     </ThemeProvider>
   );

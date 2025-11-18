@@ -1,4 +1,6 @@
-# Confluence Strategy Documentation
+# Confluence Strategy Documentation (Deprecated)
+
+> **Important:** The intraday confluence strategy has been superseded by the long-term **Due Diligence 360°** engine. Use `DUE_DILIGENCE_360.md` for the current methodology. Legacy APIs remain available temporarily and now return Due Diligence payloads alongside deprecation warnings.
 
 ## Overview
 
@@ -292,4 +294,5 @@ Key parameters can be adjusted:
 - [ ] Advanced chart visualization with annotations
 - [ ] Alert system for confluence signals
 - [ ] Performance optimization for large datasets
+
 

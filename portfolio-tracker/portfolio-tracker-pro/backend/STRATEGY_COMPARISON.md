@@ -82,3 +82,4 @@
 - [ ] Sprawdzić dlaczego exit signals nie są triggerowane
 - [ ] Naprawić logikę liczenia trades (uwzględnić pozycje zamykane na końcu)
 
+

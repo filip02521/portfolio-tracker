@@ -1,0 +1,49 @@
+{
+  "2025": {
+    "tax_return_deadline": "2025-04-30",
+    "tax_payment_deadline": "2025-05-31",
+    "quarterly_payments": [
+      "2025-03-31",
+      "2025-05-31",
+      "2025-08-31",
+      "2025-11-30"
+    ],
+    "important_dates": [
+      {
+        "date": "2025-01-31",
+        "description": "Termin sk\u0142adania PIT-11 za poprzedni rok",
+        "type": "deadline"
+      },
+      {
+        "date": "2025-02-15",
+        "description": "Termin sk\u0142adania PIT-8AR za poprzedni rok",
+        "type": "deadline"
+      },
+      {
+        "date": "2025-04-30",
+        "description": "Termin sk\u0142adania zeznania podatkowego PIT-37",
+        "type": "deadline"
+      },
+      {
+        "date": "2025-05-31",
+        "description": "Termin zap\u0142aty podatku dochodowego",
+        "type": "payment"
+      },
+      {
+        "date": "2025-06-30",
+        "description": "Termin sk\u0142adania PIT-11 za pierwszy kwarta\u0142",
+        "type": "deadline"
+      },
+      {
+        "date": "2025-09-30",
+        "description": "Termin sk\u0142adania PIT-11 za drugi kwarta\u0142",
+        "type": "deadline"
+      },
+      {
+        "date": "2025-12-31",
+        "description": "Termin sk\u0142adania PIT-11 za trzeci kwarta\u0142",
+        "type": "deadline"
+      }
+    ]
+  }
+}

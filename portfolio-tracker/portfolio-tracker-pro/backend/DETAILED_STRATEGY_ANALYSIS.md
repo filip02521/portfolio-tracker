@@ -246,3 +246,4 @@ self.logger.info(f"Position opened: entry=${entry_price:.2f}, SL=${stop_loss:.2f
 2. Naprawić backtest
 3. Przetestować na historycznych danych
 
+

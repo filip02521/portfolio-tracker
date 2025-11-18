@@ -11,6 +11,8 @@ import {
   CircularProgress,
   Tooltip,
   useTheme,
+  Stack,
+  Alert,
 } from '@mui/material';
 import {
   ExpandMore,
@@ -50,6 +52,17 @@ interface AIRecommendation {
     difference: number;
   };
   metrics?: any;
+  due_diligence?: {
+    score?: number;
+    verdict?: string;
+    confidence?: number;
+    pillars?: Array<{
+      name: string;
+      score?: number;
+      weight?: number;
+      confidence?: number;
+    }>;
+  };
 }
 
 interface SimplifiedRecommendationCardProps {
@@ -67,6 +80,20 @@ const SimplifiedRecommendationCard: React.FC<SimplifiedRecommendationCardProps> 
   const compositeScore = recommendation.composite_score || 50;
   const signalStrength = recommendation.signal_strength || 0;
   const confidence = recommendation.confidence || 0;
+  const dueDiligence = recommendation.due_diligence;
+  const dueScore =
+    typeof dueDiligence?.score === 'number' && Number.isFinite(dueDiligence.score)
+      ? Math.max(0, Math.min(dueDiligence.score, 100))
+      : null;
+  const dueColor =
+    dueScore === null
+      ? theme.palette.text.secondary
+      : dueScore >= 75
+      ? theme.palette.success.main
+      : dueScore >= 55
+      ? theme.palette.warning.main
+      : theme.palette.error.main;
+  const dueVerdictLabel = dueDiligence?.verdict ? dueDiligence.verdict.replace(/_/g, ' ') : null;
   
   // Gauge color based on score
   const getGaugeColor = (score: number) => {
@@ -414,6 +441,99 @@ const SimplifiedRecommendationCard: React.FC<SimplifiedRecommendationCardProps> 
                 ))}
               </Box>
             )}
+          </Box>
+        )}
+        
+        {dueDiligence && (
+          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+            <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: 56,
+                  height: 56,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <CircularProgress
+                  variant="determinate"
+                  value={dueScore ?? 0}
+                  size={56}
+                  thickness={4}
+                  sx={{ color: dueColor }}
+                />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Typography variant="subtitle1" fontWeight={700} color={dueColor}>
+                    {dueScore !== null ? dueScore.toFixed(1) : '—'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    DD Score
+                  </Typography>
+                </Box>
+              </Box>
+              <Stack spacing={0.5}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Long-term Assessment
+                </Typography>
+                {dueVerdictLabel && (
+                  <Chip
+                    size="small"
+                    label={dueVerdictLabel}
+                    sx={{ textTransform: 'uppercase', fontWeight: 600, alignSelf: 'flex-start' }}
+                  />
+                )}
+                <Typography variant="caption" color="text.secondary">
+                  Confidence {(dueDiligence.confidence ?? 0).toFixed(2)}
+                </Typography>
+              </Stack>
+            </Stack>
+            {dueScore !== null && dueScore < 45 && (
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                Due Diligence 360° flags elevated fundamental risk for this asset.
+              </Alert>
+            )}
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {dueDiligence.pillars?.slice(0, 4).map((pillar, idx) => {
+                const pillarScore =
+                  typeof pillar.score === 'number' && Number.isFinite(pillar.score)
+                    ? Math.max(0, Math.min(pillar.score, 100))
+                    : null;
+                const pillarColor =
+                  pillarScore === null
+                    ? theme.palette.text.secondary
+                    : pillarScore >= 75
+                    ? theme.palette.success.main
+                    : pillarScore >= 55
+                    ? theme.palette.warning.main
+                    : theme.palette.error.main;
+                return (
+                  <Tooltip
+                    key={`${pillar.name}-${idx}`}
+                    title={`Weight ${(pillar.weight ?? 0) * 100}% • Confidence ${
+                      pillar.confidence !== undefined ? (pillar.confidence * 100).toFixed(0) : '—'
+                    }%`}
+                  >
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      sx={{ borderColor: pillarColor, color: pillarColor, fontWeight: 600 }}
+                      label={`${pillar.name.replace(/_/g, ' ')} ${
+                        pillarScore !== null ? pillarScore.toFixed(1) : '—'
+                      }`}
+                    />
+                  </Tooltip>
+                );
+              })}
+            </Stack>
           </Box>
         )}
         

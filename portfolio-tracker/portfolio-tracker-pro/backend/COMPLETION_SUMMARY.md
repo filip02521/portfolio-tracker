@@ -174,3 +174,5 @@ Wszystkie zmiany zostały scommitowane:
 
 **Status: ✅ WSZYSTKO GOTOWE I DZIAŁA**
 
+
+

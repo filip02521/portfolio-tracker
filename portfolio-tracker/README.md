@@ -39,7 +39,7 @@ streamlit run streamlit_app.py
 
 Otwórz przeglądarkę i wejdź na: `http://localhost:8501`
 
-**Dostęp z telefonu**: Zobacz [MOBILE_GUIDE.md](MOBILE_GUIDE.md)
+**Dostęp z telefonu**: Użyj Network URL z terminala, gdy aplikacja się uruchomi
 
 ### Wersja konsolowa 💻
 
@@ -91,9 +91,13 @@ python main.py
 Struktura projektu:
 ```
 portfolio-tracker/
-├── main.py                 # Główny plik aplikacji
+├── streamlit_app.py       # Główny plik aplikacji webowej
+├── main.py                 # Wersja konsolowa aplikacji
 ├── config.py               # Konfiguracja i zarządzanie kluczami API
 ├── portfolio_tracker.py    # Unified portfolio tracker
+├── pages/                  # Podstrony aplikacji
+│   ├── 1_kryptowaluty.py
+│   └── 2_akcje.py
 ├── exchanges/              # Klienci API dla każdej giełdy
 │   ├── binance_client.py
 │   ├── bybit_client.py
@@ -105,5 +109,14 @@ portfolio-tracker/
 
 ## 📄 Licencja
 
-Ten projekt jest przeznaczony do użytku osobistego.
+InsightPort © 2025 by [Filip Naskręt](http://localhost) jest udostępniany na licencji [Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International](https://creativecommons.org/licenses/by-nc-nd/4.0/) (CC BY-NC-ND 4.0).
+
+W skrócie:
+
+- ✅ Możesz uruchamiać aplikację wewnętrznie i dzielić się nią w organizacji.
+- ✅ Możesz udostępniać niezmodyfikowane kopie projektu wraz z informacją o autorze i licencji.
+- ❌ Nie możesz wykorzystywać projektu komercyjnie bez zgody autora.
+- ❌ Nie możesz dystrybuować zmodyfikowanych wersji projektu.
+
+Pełny tekst licencji znajduje się w pliku `LICENSE`. Zasady stosowania licencji oraz procedura zmiany licencji na potrzeby publicznego wydania są opisane w `LICENSING_GUIDELINES.md`.
 

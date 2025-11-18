@@ -236,11 +236,11 @@ class TestSignalScaling(unittest.TestCase):
         
         for signal_strength, expected_min_conf in test_cases:
             abs_signal = abs(signal_strength)
-            if abs_signal > 70:
+            if abs_signal >= 70:
                 min_conf = 0.70
-            elif abs_signal > 50:
+            elif abs_signal >= 50:
                 min_conf = 0.50
-            elif abs_signal > 30:
+            elif abs_signal >= 30:
                 min_conf = 0.30
             else:
                 min_conf = 0.05

@@ -24,6 +24,7 @@ import {
   Divider,
   Tabs,
   Tab,
+  Stack,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -43,6 +44,18 @@ import {
   ReferenceLine,
   Label,
 } from 'recharts';
+
+const srOnlyStyles = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap' as const,
+  border: 0,
+};
 
 interface ConfluenceEntrySignal {
   entry_signal: 'buy' | 'sell' | 'hold';
@@ -293,17 +306,21 @@ const ConfluenceStrategyDashboard: React.FC = () => {
     }
   };
   
-  useEffect(() => {
-    if (tabValue === 0) {
-      fetchEntrySignal();
-    } else if (tabValue === 1 && currentPosition) {
-      fetchExitSignal();
-    }
-  }, [tabValue, selectedSymbol, selectedInterval, fetchEntrySignal, fetchExitSignal, currentPosition]);
+  // DISABLED: Automatic signal fetching - now manual only via buttons
+  // useEffect(() => {
+  //   if (tabValue === 0) {
+  //     fetchEntrySignal();
+  //   } else if (tabValue === 1 && currentPosition) {
+  //     fetchExitSignal();
+  //   }
+  // }, [tabValue, selectedSymbol, selectedInterval, fetchEntrySignal, fetchExitSignal, currentPosition]);
   
   const renderEntryPanel = () => (
-    <Box>
-      <Paper sx={{ p: 3, mb: 3 }}>
+    <Stack component="section" spacing={3} aria-labelledby="entry-panel-heading">
+      <Typography id="entry-panel-heading" variant="h5" sx={srOnlyStyles}>
+        Entry signal analysis
+      </Typography>
+      <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Symbol</InputLabel>
@@ -456,12 +473,15 @@ const ConfluenceStrategyDashboard: React.FC = () => {
           </Box>
         )}
       </Paper>
-    </Box>
+    </Stack>
   );
   
   const renderExitPanel = () => (
-    <Box>
-      <Paper sx={{ p: 3, mb: 3 }}>
+    <Stack component="section" spacing={3} aria-labelledby="management-panel-heading">
+      <Typography id="management-panel-heading" variant="h5" sx={srOnlyStyles}>
+        Position management and exit signals
+      </Typography>
+      <Paper sx={{ p: 3 }}>
         {!currentPosition ? (
           <Alert severity="info">
             No active position. Entry signals will create a simulated position for testing.
@@ -553,12 +573,15 @@ const ConfluenceStrategyDashboard: React.FC = () => {
           </Box>
         )}
       </Paper>
-    </Box>
+    </Stack>
   );
   
   const renderBacktestPanel = () => (
-    <Box>
-      <Paper sx={{ p: 3, mb: 3 }}>
+    <Stack component="section" spacing={3} aria-labelledby="backtest-panel-heading">
+      <Typography id="backtest-panel-heading" variant="h5" sx={srOnlyStyles}>
+        Backtesting results and trade history
+      </Typography>
+      <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Symbol</InputLabel>
@@ -771,29 +794,47 @@ const ConfluenceStrategyDashboard: React.FC = () => {
           </Box>
         )}
       </Paper>
-    </Box>
+    </Stack>
   );
   
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Confluence Strategy Dashboard
-      </Typography>
-      <Typography variant="body1" color="text.secondary" paragraph>
-        Advanced trading strategy based on confluence of multiple technical indicators
-      </Typography>
-      
-      <Paper sx={{ mb: 3 }}>
-        <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)}>
-          <Tab label="Entry Signals" />
-          <Tab label="Position Management" />
-          <Tab label="Backtesting" />
-        </Tabs>
-      </Paper>
-      
-      {tabValue === 0 && renderEntryPanel()}
-      {tabValue === 1 && renderExitPanel()}
-      {tabValue === 2 && renderBacktestPanel()}
+      <Stack spacing={3}>
+        <Box component="header">
+          <Typography variant="h4" component="h1" gutterBottom>
+            Confluence Strategy Dashboard
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Advanced trading strategy based on confluence of multiple technical indicators
+          </Typography>
+        </Box>
+
+        <Paper>
+          <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} aria-label="Confluence dashboard sections">
+            <Tab label="Entry Signals" id="confluence-tab-0" aria-controls="confluence-panel-0" />
+            <Tab label="Position Management" id="confluence-tab-1" aria-controls="confluence-panel-1" />
+            <Tab label="Backtesting" id="confluence-tab-2" aria-controls="confluence-panel-2" />
+          </Tabs>
+        </Paper>
+
+        <Box>
+          {tabValue === 0 && (
+            <Box id="confluence-panel-0" role="tabpanel" aria-labelledby="confluence-tab-0">
+              {renderEntryPanel()}
+            </Box>
+          )}
+          {tabValue === 1 && (
+            <Box id="confluence-panel-1" role="tabpanel" aria-labelledby="confluence-tab-1">
+              {renderExitPanel()}
+            </Box>
+          )}
+          {tabValue === 2 && (
+            <Box id="confluence-panel-2" role="tabpanel" aria-labelledby="confluence-tab-2">
+              {renderBacktestPanel()}
+            </Box>
+          )}
+        </Box>
+      </Stack>
     </Container>
   );
 };

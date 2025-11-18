@@ -14,6 +14,10 @@ import logging
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import time
+from dateutil.relativedelta import relativedelta
 import requests
 import os
 from config import Config
@@ -37,9 +41,74 @@ class FundamentalScreeningService:
         self.alpha_vantage_api_key = Config.ALPHA_VANTAGE_API_KEY or os.getenv('ALPHA_VANTAGE_API_KEY', '')
         
         # Cache for fundamental data
+        self._cache_lock = threading.Lock()
         self._fundamental_cache = {}
+        self._fundamental_cache_by_date = {}
         self._cache_ttl = 86400  # 24 hours
+        self._alpha_vantage_report_cache = {}
+        self._finnhub_report_cache = {}
+        self._http_session = requests.Session()
+        self._api_request_count = {}
+        self._provider_backoff: Dict[str, float] = {}
         
+        # Static universe fallbacks (avoid external fetch delays)
+        self._static_universes: Dict[str, List[str]] = {
+            'SP500': [
+                'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B',
+                'V', 'JNJ', 'WMT', 'JPM', 'MA', 'PG', 'UNH', 'HD', 'DIS', 'PYPL',
+                'BAC', 'VZ', 'ADBE', 'CMCSA', 'NFLX', 'NKE', 'MRK', 'PFE', 'T',
+                'INTC', 'PEP', 'CSCO', 'TMO', 'AVGO', 'COST', 'ABT', 'ACN', 'CVX',
+                'XOM', 'DHR', 'MDT', 'WFC', 'ABBV', 'ORCL', 'LLY', 'PM', 'NEE',
+                'TXN', 'HON', 'UNP', 'UPS', 'IBM', 'BMY', 'AMGN', 'CI', 'SPGI',
+                'RTX', 'DE', 'ADP', 'GS', 'CAT', 'AMAT', 'LMT', 'MU', 'BKNG',
+                'C', 'AXP', 'MMC', 'CB', 'ADI', 'MCD', 'GE', 'ISRG', 'SYK',
+                'EQIX', 'REGN', 'MCHP', 'ELV', 'CDNS', 'SNPS', 'ZTS', 'APH',
+                'CL', 'FTNT', 'ROP', 'KLAC', 'WDAY', 'FANG', 'ODFL', 'CME',
+                'AON', 'ICE', 'EW', 'ETN', 'ITW', 'PH', 'EMR', 'TT', 'APD'
+            ],
+            'DOWJONES': [
+                'AAPL', 'AMGN', 'AXP', 'BA', 'CAT', 'CSCO', 'CVX', 'DIS', 'DOW', 'GS',
+                'HD', 'HON', 'IBM', 'INTC', 'JNJ', 'JPM', 'KO', 'MCD', 'MMM', 'MRK',
+                'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'V', 'VZ', 'WBA', 'WMT'
+            ],
+            'NASDAQ100': [
+                'ATVI','ADBE','AMD','AAL','ALGN','GOOGL','AMZN','AMGN','AEP','ADI',
+                'ANSS','AAPL','AMAT','ASML','TEAM','ADSK','AZN','AVGO','BIDU','BIIB',
+                'BKNG','CDNS','CDW','CERN','CHTR','CTAS','CSCO','CMCSA','CPRT','COST',
+                'CSX','DXCM','DOCU','DLTR','EBAY','EA','EXC','EXPE','FAST','FISV',
+                'FTNT','GILD','IDXX','ILMN','INTC','INTU','ISRG','JD','KDP','KLAC',
+                'KHC','LRCX','LULU','MAR','MRVL','MTCH','META','MCHP','MU','MSFT',
+                'MRNA','MDLZ','MNST','NTES','NFLX','NVDA','NXPI','OKTA','ORLY','PCAR',
+                'PAYX','PEP','PYPL','PDD','QCOM','REGN','ROST','SIRI','SGEN','SPLK',
+                'SWKS','SBUX','SNPS','TMUS','TSLA','TXN','TCOM','VRSK','VRSN','VRTX',
+                'WBA','WDAY','XEL','ZM','ZS'
+            ],
+            'RUSSELL2000': [
+                'AAL', 'AMD', 'ADSK', 'AKAM', 'ALGN', 'ALXN', 'AMAT', 'AMGN',
+                'ANSS', 'APH', 'ATVI', 'AVGO', 'BBY', 'BIDU', 'BIIB',
+                'BKNG', 'CDNS', 'CDW', 'CERN', 'CHTR', 'COST', 'CSX',
+                'CTAS', 'CTSH', 'CTXS', 'DLTR', 'EA', 'EBAY', 'EXPD', 'FAST',
+                'FISV', 'FOX', 'FOXA', 'GILD', 'HAS',
+                'HSIC', 'IDXX', 'ILMN', 'INCY', 'INTU', 'ISRG', 'JBHT',
+                'KLAC', 'LRCX', 'LULU', 'MAR', 'MCHP',
+                'MDLZ', 'MELI', 'MNST', 'MXIM', 'NFLX', 'NTES',
+                'NTAP', 'NXPI', 'ORLY', 'PAYX', 'PCAR', 'PYPL',
+                'QCOM', 'REGN', 'ROST', 'SBUX', 'SGEN', 'SIRI', 'SNPS', 'SPLK',
+                'SWKS', 'TCOM', 'TXN', 'ULTA', 'VRSK',
+                'VRSN', 'VRTX', 'WDC', 'WDAY', 'WYNN', 'XEL', 'ZM'
+            ]
+        }
+
+    def _safe_float(self, value, default: Optional[float] = 0.0) -> float:
+        if value is None:
+            return default if default is not None else 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default if default is not None else 0.0
+
     def get_fundamental_data(self, symbol: str, exchange: str = 'US') -> Optional[Dict]:
         """
         Fetch fundamental financial data for a symbol.
@@ -57,8 +126,10 @@ class FundamentalScreeningService:
             Dict with financial data or None if unavailable
         """
         cache_key = f"{symbol}_{exchange}"
-        if cache_key in self._fundamental_cache:
-            cached_data, cached_time = self._fundamental_cache[cache_key]
+        with self._cache_lock:
+            cached_entry = self._fundamental_cache.get(cache_key)
+        if cached_entry:
+            cached_data, cached_time = cached_entry
             if (datetime.now() - cached_time).seconds < self._cache_ttl:
                 return cached_data
         
@@ -84,9 +155,182 @@ class FundamentalScreeningService:
             fundamental_data = self._get_mock_fundamental_data(symbol)
         
         if fundamental_data:
-            self._fundamental_cache[cache_key] = (fundamental_data, datetime.now())
+            with self._cache_lock:
+                self._fundamental_cache[cache_key] = (fundamental_data, datetime.now())
         
         return fundamental_data
+    
+    def get_fundamental_data_as_of(
+        self,
+        symbol: str,
+        as_of_date: Optional[datetime],
+        exchange: str = 'US'
+    ) -> Optional[Dict]:
+        """
+        Fetch fundamental data snapshot as of a specific date.
+        
+        Preference order:
+        1. Alpha Vantage (annual reports) - pick most recent report <= as_of_date
+        2. Finnhub financials-reported - pick most recent report <= as_of_date
+        3. Fallback to current data
+        """
+        if not as_of_date:
+            return self.get_fundamental_data(symbol, exchange)
+        
+        as_of_key = as_of_date.strftime('%Y-%m-%d')
+        cache_key = f"{symbol}_{as_of_key}_{exchange}"
+        with self._cache_lock:
+            cached_entry = self._fundamental_cache_by_date.get(cache_key)
+        if cached_entry:
+            cached_data, cached_time = cached_entry
+            if (datetime.now() - cached_time).seconds < self._cache_ttl:
+                return cached_data
+        
+        result = None
+        
+        # Try Alpha Vantage
+        if self.alpha_vantage_api_key:
+            try:
+                result = self._fetch_from_alpha_vantage_as_of(symbol, as_of_date)
+            except Exception as e:
+                self.logger.warning(f"Alpha Vantage as-of data error for {symbol} ({as_of_key}): {e}")
+        
+        # Try Finnhub if Alpha Vantage unavailable
+        if not result and self.finnhub_api_key:
+            try:
+                result = self._fetch_from_finnhub_as_of(symbol, as_of_date)
+            except Exception as e:
+                self.logger.warning(f"Finnhub as-of data error for {symbol} ({as_of_key}): {e}")
+        
+        # Fallback to current data if we still can't get a snapshot
+        if not result:
+            self.logger.debug(f"As-of fundamental snapshot unavailable for {symbol} on {as_of_key}, using latest data")
+            result = self.get_fundamental_data(symbol, exchange)
+        
+        if result:
+            with self._cache_lock:
+                self._fundamental_cache_by_date[cache_key] = (result, datetime.now())
+        
+        return result
+    
+    def _get_alpha_vantage_reports(self, symbol: str) -> Optional[Dict]:
+        """Fetch and cache raw Alpha Vantage report bundles (income, balance, cashflow, overview)."""
+        with self._cache_lock:
+            cache_entry = self._alpha_vantage_report_cache.get(symbol)
+        if cache_entry:
+            reports, cached_time = cache_entry
+            if (datetime.now() - cached_time).seconds < self._cache_ttl:
+                return reports
+        
+        try:
+            income_url = f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            balance_url = f"https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            cashflow_url = f"https://www.alphavantage.co/query?function=CASH_FLOW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            overview_url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
+            
+            income_resp = self._fetch_with_retry(income_url, 'alpha_vantage')
+            balance_resp = self._fetch_with_retry(balance_url, 'alpha_vantage')
+            cashflow_resp = self._fetch_with_retry(cashflow_url, 'alpha_vantage')
+            overview_resp = self._fetch_with_retry(overview_url, 'alpha_vantage')
+            
+            if not income_resp or not balance_resp or not cashflow_resp:
+                return None
+            
+            reports = {
+                'income': income_resp.json(),
+                'balance': balance_resp.json(),
+                'cashflow': cashflow_resp.json(),
+                'overview': overview_resp.json() if overview_resp else {}
+            }
+            with self._cache_lock:
+                self._alpha_vantage_report_cache[symbol] = (reports, datetime.now())
+            return reports
+        except Exception as e:
+            self.logger.error(f"Error fetching Alpha Vantage reports for {symbol}: {e}")
+            return None
+    
+    def _get_finnhub_reports(self, symbol: str) -> Optional[Dict]:
+        """Fetch and cache raw Finnhub financial reports for a symbol."""
+        with self._cache_lock:
+            cache_entry = self._finnhub_report_cache.get(symbol)
+        if cache_entry:
+            reports, cached_time = cache_entry
+            if (datetime.now() - cached_time).seconds < self._cache_ttl:
+                return reports
+        
+        try:
+            financials_url = f"https://finnhub.io/api/v1/stock/financials-reported?symbol={symbol}&token={self.finnhub_api_key}"
+            financials_resp = self._fetch_with_retry(financials_url, 'finnhub')
+            if not financials_resp:
+                return None
+            
+            profile_url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={self.finnhub_api_key}"
+            profile_resp = self._fetch_with_retry(profile_url, 'finnhub')
+            
+            reports = {
+                'financials': financials_resp.json(),
+                'profile': profile_resp.json() if profile_resp else {}
+            }
+            with self._cache_lock:
+                self._finnhub_report_cache[symbol] = (reports, datetime.now())
+            return reports
+        except Exception as e:
+            self.logger.error(f"Error fetching Finnhub reports for {symbol}: {e}")
+            return None
+    
+    def _fetch_with_retry(
+        self,
+        url: str,
+        provider: str,
+        params: Optional[Dict] = None,
+        headers: Optional[Dict] = None,
+        timeout: int = 10,
+        max_retries: int = 3,
+        backoff_factor: float = 1.5
+    ) -> Optional[requests.Response]:
+        """Generic HTTP GET with retry/backoff and rate-limit tracking."""
+        for attempt in range(max_retries):
+            try:
+                if provider in self._provider_backoff:
+                    wait_until = self._provider_backoff[provider]
+                    if time.time() < wait_until:
+                        self.logger.debug(f"{provider} requests paused until {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(wait_until))}. Skipping {url}.")
+                        return None
+
+                with self._cache_lock:
+                    self._api_request_count[provider] = self._api_request_count.get(provider, 0) + 1
+                response = self._http_session.get(url, params=params, headers=headers, timeout=timeout)
+                
+                # Rate limit responses
+                if response.status_code == 429:
+                    if provider == 'finnhub':
+                        backoff_seconds = 300  # 5 minutes - avoid hammering limited tier
+                    elif provider == 'alpha_vantage':
+                        backoff_seconds = 120  # 2 minutes per API guidelines
+                    else:
+                        backoff_seconds = min(60, backoff_factor ** attempt * 10)
+                    self._provider_backoff[provider] = time.time() + backoff_seconds
+                    self.logger.warning(f"{provider} rate limit hit for {url}. Pausing requests for {backoff_seconds:.2f}s.")
+                    return None
+                
+                # Retry on server errors
+                if response.status_code >= 500:
+                    sleep_time = backoff_factor ** attempt
+                    self.logger.warning(f"{provider} server error {response.status_code} for {url}. Retry in {sleep_time:.2f}s.")
+                    time.sleep(sleep_time)
+                    continue
+                
+                # Raise for other bad statuses
+                response.raise_for_status()
+                return response
+            except requests.RequestException as exc:
+                sleep_time = backoff_factor ** attempt
+                if attempt < max_retries - 1:
+                    self.logger.warning(f"{provider} request failed ({exc}). Retrying in {sleep_time:.2f}s.")
+                    time.sleep(sleep_time)
+                else:
+                    self.logger.error(f"{provider} request failed after {max_retries} attempts: {exc}")
+        return None
     
     def get_fundamental_data_historical(self, symbol: str, year_offset: int = 1, exchange: str = 'US') -> Optional[Dict]:
         """
@@ -122,31 +366,14 @@ class FundamentalScreeningService:
     def _fetch_from_alpha_vantage_historical(self, symbol: str, year_offset: int = 1) -> Optional[Dict]:
         """Fetch historical fundamental data from Alpha Vantage API"""
         try:
-            # Income statement
-            income_url = f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            income_response = requests.get(income_url, timeout=10)
-            if income_response.status_code != 200:
+            reports = self._get_alpha_vantage_reports(symbol)
+            if not reports:
                 return None
-            income_data = income_response.json()
             
-            # Balance sheet
-            balance_url = f"https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            balance_response = requests.get(balance_url, timeout=10)
-            if balance_response.status_code != 200:
-                return None
-            balance_data = balance_response.json()
-            
-            # Cash flow
-            cashflow_url = f"https://www.alphavantage.co/query?function=CASH_FLOW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            cashflow_response = requests.get(cashflow_url, timeout=10)
-            if cashflow_response.status_code != 200:
-                return None
-            cashflow_data = cashflow_response.json()
-            
-            # Get overview for symbol info
-            overview_url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            overview_response = requests.get(overview_url, timeout=10)
-            overview_data = overview_response.json() if overview_response.status_code == 200 else {}
+            income_data = reports.get('income', {})
+            balance_data = reports.get('balance', {})
+            cashflow_data = reports.get('cashflow', {})
+            overview_data = reports.get('overview', {})
             
             # Extract data from year_offset position (0 = latest, 1 = previous year, etc.)
             annual_income = income_data.get('annualReports', [])
@@ -168,26 +395,73 @@ class FundamentalScreeningService:
             self.logger.error(f"Error fetching historical data from Alpha Vantage: {e}")
             return None
     
+    def _fetch_from_alpha_vantage_as_of(self, symbol: str, as_of_date: datetime) -> Optional[Dict]:
+        """Fetch Alpha Vantage data and return snapshot closest to (<=) as_of_date"""
+        try:
+            reports = self._get_alpha_vantage_reports(symbol)
+            if not reports:
+                return None
+            
+            income_data = reports.get('income', {})
+            balance_data = reports.get('balance', {})
+            cashflow_data = reports.get('cashflow', {})
+            overview_data = reports.get('overview', {})
+            
+            annual_income = income_data.get('annualReports', [])
+            annual_balance = balance_data.get('annualReports', [])
+            annual_cashflow = cashflow_data.get('annualReports', [])
+            
+            if not annual_income or not annual_balance:
+                return None
+            
+            def pick_report(reports):
+                chosen = None
+                chosen_date = None
+                for report in reports:
+                    fiscal = report.get('fiscalDateEnding') or report.get('fiscalEndDate')
+                    if not fiscal:
+                        continue
+                    try:
+                        report_date = datetime.strptime(fiscal, '%Y-%m-%d')
+                    except ValueError:
+                        continue
+                    if report_date <= as_of_date and (chosen_date is None or report_date > chosen_date):
+                        chosen = report
+                        chosen_date = report_date
+                return chosen
+            
+            income_report = pick_report(annual_income)
+            balance_report = pick_report(annual_balance)
+            cashflow_report = pick_report(annual_cashflow)
+            
+            if not income_report or not balance_report:
+                return None
+            
+            parsed = self._parse_alpha_vantage_data(
+                overview_data if isinstance(overview_data, dict) else {},
+                {'annualReports': [income_report]},
+                {'annualReports': [balance_report]},
+                {'annualReports': [cashflow_report]} if cashflow_report else {}
+            )
+            parsed['as_of_date'] = as_of_date.strftime('%Y-%m-%d')
+            parsed['source'] = 'alpha_vantage_as_of'
+            return parsed
+        except Exception as e:
+            self.logger.error(f"Error fetching Alpha Vantage as-of data for {symbol}: {e}")
+            return None
+    
     def _fetch_from_finnhub_historical(self, symbol: str, year_offset: int = 1) -> Optional[Dict]:
         """Fetch historical fundamental data from Finnhub API"""
         try:
-            # Financials (income statement, balance sheet, cash flow)
-            financials_url = f"https://finnhub.io/api/v1/stock/financials-reported?symbol={symbol}&token={self.finnhub_api_key}"
-            financials_response = requests.get(financials_url, timeout=10)
-            
-            if financials_response.status_code != 200:
+            reports = self._get_finnhub_reports(symbol)
+            if not reports:
                 return None
-            
-            financials_data = financials_response.json()
+            financials_data = reports.get('financials', {})
+            profile_data = reports.get('profile', {})
             
             # Get data from year_offset position
             if financials_data.get('data') and len(financials_data['data']) > year_offset:
                 historical_data = financials_data['data'][year_offset]
-                
-                # Get company profile for basic info
-                profile_url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={self.finnhub_api_key}"
-                profile_response = requests.get(profile_url, timeout=10)
-                profile_data = profile_response.json() if profile_response.status_code == 200 else {}
                 
                 return self._parse_finnhub_data(profile_data, {'data': [historical_data]})
             
@@ -197,23 +471,61 @@ class FundamentalScreeningService:
             self.logger.error(f"Error fetching historical data from Finnhub: {e}")
             return None
     
+    def _fetch_from_finnhub_as_of(self, symbol: str, as_of_date: datetime) -> Optional[Dict]:
+        """Fetch Finnhub data and return snapshot closest to (<=) as_of_date"""
+        try:
+            reports_bundle = self._get_finnhub_reports(symbol)
+            if not reports_bundle:
+                return None
+            data = reports_bundle.get('financials', {})
+            profile_data = reports_bundle.get('profile', {})
+            reports = data.get('data', [])
+            if not reports:
+                return None
+            
+            chosen = None
+            chosen_date = None
+            for report in reports:
+                report_date_str = report.get('reportDate') or report.get('startDate')
+                if not report_date_str:
+                    continue
+                try:
+                    report_date = datetime.strptime(report_date_str, '%Y-%m-%d')
+                except ValueError:
+                    continue
+                if report_date <= as_of_date and (chosen_date is None or report_date > chosen_date):
+                    chosen = report
+                    chosen_date = report_date
+            
+            if not chosen:
+                return None
+            
+            parsed = self._parse_finnhub_data(profile_data, {'data': [chosen]})
+            if parsed:
+                parsed['as_of_date'] = as_of_date.strftime('%Y-%m-%d')
+                parsed['source'] = 'finnhub_as_of'
+            return parsed
+        except Exception as e:
+            self.logger.error(f"Error fetching Finnhub as-of data for {symbol}: {e}")
+            return None
+    
     def _fetch_from_finnhub(self, symbol: str) -> Optional[Dict]:
         """Fetch fundamental data from Finnhub API"""
         try:
             # Company profile
             profile_url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={self.finnhub_api_key}"
-            profile_response = requests.get(profile_url, timeout=10)
+            profile_response = self._fetch_with_retry(profile_url, 'finnhub')
             
-            if profile_response.status_code != 200:
+            if not profile_response:
                 return None
             
             profile_data = profile_response.json()
             
             # Financials (income statement, balance sheet, cash flow)
             financials_url = f"https://finnhub.io/api/v1/stock/financials-reported?symbol={symbol}&token={self.finnhub_api_key}"
-            financials_response = requests.get(financials_url, timeout=10)
+            financials_response = self._fetch_with_retry(financials_url, 'finnhub')
             
-            financials_data = financials_response.json() if financials_response.status_code == 200 else {}
+            financials_data = financials_response.json() if financials_response else {}
             
             # Extract key metrics
             return self._parse_finnhub_data(profile_data, financials_data)
@@ -227,27 +539,27 @@ class FundamentalScreeningService:
         try:
             # Company overview
             overview_url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            overview_response = requests.get(overview_url, timeout=10)
+            overview_response = self._fetch_with_retry(overview_url, 'alpha_vantage')
             
-            if overview_response.status_code != 200:
+            if not overview_response:
                 return None
             
             overview_data = overview_response.json()
             
             # Income statement
             income_url = f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            income_response = requests.get(income_url, timeout=10)
-            income_data = income_response.json() if income_response.status_code == 200 else {}
+            income_response = self._fetch_with_retry(income_url, 'alpha_vantage')
+            income_data = income_response.json() if income_response else {}
             
             # Balance sheet
             balance_url = f"https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            balance_response = requests.get(balance_url, timeout=10)
-            balance_data = balance_response.json() if balance_response.status_code == 200 else {}
+            balance_response = self._fetch_with_retry(balance_url, 'alpha_vantage')
+            balance_data = balance_response.json() if balance_response else {}
             
             # Cash flow
             cashflow_url = f"https://www.alphavantage.co/query?function=CASH_FLOW&symbol={symbol}&apikey={self.alpha_vantage_api_key}"
-            cashflow_response = requests.get(cashflow_url, timeout=10)
-            cashflow_data = cashflow_response.json() if cashflow_response.status_code == 200 else {}
+            cashflow_response = self._fetch_with_retry(cashflow_url, 'alpha_vantage')
+            cashflow_data = cashflow_response.json() if cashflow_response else {}
             
             return self._parse_alpha_vantage_data(overview_data, income_data, balance_data, cashflow_data)
             
@@ -608,7 +920,13 @@ class FundamentalScreeningService:
             'source': 'mock'
         }
     
-    def calculate_piotroski_f_score(self, symbol: str, current_data: Dict = None, previous_data: Dict = None) -> Dict:
+    def calculate_piotroski_f_score(
+        self,
+        symbol: str,
+        current_data: Dict = None,
+        previous_data: Dict = None,
+        as_of_date: Optional[datetime] = None
+    ) -> Dict:
         """
         Calculate Piotroski F-Score (0-9 points) for a company.
         
@@ -621,6 +939,7 @@ class FundamentalScreeningService:
             symbol: Stock symbol
             current_data: Current year financial data
             previous_data: Previous year financial data (for YoY comparisons)
+            as_of_date: Optional date to fetch as-of fundamentals
             
         Returns:
             Dict with F-Score, breakdown, and details
@@ -639,8 +958,11 @@ class FundamentalScreeningService:
         
         # Get previous year data if not provided
         if previous_data is None:
-            # Fetch actual previous year data from API
-            previous_data = self.get_fundamental_data_historical(symbol, year_offset=1)
+            if as_of_date:
+                prev_date = as_of_date - relativedelta(years=1)
+                previous_data = self.get_fundamental_data_as_of(symbol, prev_date)
+            else:
+                previous_data = self.get_fundamental_data_historical(symbol, year_offset=1)
             # Fallback to estimation if historical data not available
             if not previous_data:
                 self.logger.debug(f"Historical data not available for {symbol}, using estimation")
@@ -955,64 +1277,58 @@ class FundamentalScreeningService:
                 'error': 'No financial data available'
             }
         
+        # Local helper
+        def safe_float(value, default: float = 0.0):
+            if value is None:
+                return default
+            if isinstance(value, dict):
+                return default
+            if isinstance(value, (int, float)):
+                return float(value)
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+
         # Get current price if not provided
         if current_price is None:
             if self.market_data_service:
                 try:
-                    # Try to get latest price - get_symbol_history_with_interval returns tuple (data, interval)
-                    latest_data_result = self.market_data_service.get_symbol_history_with_interval(symbol, 1)
-                    if isinstance(latest_data_result, tuple):
-                        latest_data = latest_data_result[0]
-                    else:
-                        latest_data = latest_data_result
-                    
-                    if latest_data and isinstance(latest_data, list) and len(latest_data) > 0:
-                        last_candle = latest_data[-1]
+                    weekly_result = self.market_data_service.get_symbol_history_with_interval(
+                        symbol,
+                        prediction_horizon=520,
+                        preferred_interval='1w',
+                        lookback_years=5,
+                        priority='low',
+                    )
+                    weekly_data = weekly_result[0] if isinstance(weekly_result, tuple) else weekly_result
+                    if weekly_data and isinstance(weekly_data, list):
+                        last_candle = weekly_data[-1]
                         if isinstance(last_candle, dict):
-                            price_value = last_candle.get('close', 0)
+                            price_value = last_candle.get('close') or last_candle.get('price')
                             if price_value:
                                 current_price = float(price_value)
                 except Exception as e:
-                    self.logger.debug(f"Error getting current price for {symbol}: {e}")
-                    pass
-            
-            # Helper function to safely convert to float
-            def safe_float(value, default=0.0):
-                if value is None:
-                    return default
-                if isinstance(value, dict):
-                    return default
-                if isinstance(value, (int, float)):
-                    return float(value)
+                    self.logger.debug(f"Error fetching weekly price for {symbol}: {e}")
+                    current_price = None
+
+            if (not current_price or current_price <= 0) and self.market_data_service:
                 try:
-                    return float(value)
-                except (ValueError, TypeError):
-                    return default
-            
+                    stock_quote = self.market_data_service.get_stock_price(symbol)
+                    if isinstance(stock_quote, dict):
+                        current_price = float(stock_quote.get('price', 0))
+                    elif stock_quote is not None:
+                        current_price = float(stock_quote)
+                except Exception:
+                    current_price = None
+
             if not current_price or current_price <= 0:
-                # Estimate from market cap and shares
                 market_cap = safe_float(financial_data.get('market_cap', 0))
                 shares = safe_float(financial_data.get('shares_outstanding', 1))
                 if market_cap and shares and shares > 0:
                     current_price = market_cap / shares
                 else:
                     current_price = 0
-        
-        # Helper function to safely convert to float (reuse if already defined, otherwise define)
-        try:
-            safe_float
-        except NameError:
-            def safe_float(value, default=0.0):
-                if value is None:
-                    return default
-                if isinstance(value, dict):
-                    return default
-                if isinstance(value, (int, float)):
-                    return float(value)
-                try:
-                    return float(value)
-                except (ValueError, TypeError):
-                    return default
         
         # Ensure current_price is a float
         current_price = safe_float(current_price, 0.0)
@@ -1128,10 +1444,17 @@ class FundamentalScreeningService:
             'recommendation': 'PASS' if accrual_ratio < 5 else ('CAUTION' if accrual_ratio < 10 else 'EXCLUDE')
         }
     
-    def screen_vq_plus_strategy(self, symbols: List[str] = None, min_f_score: int = 7, 
-                                max_z_score: float = 3.0, max_accrual_ratio: float = 5.0,
-                                auto_universe: bool = False, universe_index: str = 'SP500',
-                                value_percentile: float = 0.2) -> List[Dict]:
+    def screen_vq_plus_strategy(
+        self,
+        symbols: List[str] = None,
+        min_f_score: int = 7,
+        max_z_score: float = 3.0,
+        max_accrual_ratio: float = 5.0,
+        auto_universe: bool = False,
+        universe_index: str = 'SP500',
+        value_percentile: float = 0.2,
+        as_of_date: Optional[datetime] = None
+    ) -> Dict[str, List[Dict]]:
         """
         Screen stocks using VQ+ Strategy (Value + Quality with protective filters).
         
@@ -1149,9 +1472,14 @@ class FundamentalScreeningService:
             auto_universe: If True and symbols is None, automatically selects universe and ranks by EBIT/EV
             universe_index: Index to use for universe selection (default: 'SP500')
             value_percentile: Percentile for value screening (0.2 = bottom quintile = highest EBIT/EV)
+            as_of_date: Optional datetime for fetching as-of fundamental data
             
         Returns:
-            List of screened stocks with scores and rankings
+            Dict with:
+                - results: List of screened stocks with scores and rankings
+                - skipped: Symbols filtered out with reasons
+                - errors: Symbols that failed due to processing errors
+                - data_issues: Non-fatal data quality warnings for surfaced symbols
         """
         # Step 1: If auto_universe and no symbols provided, get universe and rank by EBIT/EV
         if (symbols is None or len(symbols) == 0) and auto_universe:
@@ -1163,48 +1491,98 @@ class FundamentalScreeningService:
         elif symbols is None:
             symbols = []
         
-        results = []
+        as_of_dt: Optional[datetime] = None
+        if as_of_date:
+            if isinstance(as_of_date, datetime):
+                as_of_dt = as_of_date
+            else:
+                try:
+                    as_of_dt = datetime.strptime(str(as_of_date), '%Y-%m-%d')
+                except ValueError:
+                    try:
+                        as_of_dt = datetime.fromisoformat(str(as_of_date))
+                    except ValueError:
+                        self.logger.warning(f"Invalid as_of_date format: {as_of_date}")
+                        as_of_dt = None
         
-        for symbol in symbols:
+        results: List[Dict] = []
+        skipped: List[Dict] = []
+        errors: List[Dict] = []
+        data_issues: List[Dict] = []
+        
+        if not symbols:
+            return results
+        
+        max_workers = min(8, max(1, len(symbols)))
+        
+        def process_symbol(symbol: str) -> Dict:
             try:
-                # Get fundamental data
-                financial_data = self.get_fundamental_data(symbol)
+                financial_data = self.get_fundamental_data_as_of(symbol, as_of_dt) if as_of_dt else self.get_fundamental_data(symbol)
                 if not financial_data:
-                    continue
+                    return {
+                        'status': 'skip',
+                        'symbol': symbol,
+                        'reason': 'no_fundamental_data',
+                        'details': 'No financial data retrieved from providers'
+                    }
                 
-                # Validate fundamental data
                 if not self._validate_fundamental_data(financial_data):
                     self.logger.debug(f"Skipping {symbol} due to invalid fundamental data")
-                    continue
+                    return {
+                        'status': 'skip',
+                        'symbol': symbol,
+                        'reason': 'invalid_fundamentals',
+                        'details': 'Validation checks failed (negative equity, missing cash flow, etc.)'
+                    }
                 
-                # Calculate all metrics
-                f_score_result = self.calculate_piotroski_f_score(symbol, financial_data)
+                f_score_result = self.calculate_piotroski_f_score(symbol, financial_data, as_of_date=as_of_dt)
                 z_score_result = self.calculate_altman_z_score(symbol, financial_data)
                 magic_formula = self.calculate_magic_formula_metrics(symbol, financial_data=financial_data)
                 accrual = self.calculate_accrual_ratio(symbol, financial_data)
+                local_issues: List[str] = []
                 
                 f_score = f_score_result.get('score', 0)
                 z_score = z_score_result.get('z_score', 0)
                 accrual_ratio = accrual.get('accrual_ratio', 0)
                 
-                # Apply filters
                 if f_score < min_f_score:
-                    continue  # Filter: Low F-Score
-                
-                if z_score < 3.0:  # We want Z-Score > 3.0 (safe zone)
-                    continue  # Filter: High bankruptcy risk
-                
+                    return {
+                        'status': 'skip',
+                        'symbol': symbol,
+                        'reason': 'f_score_below_threshold',
+                        'value': f_score,
+                        'threshold': min_f_score
+                    }
+                if z_score < 3.0:
+                    return {
+                        'status': 'skip',
+                        'symbol': symbol,
+                        'reason': 'z_score_below_threshold',
+                        'value': z_score,
+                        'threshold': 3.0
+                    }
                 if accrual_ratio > max_accrual_ratio:
-                    continue  # Filter: Poor earnings quality
+                    return {
+                        'status': 'skip',
+                        'symbol': symbol,
+                        'reason': 'accrual_ratio_above_threshold',
+                        'value': accrual_ratio,
+                        'threshold': max_accrual_ratio
+                    }
                 
-                # Calculate combined score (higher is better)
-                # Weight: F-Score (40%), Magic Formula (40%), Z-Score (10%), Accrual (10%)
+                current_price = magic_formula.get('current_price', 0)
+                if current_price is None or current_price <= 0:
+                    local_issues.append('No reliable current price (weekly history + quote lookup failed)')
+                market_cap = financial_data.get('market_cap')
+                if market_cap in (None, 0):
+                    local_issues.append('Missing market cap - combined score may be skewed')
+                
                 normalized_f_score = (f_score / 9) * 100
-                normalized_roic = min(magic_formula.get('roic', 0), 50)  # Cap at 50%
-                normalized_ebit_ev = min(magic_formula.get('ebit_ev', 0), 30)  # Cap at 30%
+                normalized_roic = min(magic_formula.get('roic', 0), 50)
+                normalized_ebit_ev = min(magic_formula.get('ebit_ev', 0), 30)
                 normalized_magic = ((normalized_roic + normalized_ebit_ev) / 2)
-                normalized_z_score = min((z_score / 10) * 100, 100)  # Normalize Z-Score
-                normalized_accrual = max(100 - (abs(accrual_ratio) * 10), 0)  # Lower accrual is better
+                normalized_z_score = min((z_score / 10) * 100, 100)
+                normalized_accrual = max(100 - (abs(accrual_ratio) * 10), 0)
                 
                 combined_score = (
                     normalized_f_score * 0.40 +
@@ -1213,7 +1591,7 @@ class FundamentalScreeningService:
                     normalized_accrual * 0.10
                 )
                 
-                results.append({
+                result_payload = {
                     'symbol': symbol,
                     'company_name': financial_data.get('company_name', symbol),
                     'f_score': f_score,
@@ -1228,11 +1606,50 @@ class FundamentalScreeningService:
                     'z_score_risk': z_score_result.get('risk_level', 'unknown'),
                     'accrual_quality': accrual.get('quality_flag', 'unknown'),
                     'passes_all_filters': True
-                })
-                
-            except Exception as e:
-                self.logger.error(f"Error screening {symbol}: {e}")
-                continue
+                }
+                if local_issues:
+                    result_payload['data_issues'] = local_issues
+                return {
+                    'status': 'ok',
+                    'result': result_payload,
+                    'issues': local_issues
+                }
+            except Exception as exc:
+                self.logger.error(f"Error screening {symbol}: {exc}")
+                return {
+                    'status': 'error',
+                    'symbol': symbol,
+                    'error': str(exc)
+                }
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_symbol = {executor.submit(process_symbol, symbol): symbol for symbol in symbols}
+            for future in as_completed(future_to_symbol):
+                outcome = future.result()
+                if not outcome:
+                    continue
+                status = outcome.get('status')
+                if status == 'ok' and outcome.get('result'):
+                    result_payload = outcome['result']
+                    results.append(result_payload)
+                    for issue in outcome.get('issues', []) or []:
+                        data_issues.append({
+                            'symbol': outcome.get('result', {}).get('symbol', ''),
+                            'issue': issue
+                        })
+                elif status == 'skip':
+                    skipped.append({
+                        'symbol': outcome.get('symbol'),
+                        'reason': outcome.get('reason'),
+                        'details': outcome.get('details'),
+                        'value': outcome.get('value'),
+                        'threshold': outcome.get('threshold')
+                    })
+                elif status == 'error':
+                    errors.append({
+                        'symbol': outcome.get('symbol'),
+                        'error': outcome.get('error')
+                    })
         
         # Sort by combined score (descending)
         results.sort(key=lambda x: x['combined_score'], reverse=True)
@@ -1241,7 +1658,12 @@ class FundamentalScreeningService:
         for i, result in enumerate(results, 1):
             result['rank'] = i
         
-        return results
+        return {
+            'results': results,
+            'skipped': skipped,
+            'errors': errors,
+            'data_issues': data_issues
+        }
     
     def backtest_vq_plus_strategy(
         self,
@@ -1413,15 +1835,23 @@ class FundamentalScreeningService:
                 # Adjust rebalance_date to trading day for price lookup
                 trading_date = self._adjust_to_trading_day(rebalance_date)
                 
-                screened_stocks_raw = self.screen_vq_plus_strategy(
+                screen_payload = self.screen_vq_plus_strategy(
                     symbols=symbols,
                     min_f_score=min_f_score,
                     max_z_score=max_z_score,
                     max_accrual_ratio=max_accrual_ratio,
                     auto_universe=auto_universe,
                     universe_index=universe_index,
-                    value_percentile=value_percentile
+                    value_percentile=value_percentile,
+                    as_of_date=trading_date
                 )
+                screened_stocks_raw = screen_payload.get('results', []) if isinstance(screen_payload, dict) else screen_payload
+                skip_info = screen_payload.get('skipped', []) if isinstance(screen_payload, dict) else []
+                error_info = screen_payload.get('errors', []) if isinstance(screen_payload, dict) else []
+                if skip_info:
+                    self.logger.debug(f"Symbols skipped during screening on {trading_date}: {skip_info}")
+                if error_info:
+                    self.logger.warning(f"Screening errors on {trading_date}: {error_info}")
                 
                 # Apply liquidity filter to screened stocks
                 screened_stocks = []
@@ -2055,17 +2485,23 @@ class FundamentalScreeningService:
                 # Use prediction_horizon > 60 to get weekly/daily data
                 prediction_horizon = min(days_to_fetch, 730)  # Cap at 730 for weekly
                 try:
-                    result = self.market_data_service.get_symbol_history_with_interval(symbol, prediction_horizon)
+                    lookback_years = max(3, min(10, max(1, days_to_fetch // 365 + 1)))
+                    result = self.market_data_service.get_symbol_history_with_interval(
+                        symbol,
+                        prediction_horizon,
+                        preferred_interval='1w',
+                        lookback_years=lookback_years
+                    )
                     if isinstance(result, tuple):
                         historical_data, interval = result
                     else:
                         historical_data = result
                 except Exception as e:
                     self.logger.warning(f"Error using get_symbol_history_with_interval for {symbol}, falling back to get_symbol_history: {e}")
-                    historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch)
+                    historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch, priority='normal')
             else:
                 # Use get_symbol_history for shorter periods (returns list directly)
-                historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch)
+                historical_data = self.market_data_service.get_symbol_history(symbol, days=days_to_fetch, priority='normal')
             
             # Handle case where it might return tuple (data, interval) or None
             if historical_data is None:
@@ -2248,74 +2684,57 @@ class FundamentalScreeningService:
         Returns:
             List of stock symbols
         """
-        # Try to fetch from Wikipedia (most reliable free source)
+        index_upper = (index or '').upper()
+
+        # Prefer static universe to avoid long-running HTTP calls
+        if index_upper in self._static_universes:
+            return list(self._static_universes[index_upper])
+
+        # Fallback: attempt to fetch once; cache for future calls
         try:
-            if index == 'SP500':
-                import requests
-                from bs4 import BeautifulSoup
-                
-                url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-                response = requests.get(url, headers=headers, timeout=10)
-                
-                if response.status_code == 200:
+            from bs4 import BeautifulSoup
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+
+            url_map = {
+                'SP500': ('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'constituents', 0),
+                'DOWJONES': ('https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average', 'wikitable', 1),
+                'NASDAQ100': ('https://en.wikipedia.org/wiki/Nasdaq-100', 'wikitable', 1),
+                'NASDAQ-100': ('https://en.wikipedia.org/wiki/Nasdaq-100', 'wikitable', 1),
+            }
+
+            if index_upper in url_map:
+                url, table_id_or_class, symbol_col = url_map[index_upper]
+                response = self._fetch_with_retry(url, 'wikipedia', headers=headers, timeout=5, max_retries=1, backoff_factor=1.0)
+                if response:
                     soup = BeautifulSoup(response.content, 'html.parser')
-                    table = soup.find('table', {'id': 'constituents'})
+                    if table_id_or_class == 'constituents':
+                        table = soup.find('table', {'id': table_id_or_class})
+                    else:
+                        tables = soup.find_all('table', {'class': table_id_or_class})
+                        table = tables[0] if tables else None
+
                     if table:
                         symbols = []
-                        rows = table.find_all('tr')[1:]  # Skip header
+                        rows = table.find_all('tr')[1:]
                         for row in rows:
                             cells = row.find_all('td')
-                            if cells:
-                                symbol = cells[0].get_text(strip=True)
-                                # Replace dots with hyphens for class shares (e.g., BRK.B -> BRK-B)
-                                symbol = symbol.replace('.', '-')
+                            if not cells:
+                                continue
+                            idx = min(symbol_col, len(cells) - 1)
+                            symbol = cells[idx].get_text(strip=True).replace('.', '-')
+                            if symbol:
                                 symbols.append(symbol)
-                        
                         if symbols:
-                            self.logger.info(f"Fetched {len(symbols)} symbols from S&P 500 Wikipedia page")
-                            return symbols
+                            self._static_universes[index_upper] = symbols
+                            self.logger.info(f"Fetched {len(symbols)} symbols for {index_upper}")
+                            return list(symbols)
         except Exception as e:
-            self.logger.warning(f"Error fetching {index} from Wikipedia: {e}. Using fallback list.")
-        
-        # Fallback: Use comprehensive list
-        if index == 'SP500':
-            # Fallback: Common S&P 500 stocks (top 100)
-            return [
-                'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B',
-                'V', 'JNJ', 'WMT', 'JPM', 'MA', 'PG', 'UNH', 'HD', 'DIS', 'PYPL',
-                'BAC', 'VZ', 'ADBE', 'CMCSA', 'NFLX', 'NKE', 'MRK', 'PFE', 'T',
-                'INTC', 'PEP', 'CSCO', 'TMO', 'AVGO', 'COST', 'ABT', 'ACN', 'CVX',
-                'XOM', 'DHR', 'MDT', 'WFC', 'ABBV', 'ORCL', 'LLY', 'PM', 'NEE',
-                'TXN', 'HON', 'UNP', 'UPS', 'IBM', 'BMY', 'AMGN', 'CI', 'SPGI',
-                'RTX', 'DE', 'ADP', 'GS', 'CAT', 'AMAT', 'LMT', 'MU', 'BKNG',
-                'C', 'AXP', 'MMC', 'CB', 'ADI', 'MCD', 'GE', 'ISRG', 'SYK',
-                'EQIX', 'REGN', 'MCHP', 'ELV', 'CDNS', 'SNPS', 'ZTS', 'APH',
-                'CL', 'FTNT', 'ROP', 'KLAC', 'WDAY', 'FANG', 'ODFL', 'CME',
-                'AON', 'ICE', 'EW', 'ETN', 'ITW', 'PH', 'EMR', 'TT', 'APD'
-            ]
-        elif index == 'RUSSELL2000':
-            # Russell 2000: Full implementation would require API access (e.g., FTSE Russell API)
-            # For now, use a representative sample of smaller-cap stocks
-            self.logger.info("Russell 2000: Using sample list (full implementation requires API access)")
-            return [
-                'AAL', 'AMD', 'ADSK', 'AKAM', 'ALGN', 'ALXN', 'AMAT', 'AMGN',
-                'ANSS', 'APH', 'ATVI', 'AVGO', 'BBY', 'BIDU', 'BIIB',
-                'BKNG', 'CDNS', 'CDW', 'CERN', 'CHTR', 'COST', 'CSX',
-                'CTAS', 'CTSH', 'CTXS', 'DLTR', 'EA', 'EBAY', 'EXPD', 'FAST',
-                'FISV', 'FOX', 'FOXA', 'GILD', 'HAS',
-                'HSIC', 'IDXX', 'ILMN', 'INCY', 'INTU', 'ISRG', 'JBHT',
-                'KLAC', 'LRCX', 'LULU', 'MAR', 'MCHP',
-                'MDLZ', 'MELI', 'MNST', 'MXIM', 'NFLX', 'NTES',
-                'NTAP', 'NXPI', 'ORLY', 'PAYX', 'PCAR', 'PYPL',
-                'QCOM', 'REGN', 'ROST', 'SBUX', 'SGEN', 'SIRI', 'SNPS', 'SPLK',
-                'SWKS', 'TCOM', 'TXN', 'ULTA', 'VRSK',
-                'VRSN', 'VRTX', 'WDC', 'WDAY', 'WYNN', 'XEL', 'ZM'
-            ]
-        else:
-            return []
+            self.logger.warning(f"Error fetching {index_upper} universe from web: {e}. Using fallback list.")
+
+        self.logger.warning(f"Index {index} not recognized or unavailable, returning empty list.")
+        return []
     
     def rank_universe_by_ebit_ev(self, symbols: List[str], percentile: float = 0.2) -> List[Dict]:
         """
@@ -2356,4 +2775,237 @@ class FundamentalScreeningService:
         # Return bottom percentile
         num_to_return = max(1, int(len(ranked) * percentile))
         return ranked[:num_to_return]
+
+    def allocate_capital_equal_weights(self, screened_stocks: List[Dict], total_capital: float) -> List[Dict]:
+        """
+        Allocate capital equally among provided screened stocks.
+        """
+        if not screened_stocks:
+            return []
+        sorted_stocks = sorted(screened_stocks, key=lambda x: x.get('combined_score', 0), reverse=True)
+        count = len(sorted_stocks)
+        if count == 0:
+            return []
+        allocation_per_stock = total_capital / count if total_capital > 0 else 0
+        allocated = []
+        for stock in sorted_stocks:
+            price = self._safe_float(stock.get('current_price'), default=0.0)
+            shares_to_buy = allocation_per_stock / price if price > 0 else 0.0
+            allocated.append({
+                'symbol': stock.get('symbol'),
+                'company_name': stock.get('company_name'),
+                'allocation_amount': round(allocation_per_stock, 2),
+                'allocation_percent': round(100 / count, 2),
+                'shares_to_buy': round(shares_to_buy, 4),
+                'current_price': round(price, 2) if price > 0 else 0.0,
+                'metrics': {
+                    'combined_score': stock.get('combined_score'),
+                    'f_score': stock.get('f_score'),
+                    'z_score': stock.get('z_score'),
+                    'ebit_ev': stock.get('ebit_ev'),
+                    'accrual_ratio': stock.get('accrual_ratio'),
+                }
+            })
+        return allocated
+
+    def simulate_rebalance_scenarios(
+        self,
+        screened_stocks: List[Dict],
+        total_capital: float,
+        max_positions_options: List[int],
+        strategies: List[str],
+        transaction_cost: float = 0.001,
+        current_holdings: Optional[Dict[str, float]] = None
+    ) -> List[Dict]:
+        """
+        Simulate different rebalancing scenarios with predefined strategies.
+        """
+        if not screened_stocks or total_capital <= 0:
+            return []
+
+        current_holdings = current_holdings or {}
+
+        strategy_keys = {
+            'equal_weight': lambda stock: stock.get('combined_score', 0),
+            'momentum': lambda stock: stock.get('ebit_ev', 0),
+            'quality': lambda stock: stock.get('f_score', 0),
+        }
+
+        results = []
+
+        for strategy in strategies:
+            key_func = strategy_keys.get(strategy)
+            if key_func is None:
+                continue
+
+            ranked = sorted(screened_stocks, key=lambda s: key_func(s) if key_func(s) is not None else 0, reverse=True)
+
+            for max_positions in max_positions_options:
+                selected = ranked[:max_positions]
+                if not selected:
+                    continue
+
+                weights = self._calculate_weights(selected, strategy, key_func)
+                allocations = []
+                total_transaction_cost = 0.0
+                turnover_amount = 0.0
+
+                weighted_scores = {
+                    'combined_score': 0.0,
+                    'f_score': 0.0,
+                    'z_score': 0.0,
+                    'ebit_ev': 0.0,
+                    'accrual_ratio': 0.0,
+                }
+
+                for stock, weight in zip(selected, weights):
+                    symbol = stock.get('symbol')
+                    target_value = total_capital * weight
+                    current_value = self._safe_float(current_holdings.get(symbol, 0.0))
+                    trade_value = target_value - current_value
+                    trade_cost = abs(trade_value) * transaction_cost if transaction_cost > 0 else 0.0
+                    total_transaction_cost += trade_cost
+                    turnover_amount += abs(trade_value)
+
+                    metrics = {
+                        'combined_score': stock.get('combined_score'),
+                        'f_score': stock.get('f_score'),
+                        'z_score': stock.get('z_score'),
+                        'ebit_ev': stock.get('ebit_ev'),
+                        'accrual_ratio': stock.get('accrual_ratio'),
+                    }
+
+                    for key in weighted_scores.keys():
+                        value = self._safe_float(metrics.get(key), default=None)
+                        if value is not None:
+                            weighted_scores[key] += value * weight
+
+                    allocations.append({
+                        'symbol': symbol,
+                        'company_name': stock.get('company_name'),
+                        'target_weight': round(weight * 100, 2),
+                        'target_value': round(target_value, 2),
+                        'current_value': round(current_value, 2),
+                        'trade_value': round(trade_value, 2),
+                        'transaction_cost': round(trade_cost, 2),
+                        'metrics': metrics
+                    })
+
+                results.append({
+                    'strategy': strategy,
+                    'max_positions': max_positions,
+                    'allocations': allocations,
+                    'turnover': round(turnover_amount / total_capital if total_capital > 0 else 0, 4),
+                    'transaction_cost': round(total_transaction_cost, 2),
+                    'weighted_scores': {k: round(v, 2) for k, v in weighted_scores.items()},
+                })
+
+        return results
+
+    def _calculate_weights(self, stocks: List[Dict], strategy: str, key_func) -> List[float]:
+        """
+        Calculate portfolio weights based on strategy.
+        """
+        count = len(stocks)
+        if count == 0:
+            return []
+        if strategy == 'equal_weight':
+            return [1.0 / count] * count
+
+        raw_scores = []
+        for stock in stocks:
+            value = key_func(stock)
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                value = 0.0
+            raw_scores.append(max(value, 0.0))
+
+        score_sum = sum(raw_scores)
+        if score_sum <= 0:
+            return [1.0 / count] * count
+
+        return [score / score_sum for score in raw_scores]
+
+    def rebalance_portfolio(
+        self,
+        current_holdings: Optional[Dict[str, float]] = None,
+        target_allocations: Optional[List[Dict]] = None,
+        rebalance_date: Optional[str] = None,
+        transaction_cost: float = 0.0
+    ) -> Dict:
+        """Generate straightforward buy/sell actions required to reach target allocations."""
+        current_holdings = current_holdings or {}
+        target_allocations = target_allocations or []
+
+        actions: List[Dict] = []
+        total_buy = 0.0
+        total_sell = 0.0
+        total_cost = 0.0
+
+        # Map current holdings for quick lookup and allow tracking of leftovers
+        normalized_holdings = {symbol: self._safe_float(value, 0.0) for symbol, value in current_holdings.items()}
+        target_map = {entry.get('symbol'): entry for entry in target_allocations if entry.get('symbol')}
+
+        for symbol, target in target_map.items():
+            target_value = self._safe_float(target.get('allocation_amount'), 0.0)
+            current_value = normalized_holdings.pop(symbol, 0.0)
+            value_diff = round(target_value - current_value, 2)
+            if abs(value_diff) < 0.01:
+                continue
+
+            price_used = self._safe_float(target.get('current_price'), default=None)
+            shares = round(abs(value_diff) / price_used, 4) if price_used and price_used > 0 else 0.0
+            action = 'buy' if value_diff > 0 else 'sell'
+            amount_abs = round(abs(value_diff), 2)
+            cost_component = amount_abs * transaction_cost if transaction_cost > 0 else 0.0
+
+            if value_diff > 0:
+                total_buy += amount_abs
+            else:
+                total_sell += amount_abs
+            total_cost += cost_component
+
+            actions.append({
+                'symbol': symbol,
+                'action': action,
+                'amount': amount_abs,
+                'shares': shares,
+                'current_value': round(current_value, 2),
+                'target_value': round(target_value, 2),
+                'price_used': price_used if price_used else None,
+                'transaction_cost': round(cost_component, 2)
+            })
+
+        # Any holdings not present in the target should be fully liquidated
+        for symbol, current_value in normalized_holdings.items():
+            if abs(current_value) < 0.01:
+                continue
+            amount_abs = round(abs(current_value), 2)
+            cost_component = amount_abs * transaction_cost if transaction_cost > 0 else 0.0
+            total_sell += amount_abs
+            total_cost += cost_component
+            actions.append({
+                'symbol': symbol,
+                'action': 'sell',
+                'amount': amount_abs,
+                'shares': None,
+                'current_value': round(current_value, 2),
+                'target_value': 0.0,
+                'price_used': None,
+                'transaction_cost': round(cost_component, 2)
+            })
+
+        summary = {
+            'rebalance_actions': actions,
+            'rebalance_date': rebalance_date or datetime.utcnow().date().isoformat(),
+            'totals': {
+                'buy_amount': round(total_buy, 2),
+                'sell_amount': round(total_sell, 2),
+                'net_flow': round(total_buy - total_sell, 2),
+                'transaction_cost': round(total_cost, 2)
+            }
+        }
+
+        return summary
 

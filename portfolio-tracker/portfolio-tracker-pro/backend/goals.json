@@ -1,0 +1,43 @@
+[
+  {
+    "id": 1,
+    "user_id": "filip02521",
+    "title": "Rekord 5k!",
+    "type": "value",
+    "target_value": 5000.0,
+    "target_percentage": null,
+    "target_date": "2026-01-01",
+    "start_date": "2025-10-29T22:48:19.625721",
+    "start_value": 3451.493520040168,
+    "current_value": 3451.9144815213517,
+    "progress": 0.027184999651716942,
+    "status": "cancelled",
+    "milestones": [],
+    "created_at": "2025-10-29T22:48:19.625763",
+    "updated_at": "2025-10-29T22:48:34.232490"
+  },
+  {
+    "id": 2,
+    "user_id": "filip02521",
+    "title": "Rekord 5k!",
+    "type": "value",
+    "target_value": 5000.0,
+    "target_percentage": null,
+    "target_date": "2026-01-01",
+    "start_date": "2025-10-29T22:48:23.040465",
+    "start_value": 3451.663940791633,
+    "current_value": 3886.7737682420457,
+    "progress": 28.10176930665009,
+    "status": "active",
+    "milestones": [
+      {
+        "percentage": 25,
+        "name": "25% milestone",
+        "achieved_at": "2025-11-10T12:32:38.080591",
+        "value_at_achievement": 3886.7737682420457
+      }
+    ],
+    "created_at": "2025-10-29T22:48:23.040479",
+    "updated_at": "2025-11-10T12:32:38.080492"
+  }
+]

@@ -68,7 +68,7 @@ class RiskManagementService:
                 })
             
             # Factor 3: Asset type concentration
-            crypto_pct = sum([a.get('allocation_percent', 0) for a in assets if a.get('type') == 'crypto'], default=0)
+            crypto_pct = sum(a.get('allocation_percent', 0) for a in assets if a.get('type') == 'crypto')
             if crypto_pct > 60:
                 risk_points += 15
                 risk_factors.append({
@@ -237,6 +237,7 @@ class RiskManagementService:
                 allocation = asset.get('allocation_percent', 0)
                 volatility = asset.get('volatility', 30)  # Default volatility
                 pnl_percent = asset.get('pnl_percent', 0)
+                asset_type = asset.get('type', 'unknown')
                 
                 # Risk score per asset (0-100)
                 risk_score = volatility * 0.7 + (allocation * 0.3)
@@ -247,6 +248,8 @@ class RiskManagementService:
                     'allocation': allocation,
                     'risk_score': min(100, risk_score),
                     'pnl_percent': pnl_percent,
+                    'volatility': volatility,
+                    'type': asset_type,
                     'color': self._get_risk_color(risk_score)
                 })
             
